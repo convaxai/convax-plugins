@@ -180,7 +180,7 @@ describe("source packages", () => {
     expect(Example Generation.companionAssets.map((asset) => asset.assetName)).toEqual([
       "convax-companion-example-generation-mcp-0.3.0-darwin-arm64",
     ])
-    expect(Example Generation.tag).toBe("plugin-example-generation-v0.3.0")
+    expect(Example Generation.tag).toBe("plugin-example-generation-v0.3.1")
     expect(await fs.readFile(Example Generation.companionAssets[0].path)).toEqual(Example Generation.companionAssets[0].data)
     expect(readStoredZip(skill.zip).map((entry) => entry.relativePath)).toContain("SKILL.md")
     expect(readStoredZip(ffmpeg.zip).map((entry) => entry.relativePath)).toEqual([
