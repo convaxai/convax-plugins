@@ -67,33 +67,25 @@ describe("source packages", () => {
     expect(Example Generation.manifest.contributes.generation.models.map((model) => model.tool)).toEqual(
       generationTools.map((tool) => tool.id),
     )
-    expect(Example Generation.manifest.contributes.generation.models[0].name).toBe("Example Image Pro")
+    expect(Example Generation.manifest.contributes.generation.models[0].name).toBe("Example Image")
+    expect(Example Generation.manifest.contributes.generation.models.find((model) => model.tool.startsWith("video."))?.name)
+      .toBe("Example Video Mini Lite")
     expect(generationTools.map((tool) => tool.id)).toEqual([
+      "image.Example Image",
       "image.Example Image_pro",
-      "image.Example Image",
-      "image.Example Image",
-      "image.Example Image",
-      "image.Example Image",
-      "image.Example Image",
-      "image.nano_banana_pro_1",
-      "image.gpt_image_2",
       "video.Example Video_mini_lite",
-      "video.Example Video_mini",
-      "video.Example Video_fast_vision",
+      "video.Example Video_direct",
       "video.Example Video_vision",
-      "video.Example Video_fast_direct",
-      "video.Example Video_direct",
-      "video.Example Video_direct",
-      "video.Example Video_fast",
+      "video.Example Video_mini",
     ])
     for (const tool of generationTools) {
-      expect(tool.acceptedInputs).toEqual(tool.output === "image" || tool.id === "video.Example Video_fast"
+      expect(tool.acceptedInputs).toEqual(tool.output === "image"
         ? ["reference_image"]
         : ["reference_image", "reference_video", "first_frame", "last_frame", "audio"])
     }
     expect(Example Generation.metadata.companions).toEqual([{
       command: "example-generation-mcp",
-      version: "0.3.0",
+      version: "0.3.1",
       source: "packages/tools/example-generation-mcp",
       targets: [{
         platform: "darwin",
@@ -178,9 +170,9 @@ describe("source packages", () => {
     expect(readStoredZip(hello.zip).map((entry) => entry.relativePath)).toContain("manifest.json")
     expect(readStoredZip(Example Generation.zip).map((entry) => entry.relativePath)).toEqual(["LICENSE", "manifest.json"])
     expect(Example Generation.companionAssets.map((asset) => asset.assetName)).toEqual([
-      "convax-companion-example-generation-mcp-0.3.0-darwin-arm64",
+      "convax-companion-example-generation-mcp-0.3.1-darwin-arm64",
     ])
-    expect(Example Generation.tag).toBe("plugin-example-generation-v0.3.2")
+    expect(Example Generation.tag).toBe("plugin-example-generation-v0.3.3")
     expect(await fs.readFile(Example Generation.companionAssets[0].path)).toEqual(Example Generation.companionAssets[0].data)
     expect(readStoredZip(skill.zip).map((entry) => entry.relativePath)).toContain("SKILL.md")
     expect(readStoredZip(ffmpeg.zip).map((entry) => entry.relativePath)).toEqual([
@@ -316,7 +308,7 @@ describe("source packages", () => {
     expect(helloEntry.artifact.url).toContain("/plugin-hello-convax-v0.2.0/")
     expect(Example GenerationEntry.manifest.schema).toBe("convax.plugin/3")
     expect(Example GenerationEntry.companions[0].targets[0].artifact.url).toContain(
-      "/convax-companion-example-generation-mcp-0.3.0-darwin-arm64",
+      "/convax-companion-example-generation-mcp-0.3.1-darwin-arm64",
     )
     expect(firstSkill).not.toHaveProperty("manifest")
     expect(ffmpegSkillEntry.ownerPluginId).toBe("ffmpeg-tools")
