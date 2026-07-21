@@ -39,7 +39,7 @@ function sourceCompanion(overrides = {}) {
   return {
     command: "example-generation-mcp",
     version: "2.3.4",
-    source: "tools/ffmpeg-mcp",
+    source: "packages/tools/ffmpeg-mcp",
     targets: [{ platform: "darwin", arch: "arm64", path: "dist/darwin-arm64/convax-ffmpeg-mcp" }],
     ...overrides,
   }
@@ -158,13 +158,13 @@ describe("companion executable publishing", () => {
     expect(built.targets[0].data.length).toBe(built.targets[0].artifact.size)
     expect(sha256(built.targets[0].data)).toBe(built.targets[0].artifact.sha256)
 
-    const directory = await fs.mkdtemp(path.join(root, "tools/ffmpeg-mcp/dist/companion-symlink-test-"))
+    const directory = await fs.mkdtemp(path.join(root, "packages/tools/ffmpeg-mcp/dist/companion-symlink-test-"))
     cleanup.push(directory)
     await fs.symlink(
-      path.join(root, "tools/ffmpeg-mcp/dist/darwin-arm64/convax-ffmpeg-mcp"),
+      path.join(root, "packages/tools/ffmpeg-mcp/dist/darwin-arm64/convax-ffmpeg-mcp"),
       path.join(directory, "tool"),
     )
-    const relative = path.relative(path.join(root, "tools/ffmpeg-mcp"), path.join(directory, "tool"))
+    const relative = path.relative(path.join(root, "packages/tools/ffmpeg-mcp"), path.join(directory, "tool"))
       .split(path.sep).join("/")
     const symlinked = parseSourceMetadata(sourceMetadata([sourceCompanion({
       targets: [{ platform: "darwin", arch: "arm64", path: relative }],
