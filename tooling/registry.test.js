@@ -26,6 +26,7 @@ describe("source packages", () => {
     expect(packages.map((pkg) => `${pkg.metadata.kind}/${pkg.metadata.id}`)).toEqual([
       "plugin/ffmpeg-tools",
       "plugin/hello-convax",
+      "plugin/example-generation",
       "skill/ad-idea",
       "skill/audiobook",
       "skill/clip-export",
@@ -42,18 +43,72 @@ describe("source packages", () => {
     const ffmpeg = packages.find((pkg) => pkg.metadata.id === "ffmpeg-tools")
     const ffmpegSkill = packages.find((pkg) => pkg.metadata.kind === "skill" && pkg.metadata.id === "ffmpeg-canvas")
     const hello = packages.find((pkg) => pkg.metadata.id === "hello-convax")
+    const Example Generation = packages.find((pkg) => pkg.metadata.id === "example-generation")
     expect(hello.manifest.schema).toBe("convax.plugin/1")
     expect(hello.manifest.capabilities).toEqual([])
+    expect(Example Generation.manifest).toEqual(expect.objectContaining({
+      capabilities: [],
+      runtime: { command: "example-generation-mcp", type: "mcp-stdio" },
+      schema: "convax.plugin/3",
+    }))
+    expect(Example Generation.manifest.contributes.service).toEqual({
+      actions: ["authorize", "reauthorize", "authorization.cancel", "sign_out"],
+    })
+    const generationTools = Example Generation.manifest.contributes.generation.tools
+    expect(Example Generation.manifest.contributes.generation.models.map((model) => model.tool)).toEqual(
+      generationTools.map((tool) => tool.id),
+    )
+    expect(Example Generation.manifest.contributes.generation.models[0].name).toBe("Example Image Pro")
+    expect(generationTools.map((tool) => tool.id)).toEqual([
+      "image.Example Image_pro",
+      "image.Example Image",
+      "image.Example Image",
+      "image.Example Image",
+      "image.Example Image",
+      "image.Example Image",
+      "image.nano_banana_pro_1",
+      "image.gpt_image_2",
+      "video.Example Video_mini_lite",
+      "video.Example Video_mini",
+      "video.Example Video_fast_vision",
+      "video.Example Video_vision",
+      "video.Example Video_fast_direct",
+      "video.Example Video_direct",
+      "video.Example Video_direct",
+      "video.Example Video_fast",
+    ])
+    for (const tool of generationTools) {
+      expect(tool.acceptedInputs).toEqual(tool.output === "image" || tool.id === "video.Example Video_fast"
+        ? ["reference_image"]
+        : ["reference_image", "reference_video", "first_frame", "last_frame", "audio"])
+    }
+    expect(Example Generation.metadata.companions).toEqual([{
+      command: "example-generation-mcp",
+      version: "0.3.0",
+      source: "tools/example-generation-mcp",
+      targets: [{
+        platform: "darwin",
+        arch: "arm64",
+        path: "dist/darwin-arm64/example-generation-mcp",
+      }],
+    }])
+    expect(Example Generation.manifest).not.toHaveProperty("entry")
     expect(ffmpeg.manifest).toEqual(expect.objectContaining({
       runtime: { command: "convax-ffmpeg-mcp", type: "mcp-stdio" },
-      schema: "convax.plugin/2",
+      schema: "convax.plugin/3",
     }))
     expect(ffmpeg.manifest.contributes.generation.tools.map((tool) => [tool.id, tool.output])).toEqual([
       ["run.image", "image"],
       ["run.video", "video"],
       ["run.audio", "audio"],
+      ["frame.extract", "image"],
+      ["video.trim", "video"],
+      ["video.crop", "video"],
+      ["video.without-audio", "video"],
+      ["audio.extract", "audio"],
     ])
-    for (const tool of ffmpeg.manifest.contributes.generation.tools) {
+    expect(ffmpeg.manifest.contributes.generation.models).toEqual([])
+    for (const tool of ffmpeg.manifest.contributes.generation.tools.slice(0, 3)) {
       expect(tool.acceptedInputs).toEqual([
         "reference_image",
         "reference_video",
@@ -62,6 +117,24 @@ describe("source packages", () => {
         "audio",
       ])
     }
+    for (const tool of ffmpeg.manifest.contributes.generation.tools.slice(3)) {
+      expect(tool.acceptedInputs).toEqual(["reference_video"])
+    }
+    expect(ffmpeg.manifest.contributes.agent.tools).toEqual([
+      { id: "run_image", tool: "run.image" },
+      { id: "run_video", tool: "run.video" },
+      { id: "run_audio", tool: "run.audio" },
+    ])
+    expect(ffmpeg.manifest.contributes.canvas.selectionActions.map((action) => [
+      action.id,
+      action.editor,
+      action.steps.map((step) => step.tool),
+    ])).toEqual([
+      ["extract-frame", "time-point", ["frame.extract"]],
+      ["trim", "time-range", ["video.trim"]],
+      ["separate-audio-video", "confirmation", ["video.without-audio", "audio.extract"]],
+      ["crop", "crop-region", ["video.crop"]],
+    ])
     expect(ffmpeg.manifest.skill).toBe("skills/ffmpeg-canvas/SKILL.md")
     for (const source of ffmpegSkill.files) {
       const embedded = ffmpeg.files.find((file) => file.relativePath === `skills/ffmpeg-canvas/${source.relativePath}`)
@@ -69,7 +142,7 @@ describe("source packages", () => {
     }
     expect(ffmpeg.metadata.companions).toEqual([{
       command: "convax-ffmpeg-mcp",
-      version: "0.1.0",
+      version: "0.2.0",
       source: "tools/ffmpeg-mcp",
       targets: [{
         platform: "darwin",
@@ -86,9 +159,16 @@ describe("source packages", () => {
     expect(first.map((item) => sha256(item.zip))).toEqual(second.map((item) => sha256(item.zip)))
     const byId = (id) => first.find((item) => item.pkg.metadata.id === id)
     const hello = byId("hello-convax")
+    const Example Generation = byId("example-generation")
     const skill = byId("ad-idea")
     const ffmpeg = byId("ffmpeg-tools")
     expect(readStoredZip(hello.zip).map((entry) => entry.relativePath)).toContain("manifest.json")
+    expect(readStoredZip(Example Generation.zip).map((entry) => entry.relativePath)).toEqual(["LICENSE", "manifest.json"])
+    expect(Example Generation.companionAssets.map((asset) => asset.assetName)).toEqual([
+      "convax-companion-example-generation-mcp-0.3.0-darwin-arm64",
+    ])
+    expect(Example Generation.tag).toBe("plugin-example-generation-v0.3.0")
+    expect(await fs.readFile(Example Generation.companionAssets[0].path)).toEqual(Example Generation.companionAssets[0].data)
     expect(readStoredZip(skill.zip).map((entry) => entry.relativePath)).toContain("SKILL.md")
     expect(readStoredZip(ffmpeg.zip).map((entry) => entry.relativePath)).toEqual([
       "FFMPEG-CREDITS",
@@ -104,7 +184,7 @@ describe("source packages", () => {
       "skills/ffmpeg-canvas/references/convax.md",
     ])
     expect(ffmpeg.companionAssets.map((asset) => asset.assetName)).toEqual([
-      "convax-companion-convax-ffmpeg-mcp-0.1.0-darwin-arm64",
+      "convax-companion-convax-ffmpeg-mcp-0.2.0-darwin-arm64",
     ])
     const ffmpegLicense = readStoredZip(ffmpeg.zip).find((entry) => entry.relativePath === "FFMPEG-LICENSE")
     expect(ffmpegLicense?.data).toEqual(await fs.readFile(path.join(root, "tools", "ffmpeg-mcp", "FFMPEG-LICENSE")))
@@ -128,13 +208,13 @@ describe("source packages", () => {
     expect(parseRegistry(JSON.parse(await fs.readFile(output, "utf8")))).toEqual(registry)
     expect(Object.keys(registry)).toEqual(["schema", "sequence", "revision", "packages"])
     const helloEntry = registry.packages.find((item) => item.id === "hello-convax")
-    const ffmpegEntry = registry.packages.find((item) => item.id === "ffmpeg-tools")
+    const Example GenerationEntry = registry.packages.find((item) => item.id === "example-generation")
     const firstSkill = registry.packages.find((item) => item.kind === "skill")
     expect(helloEntry.version).toBe("0.2.0")
     expect(helloEntry.artifact.url).toContain("/plugin-hello-convax-v0.2.0/")
-    expect(ffmpegEntry.manifest.schema).toBe("convax.plugin/2")
-    expect(ffmpegEntry.companions[0].targets[0].artifact.url).toContain(
-      "/convax-companion-convax-ffmpeg-mcp-0.1.0-darwin-arm64",
+    expect(Example GenerationEntry.manifest.schema).toBe("convax.plugin/3")
+    expect(Example GenerationEntry.companions[0].targets[0].artifact.url).toContain(
+      "/convax-companion-example-generation-mcp-0.3.0-darwin-arm64",
     )
     expect(firstSkill).not.toHaveProperty("manifest")
   })
@@ -168,8 +248,8 @@ describe("source packages", () => {
   test("downloads and verifies every declared companion executable", async () => {
     const packages = await discoverPackages()
     const directory = await temporaryDirectory()
-    const ffmpeg = packages.find((pkg) => pkg.metadata.id === "ffmpeg-tools")
-    const [packed] = await packPackages([ffmpeg], path.join(directory, "packed"))
+    const Example Generation = packages.find((pkg) => pkg.metadata.id === "example-generation")
+    const [packed] = await packPackages([Example Generation], path.join(directory, "packed"))
     const companion = packed.companionAssets[0]
     const descriptor = packed.entry.companions[0].targets[0].artifact
     const companionAsset = {
