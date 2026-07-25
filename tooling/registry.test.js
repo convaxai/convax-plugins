@@ -33,6 +33,7 @@ describe("source packages", () => {
   test("validates the complete Plugin and Skill catalog", async () => {
     const packages = await discoverPackages()
     expect(packages.map((pkg) => `${pkg.metadata.kind}/${pkg.metadata.id}`)).toEqual([
+      "plugin/chatcut",
       "plugin/codex-service",
       "plugin/convax-pet",
       "plugin/ffmpeg-tools",
@@ -43,6 +44,7 @@ describe("source packages", () => {
       "plugin/example-generation",
       "skill/ad-idea",
       "skill/audiobook",
+      "skill/chatcut",
       "skill/clip-export",
       "skill/ecommerce-image",
       "skill/ffmpeg-canvas",
@@ -300,13 +302,23 @@ describe("source packages", () => {
     const packages = await discoverPackages()
     const ffmpeg = packages.find((pkg) => pkg.metadata.id === "ffmpeg-tools")
     const ffmpegSkill = packages.find((pkg) => pkg.metadata.kind === "skill" && pkg.metadata.id === "ffmpeg-canvas")
+    const uncomposedPackages = () => packages.map((pkg) => {
+      if (pkg.metadata.kind !== "plugin") return pkg
+      const ownedSkillPrefixes = (pkg.manifest.contributes.skills ?? [])
+        .map((contribution) => `${contribution.path}/`)
+      return {
+        ...pkg,
+        files: pkg.files.filter((file) =>
+          !ownedSkillPrefixes.some((prefix) => file.relativePath.startsWith(prefix))),
+      }
+    })
     const ownerBytes = ffmpeg.files
       .filter((file) => !file.relativePath.startsWith("skills/ffmpeg-canvas/"))
       .reduce((total, file) => total + file.data.byteLength, 0)
-    const oversizedPackages = packages.map((pkg) =>
-      pkg === ffmpeg
-        ? { ...pkg, files: pkg.files.filter((file) => !file.relativePath.startsWith("skills/ffmpeg-canvas/")) }
-        : pkg === ffmpegSkill
+    const oversizedPackages = uncomposedPackages().map((pkg) =>
+      pkg.metadata.kind === "plugin" && pkg.metadata.id === ffmpeg.metadata.id
+        ? pkg
+        : pkg.metadata.kind === "skill" && pkg.metadata.id === ffmpegSkill.metadata.id
           ? {
               ...pkg,
               files: [
@@ -322,12 +334,12 @@ describe("source packages", () => {
           : pkg)
     expect(() => composeOwnedSkillPackages(oversizedPackages)).toThrow("package exceeds 10 MiB")
 
-    const collisionPackages = packages.map((pkg) =>
-      pkg === ffmpeg
+    const collisionPackages = uncomposedPackages().map((pkg) =>
+      pkg.metadata.kind === "plugin" && pkg.metadata.id === ffmpeg.metadata.id
         ? {
             ...pkg,
             files: [
-              ...pkg.files.filter((file) => !file.relativePath.startsWith("skills/ffmpeg-canvas/")),
+              ...pkg.files,
               {
                 absolutePath: "/synthetic/cafe-nfd.md",
                 data: Buffer.from("owner"),
@@ -336,7 +348,7 @@ describe("source packages", () => {
               },
             ],
           }
-        : pkg === ffmpegSkill
+        : pkg.metadata.kind === "skill" && pkg.metadata.id === ffmpegSkill.metadata.id
           ? {
               ...pkg,
               files: [
@@ -352,12 +364,12 @@ describe("source packages", () => {
           : pkg)
     expect(() => composeOwnedSkillPackages(collisionPackages)).toThrow("owned Skill path collides")
 
-    const entryBoundPackages = packages.map((pkg) =>
-      pkg === ffmpeg
+    const entryBoundPackages = uncomposedPackages().map((pkg) =>
+      pkg.metadata.kind === "plugin" && pkg.metadata.id === ffmpeg.metadata.id
         ? {
             ...pkg,
             files: [
-              ...pkg.files.filter((file) => !file.relativePath.startsWith("skills/ffmpeg-canvas/")),
+              ...pkg.files,
               ...Array.from({ length: 1_500 }, (_, index) => ({
                 absolutePath: `/synthetic/plugin-${index}.txt`,
                 data: Buffer.from("p"),
@@ -366,7 +378,7 @@ describe("source packages", () => {
               })),
             ],
           }
-        : pkg === ffmpegSkill
+        : pkg.metadata.kind === "skill" && pkg.metadata.id === ffmpegSkill.metadata.id
           ? {
               ...pkg,
               files: [

@@ -1,30 +1,35 @@
 # Plugin authoring
 
-A Convax Plugin package is inert, offline content. A Plugin with a Web surface is
-served through a private protocol and mounted in an iframe with exactly
-`sandbox="allow-scripts"`. It has an opaque origin: it cannot inspect the parent
-DOM, use browser storage as shared application state, or access Node/Electron.
+A Convax Plugin package is offline content and is inert during validation and
+packing. A Plugin with a Web surface is served through a private protocol and
+mounted in an iframe with exactly `sandbox="allow-scripts"`. It has an opaque
+origin: it cannot inspect the parent DOM, use browser storage as shared application
+state, or access Node/Electron. The one exception at runtime is an explicitly
+declared and authorized OpenCode Hook module described below.
 
-`convax.plugin/2` through `convax.plugin/5` may instead be headless
-executable Tool Plugins. New executable Plugins should use v3, or v4 when they own
-Skills; use v5 for transport-neutral capabilities such as an LLM provider or Pet
-feature. Their ZIP still contains no executable code: the manifest names a separately distributed bare
-`mcp-stdio` command for generation and/or fixed service actions. The Registry may
-bind that command to verified platform artifacts that Convax installs into
-host-owned storage. Explicit Plugin install/update authorizes that exact binding;
-later tool calls do not add another local-command prompt.
+`convax.plugin/2` through `/6` may instead be headless Tool Plugins. Local
+executable contributions name a separately distributed bare `mcp-stdio` command;
+their ZIP still contains no executable code. v4 and later may own Skills, v5 adds
+transport-neutral Project/Canvas grants and LLM display metadata, and v6 may expose
+one HTTPS remote Agent MCP server without a local runtime. Concrete Plugin, Skill,
+and reviewed companion source belongs in this repository; the Convax repository
+supplies only the generic host ABI and lifecycle.
 
 ## Manifest
 
-`package/manifest.json` uses `convax.plugin/1`, `convax.plugin/2`,
-`convax.plugin/3`, `convax.plugin/4`, or `convax.plugin/5`. Only
+`package/manifest.json` uses `convax.plugin/1` through `/6`. Only
 documented fields are accepted. Source metadata must use the matching pair:
 
 - `convax.plugin/1` with `convax.plugin-host/1`;
 - `convax.plugin/2` with `convax.plugin-host/2`;
 - `convax.plugin/3` with `convax.plugin-host/3`;
 - `convax.plugin/4` with `convax.plugin-host/4`;
-- `convax.plugin/5` with `convax.plugin-capability/1`.
+- `convax.plugin/5` with `convax.plugin-capability/1`;
+- `convax.plugin/6` with `convax.plugin-capability/1`.
+
+There is no `convax.plugin-host/5` or `/6`. The capability protocol is versioned
+independently from the manifest schema so later schemas can evolve without another
+major-specific host bridge.
 
 The v1 schema is static-only:
 
@@ -108,12 +113,72 @@ only content-free activity, validated navigation, overlay movement, preferences,
 and wake/tuck lifecycle. Installation never wakes the pet automatically. New pets
 ship as library entries in a new version of the same feature Plugin.
 
+## Agent Hooks
+
+`hooks` names one self-contained `.js` or `.mjs` OpenCode Plugin module:
+
+```json
+{
+  "schema": "convax.plugin/2",
+  "id": "agent-observer",
+  "name": "Agent Observer",
+  "description": "Observes Agent session lifecycle events.",
+  "version": "1.0.0",
+  "hooks": "hooks/index.mjs",
+  "capabilities": [],
+  "contributes": {}
+}
+```
+
+```js
+export const AgentObserver = async ({ client }) => ({
+  event: async ({ event }) => {
+    if (event.type !== "session.idle") return;
+    await client.app.log({
+      body: {
+        service: "agent-observer",
+        level: "info",
+        message: "Agent session became idle",
+      },
+    });
+  },
+});
+```
+
+This is OpenCode's native Plugin function and native Hook object. Convax does not
+define another event enum or dispatch engine. The module may use the Hook events
+supported by the OpenCode version bundled with the host. Callable product tools
+still belong in standard MCP contributions; `hooks` is for lifecycle interception
+and observation.
+
+The module is executable Agent code with the OpenCode Plugin context, including
+filesystem, network, SDK, and Bun capabilities. It is not an iframe and is not
+sandboxed. Therefore an explicit Plugin install or update is execution consent for
+the normalized manifest and exact Hook bytes. Convax copies those bytes to a
+private immutable snapshot and OpenCode never imports the mutable Plugin package
+path. Missing or changed bytes disable that Plugin's Hook and require reinstall.
+Default/background provisioning cannot silently authorize a new Hook or changed
+Hook bytes.
+
+The first version deliberately authorizes one file only. It must be valid JavaScript
+ESM and export at least one OpenCode Plugin entry. Bundle all runtime code into that
+file. Only static `node:` and `bun:` built-in imports may remain; package, relative,
+absolute, CommonJS globals, runtime module loaders such as `node:module`, and dynamic
+imports are rejected. Do not ship a dependency tree, dynamically download code, or
+rely on project-local OpenCode configuration. A Hook-only Plugin uses
+`convax.plugin/2` or later; v1 still requires its ordinary static Canvas surface.
+Hook modules are loaded in stable Plugin-id order after host-configured OpenCode
+Plugins and before Convax's protected-path guard, so the guard sees the final tool
+arguments.
+
 ## Plugin-owned Skills
 
-`convax.plugin/4` and `convax.plugin/5` replace the ambiguous singular `skill` field with explicit
+`convax.plugin/4` introduced explicit
 Plugin-owned Skill contributions. The owner must still provide a real Plugin
 capability—such as a sandboxed Canvas renderer, an executable generation/service
-runtime, or a renderer-mediated generation action—beyond merely wrapping a Skill:
+runtime, a v5 Project/Canvas grant, or a v6 remote Agent MCP endpoint—beyond merely
+wrapping a Skill. v4, v5, and v6 all use the same `contributes.skills` ownership
+contract:
 
 ```json
 {
@@ -160,12 +225,64 @@ remains usable by Codex and other Agent Skills clients. A normal standalone Skil
 that merely benefits from an optional Plugin must omit `ownerPluginId` and provide
 an honest missing-tool fallback instead.
 
+## v5 capability host
+
+`convax.plugin/5` replaces the numbered Plugin Host compatibility pair with
+`convax.plugin-capability/1`. A headless v5 Plugin may request one or more
+Project/Canvas grants (`projects.read`, `canvas.catalog.read`,
+`canvas.document.read`, `canvas.document.write`, or `canvas.events.subscribe`)
+without inventing a Web surface or local runtime. The native host routes those
+calls through the same scoped Project and Canvas services used by the product.
+
+v5 also permits generic `contributes.llm` display metadata for a verified local
+runtime. Provider credentials, base URLs, and routing do not belong in the
+manifest. v6 inherits the v5 capability contract and all v4 owned-Skill behavior.
+
+## v6 remote Agent MCP
+
+`convax.plugin/6` may contribute one standards-based remote MCP server directly to
+the Agent:
+
+```json
+{
+  "schema": "convax.plugin/6",
+  "id": "remote-editor",
+  "name": "Remote Editor",
+  "description": "Connects the Agent to the Remote Editor service.",
+  "version": "1.0.0",
+  "contributes": {
+    "agent": {
+      "mcp": {
+        "type": "remote",
+        "url": "https://editor.example.com/mcp",
+        "oauth": "auto",
+        "headers": { "X-Client": "convax" }
+      }
+    }
+  }
+}
+```
+
+The URL must be absolute HTTPS with no embedded credentials or fragment. `oauth`
+is `auto` (the default) or `none`. `headers` is optional and contains at most 16
+static literal, non-secret values; `Authorization`, `Cookie`, and
+`Proxy-Authorization` are forbidden, as are environment/file placeholders.
+
+Convax delegates this declaration to OpenCode/the native MCP host, which owns the
+remote connection and standard OAuth flow. The service keeps its own account and
+authentication system. Do not add a Convax-specific adapter, `runtime`, local
+command, executable fallback, credential, or token to make the remote MCP work. A
+runtime may coexist only when it backs a separate local contribution. This
+`agent.mcp` contribution is itself a real Plugin capability and may coexist with
+v4+ owned Skills and v5 Project/Canvas grants.
+
 ## Declarative Tool Plugin
 
-A headless v3 or v4 package declares `runtime` together with `contributes.generation`,
-`contributes.service`, or both. It does not need an `entry`, `capabilities`, fake
-HTML, Canvas renderer, provider field, or credential field. The execution catalog
-and model catalog are deliberately separate:
+A headless v3 through v6 local executable package declares `runtime` together with
+`contributes.generation`, `contributes.service`, and/or the v5+ `contributes.llm`.
+It does not need an `entry`, fake HTML, Canvas renderer, provider connection
+details, or credential fields. The generation execution catalog and model catalog
+are deliberately separate:
 
 ```json
 {
@@ -207,7 +324,7 @@ Outputs are `text`, `image`, `video`, or `audio`. `acceptedInputs` may contain o
 argument, so a prompt-only tool declares `[]`. Tool ids are unique within the
 Plugin, and execution callers see `<plugin-id>/<tool-id>`.
 
-v3 may expose selected non-model tools to the Agent with
+v3 and later local generation declarations may expose selected non-model tools to the Agent with
 `contributes.agent.tools`. Each item has a stable Agent id matching
 `^[a-z][a-z0-9_]{0,63}$` and a `tool` reference. At most 32 are allowed; ids and
 tool references are unique, and model tools cannot also be Agent tools. Hosts
@@ -215,6 +332,20 @@ derive the public name generically from the Plugin and Agent ids, for example
 `plugin_ffmpeg_tools_run_video`. MCP clients may add their server namespace, such
 as `convax_plugin_ffmpeg_tools_run_video`. A Plugin id never creates a host special
 case.
+
+v6 operations may set `"delivery": "return"` when `output` is `text`. The host
+then reuses the normal verified companion, bounded input staging, stale-source
+checks, cancellation, and at-most-once execution path, but returns one bounded
+text result to the Agent instead of creating a Canvas node. Return-delivery tools
+cannot be models or Canvas selection actions.
+
+An Agent operation that represents a Canvas sink may additionally declare
+`"inputBinding": "direct-incoming"`. Its Agent tool requires an `ownerNodeId`;
+the host verifies that this is a Canvas node owned by the same installed Plugin
+and that every supplied reference is still connected directly into it, both
+before staging and immediately before execution. Such a tool must accept at least
+one reference role and cannot be a model. This is a generic graph constraint, not
+a Plugin-id special case.
 
 Video-node actions are declared under `contributes.canvas.selectionActions`.
 Each action supplies localized `title` and `description`, `target: "video"`, one
@@ -240,7 +371,7 @@ closed and require reinstall. The Plugin manifest never contains build paths,
 vendor credentials, or a fallback download URL, and the user does not need to copy
 the executable into `PATH`.
 
-A v2 through v5 Web surface that calls installed generation tools requests
+A v2 through v6 Web surface that calls installed generation tools requests
 `generation.execute` and uses an ordinary `entry` plus Canvas contribution. It may
 omit `runtime` and `contributes.generation`. Declaring a runtime does not grant the
 Web surface caller authority, and granting `generation.execute` does not let the
@@ -248,7 +379,7 @@ iframe start processes or send arbitrary MCP requests.
 
 ## Plugin service contribution
 
-A v2 through v5 executable Plugin may expose bounded account/service state through the same
+A v2 through v6 executable Plugin may expose bounded account/service state through the same
 verified sidecar process used by generation. The manifest declares only which
 fixed host actions are meaningful; it cannot choose MCP method names or attach an
 action payload:
@@ -369,11 +500,16 @@ Responses repeat `protocol`, `type: "response"`, and `id`, with either
 `{"ok":true,"result":...}` or `{"ok":false,"error":"..."}`. Toolbar commands
 arrive as `{"protocol":"convax.plugin-host/1","type":"command","command":"refresh"}`.
 
+v5 and v6 use `convax.plugin-capability/1`, not a synthesized
+`convax.plugin-host/5` or `/6`. Use only the typed capability client supplied by a
+compatible host; do not recreate that transport or forward arbitrary methods.
+
 ## Capabilities
 
 | Method                        | Manifest capability           | Scope                                                        |
 | ----------------------------- | ----------------------------- | ------------------------------------------------------------ |
 | `host.context.get`            | none                          | current Project, Canvas, and owning node                     |
+| `canvas.connectedInputs.list` | `canvas.connectedInputs.read` | pathless metadata for direct incoming media                  |
 | `canvas.node.get`             | `canvas.node.read`            | owning node only                                             |
 | `canvas.node.updateState`     | `canvas.node.write`           | Plugin-namespaced node state                                 |
 | `canvas.connectedImages.list` | `canvas.connectedImages.read` | directly connected managed Canvas image nodes                |
@@ -396,10 +532,18 @@ The canonical production example is
 and manifest live in this repository, while Convax Desktop owns only these generic
 host operations.
 
+`canvas.connectedInputs.list` returns only bounded node id, kind, label/name, MIME,
+status, and basic media metadata in direct-edge order. It never returns bytes,
+native paths, managed Project paths, or account credentials. The corresponding
+`canvas.connectedInputs.changed` command means the pending list is stale; it does
+not authorize upload or any other external side effect. A Web surface should
+refresh its list and wait for an explicit user action.
+
 ## Forbidden behavior
 
 No remote scripts/assets, iframe network APIs, popups, downloads, eval-generated
 code, native/WASM executables, packaged Node servers, filesystem paths, secrets,
 telemetry, service workers, or generic method forwarding. Do not edit `.convax`
-files. A v2, v3, v4, or v5 external runtime is a separately installed and authorized tool, never a
-Plugin ZIP asset. Use host capabilities only.
+files. A v2 through v6 external runtime is a separately installed and authorized
+tool, never a Plugin ZIP asset. A v6 remote Agent MCP URL is host-consumed metadata,
+not iframe network permission. Use host capabilities only.

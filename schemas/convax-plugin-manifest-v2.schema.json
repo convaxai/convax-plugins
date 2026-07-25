@@ -7,27 +7,23 @@
   "required": ["schema", "id", "name", "description", "version", "contributes"],
   "properties": {
     "schema": { "const": "convax.plugin/2" },
-    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 80 },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 80
+    },
     "name": { "type": "string", "minLength": 1, "maxLength": 120 },
     "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
     "version": { "$ref": "#/$defs/semver" },
     "entry": { "$ref": "#/$defs/path" },
+    "hooks": { "$ref": "#/$defs/hookPath" },
     "skill": { "$ref": "#/$defs/path" },
     "capabilities": {
       "type": "array",
       "uniqueItems": true,
       "maxItems": 8,
       "items": {
-        "enum": [
-          "canvas.connectedImages.read",
-          "canvas.image.write",
-          "canvas.node.read",
-          "canvas.node.write",
-          "project.files.read",
-          "agent.prompt",
-          "generation.execute",
-          "ui.fullscreen"
-        ]
+        "enum": ["canvas.connectedImages.read", "canvas.image.write", "canvas.node.read", "canvas.node.write", "project.files.read", "agent.prompt", "generation.execute", "ui.fullscreen"]
       }
     },
     "contributes": {
@@ -47,7 +43,10 @@
       "then": { "properties": { "contributes": { "required": ["canvas"] } } }
     },
     {
-      "if": { "properties": { "contributes": { "required": ["canvas"] } }, "required": ["contributes"] },
+      "if": {
+        "properties": { "contributes": { "required": ["canvas"] } },
+        "required": ["contributes"]
+      },
       "then": { "required": ["entry"] }
     },
     {
@@ -55,25 +54,30 @@
       "then": {
         "properties": {
           "contributes": {
-            "anyOf": [
-              { "required": ["generation"] },
-              { "required": ["service"] }
-            ]
+            "anyOf": [{ "required": ["generation"] }, { "required": ["service"] }]
           }
         }
       }
     },
     {
-      "if": { "properties": { "contributes": { "required": ["generation"] } }, "required": ["contributes"] },
-      "then": { "required": ["runtime"] }
-    },
-    {
-      "if": { "properties": { "contributes": { "required": ["service"] } }, "required": ["contributes"] },
+      "if": {
+        "properties": { "contributes": { "required": ["generation"] } },
+        "required": ["contributes"]
+      },
       "then": { "required": ["runtime"] }
     },
     {
       "if": {
-        "properties": { "capabilities": { "contains": { "const": "generation.execute" } } },
+        "properties": { "contributes": { "required": ["service"] } },
+        "required": ["contributes"]
+      },
+      "then": { "required": ["runtime"] }
+    },
+    {
+      "if": {
+        "properties": {
+          "capabilities": { "contains": { "const": "generation.execute" } }
+        },
         "required": ["capabilities"]
       },
       "then": {
@@ -84,12 +88,21 @@
   ],
   "anyOf": [
     { "required": ["runtime"] },
+    { "required": ["hooks"] },
     {
-      "properties": { "capabilities": { "contains": { "const": "generation.execute" } } },
+      "properties": {
+        "capabilities": { "contains": { "const": "generation.execute" } }
+      },
       "required": ["capabilities"]
     }
   ],
   "$defs": {
+    "hookPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?!\\s)(?!.*\\s$)(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*\\\\)(?!.*[. ](?:/|$))(?!.*(?:^|/)(?:[Cc][Oo][Nn]|[Pp][Rr][Nn]|[Aa][Uu][Xx]|[Nn][Uu][Ll]|[Cc][Oo][Mm][1-9¹²³]|[Ll][Pp][Tt][1-9¹²³]|[Cc][Oo][Nn][Ii][Nn]\\$|[Cc][Oo][Nn][Oo][Uu][Tt]\\$)(?:\\.|/|$))[^\\u0000-\\u001f\\u007f\\\\:*?\"<>|]+\\.(?:js|mjs)$"
+    },
     "semver": {
       "type": "string",
       "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
@@ -119,17 +132,53 @@
       "additionalProperties": false,
       "properties": {
         "create": { "type": "boolean" },
-        "extensions": { "type": "array", "uniqueItems": true, "maxItems": 64, "items": { "type": "string", "pattern": "^\\.[a-z0-9][a-z0-9._+-]{0,31}$" } },
-        "mimeTypes": { "type": "array", "uniqueItems": true, "maxItems": 64, "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$" } },
-        "nodeKinds": { "type": "array", "uniqueItems": true, "maxItems": 64, "items": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$" } },
+        "extensions": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "pattern": "^\\.[a-z0-9][a-z0-9._+-]{0,31}$"
+          }
+        },
+        "mimeTypes": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$"
+          }
+        },
+        "nodeKinds": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+          }
+        },
         "width": { "type": "integer", "minimum": 1, "maximum": 8192 },
         "height": { "type": "integer", "minimum": 1, "maximum": 8192 }
       },
       "anyOf": [
-        { "properties": { "create": { "const": true } }, "required": ["create"] },
-        { "properties": { "extensions": { "minItems": 1 } }, "required": ["extensions"] },
-        { "properties": { "mimeTypes": { "minItems": 1 } }, "required": ["mimeTypes"] },
-        { "properties": { "nodeKinds": { "minItems": 1 } }, "required": ["nodeKinds"] }
+        {
+          "properties": { "create": { "const": true } },
+          "required": ["create"]
+        },
+        {
+          "properties": { "extensions": { "minItems": 1 } },
+          "required": ["extensions"]
+        },
+        {
+          "properties": { "mimeTypes": { "minItems": 1 } },
+          "required": ["mimeTypes"]
+        },
+        {
+          "properties": { "nodeKinds": { "minItems": 1 } },
+          "required": ["nodeKinds"]
+        }
       ]
     },
     "toolbarItem": {
@@ -137,7 +186,11 @@
       "additionalProperties": false,
       "required": ["id", "title", "command"],
       "properties": {
-        "id": { "type": "string", "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)*$", "maxLength": 80 },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)*$",
+          "maxLength": 80
+        },
         "title": { "type": "string", "minLength": 1, "maxLength": 120 },
         "command": { "type": "string", "minLength": 1, "maxLength": 256 }
       }
@@ -160,7 +213,11 @@
       "additionalProperties": false,
       "required": ["id", "title", "description", "output", "acceptedInputs"],
       "properties": {
-        "id": { "type": "string", "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)*$", "maxLength": 80 },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)*$",
+          "maxLength": 80
+        },
         "title": { "type": "string", "minLength": 1, "maxLength": 120 },
         "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
         "output": { "enum": ["text", "image", "video", "audio"] },
@@ -168,7 +225,9 @@
           "type": "array",
           "uniqueItems": true,
           "maxItems": 6,
-          "items": { "enum": ["reference_image", "reference_video", "first_frame", "last_frame", "audio", "text"] }
+          "items": {
+            "enum": ["reference_image", "reference_video", "first_frame", "last_frame", "audio", "text"]
+          }
         }
       }
     },
@@ -193,7 +252,12 @@
       "required": ["type", "command"],
       "properties": {
         "type": { "const": "mcp-stdio" },
-        "command": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
         "args": {
           "type": "array",
           "maxItems": 64,

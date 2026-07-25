@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark light">
+    <title>ChatCut Workspace</title>
+    <link rel="stylesheet" href="assets/styles.css">
+  </head>
+  <body>
+    <main class="workspace">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32">
+              <path d="M8 7.5h16a3 3 0 0 1 3 3v11a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3v-11a3 3 0 0 1 3-3Z"></path>
+              <path d="m13 12 8 4-8 4v-8Z"></path>
+              <path d="M10 4v3.5M22 4v3.5"></path>
+            </svg>
+          </span>
+          <span>
+            <strong>ChatCut</strong>
+            <small>Canvas video workspace</small>
+          </span>
+        </div>
+        <span class="connection-pill is-waiting" id="connectionPill" role="status">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span id="connectionText">等待 Convax</span>
+        </span>
+      </header>
+
+      <section class="context-bar" aria-label="当前画布范围">
+        <span class="context-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M4 5.5h6l2 2h8v11H4v-13Z"></path>
+          </svg>
+        </span>
+        <span class="context-copy">
+          <span class="context-label">当前范围</span>
+          <strong id="contextText">正在读取项目和画布…</strong>
+        </span>
+        <span class="scope-note">ChatCut 账号连接在「设置 → Skills &amp; Plugins」中管理</span>
+      </section>
+
+      <div class="content-grid">
+        <aside class="workflow-panel" aria-labelledby="workflowTitle">
+          <section class="inputs-panel" aria-labelledby="inputsTitle">
+            <div class="section-heading">
+              <span>
+                <small>CANVAS INPUTS</small>
+                <strong id="inputsTitle">已连接素材</strong>
+              </span>
+              <span class="step-badge">1</span>
+            </div>
+            <p class="section-description">
+              将图片、视频或音频节点连入 ChatCut。连接变化只更新这里的待导入列表，不会自动上传。
+            </p>
+            <div class="input-counts" id="inputCounts" aria-label="已连接素材统计">
+              <span><strong id="imageCount">0</strong> 图片</span>
+              <span><strong id="videoCount">0</strong> 视频</span>
+              <span><strong id="audioCount">0</strong> 音频</span>
+            </div>
+            <ol class="connected-input-list" id="connectedInputList" aria-live="polite"></ol>
+            <p class="connected-input-empty" id="connectedInputEmpty">
+              暂无直接连入的媒体节点。先在画布上连线，再回到这里导入。
+            </p>
+            <button class="import-button" id="importButton" type="button" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 4v10m-4-4 4 4 4-4M5 19h14"></path>
+              </svg>
+              <span id="importButtonText">导入已连接素材</span>
+            </button>
+            <p class="import-note">每批最多 4 个素材；点击后 Agent 才会请求 ChatCut 导入授权。</p>
+          </section>
+
+          <div class="panel-divider"></div>
+
+          <div class="section-heading">
+            <span>
+              <small>WORKFLOWS</small>
+              <strong id="workflowTitle">常用工作流</strong>
+            </span>
+            <span class="step-badge">2</span>
+          </div>
+          <p class="section-description">先选择一个草稿，再补充项目、时间线和范围。</p>
+          <div class="workflow-list">
+            <button class="workflow-button" data-workflow="inspect" type="button">
+              <span class="workflow-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4zM8 10h8M8 14h5"></path></svg>
+              </span>
+              <span><strong>检查项目</strong><small>只读列出可访问项目</small></span>
+            </button>
+            <button class="workflow-button" data-workflow="edit" type="button">
+              <span class="workflow-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M5 18 16.5 6.5l2 2L7 20H5v-2ZM13 6h-3M13 18h6"></path></svg>
+              </span>
+              <span><strong>自然语言剪辑</strong><small>按目标调整时间线</small></span>
+            </button>
+            <button class="workflow-button" data-workflow="cleanup" type="button">
+              <span class="workflow-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 12h2l2-5 3 10 3-8 2 3h4M6 20h12"></path></svg>
+              </span>
+              <span><strong>清理口播</strong><small>停顿、口头禅与节奏</small></span>
+            </button>
+            <button class="workflow-button" data-workflow="captions" type="button">
+              <span class="workflow-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 5h16v12H9l-5 3V5ZM8 10h3M13 10h3M8 14h8"></path></svg>
+              </span>
+              <span><strong>字幕与转录</strong><small>生成并校对字幕轨</small></span>
+            </button>
+            <button class="workflow-button" data-workflow="export" type="button">
+              <span class="workflow-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 4v11m-4-4 4 4 4-4M5 19h14"></path></svg>
+              </span>
+              <span><strong>导出 MP4</strong><small>确认版本后再导出</small></span>
+            </button>
+          </div>
+        </aside>
+
+        <section class="agent-panel" aria-labelledby="requestTitle">
+          <div class="section-heading">
+            <span>
+              <small>CHATCUT AGENT</small>
+              <strong id="requestTitle">描述你想完成的剪辑</strong>
+            </span>
+            <span class="step-badge">3</span>
+          </div>
+          <form id="promptForm">
+            <label class="sr-only" for="promptInput">ChatCut 剪辑请求</label>
+            <textarea
+              id="promptInput"
+              maxlength="12000"
+              placeholder="例如：先列出我的项目。选定后，把 00:12–00:48 的口播删除长停顿并生成中文字幕；保留可编辑工程，暂时不要导出。"
+              rows="5"
+            ></textarea>
+            <div class="composer-footer">
+              <span class="composer-hint">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 7v5c0 4.5 3.2 7.7 8 9 4.8-1.3 8-4.5 8-9V7l-8-4Z"></path></svg>
+                Agent 会先加载 <code>$chatcut</code>，并只使用当前会话公开的 MCP 工具
+              </span>
+              <button class="run-button" id="runButton" type="submit" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 4 15 8-15 8 3-8-3-8Z"></path></svg>
+                <span id="runButtonText">交给 Agent</span>
+              </button>
+            </div>
+          </form>
+
+          <section class="result-card" id="resultCard" aria-labelledby="resultTitle">
+            <div class="result-header">
+              <span>
+                <span class="result-indicator" aria-hidden="true"></span>
+                <strong id="resultTitle">工作区提示</strong>
+              </span>
+              <button class="clear-button" id="clearButton" type="button">清空</button>
+            </div>
+            <div class="result-body" id="resultText" role="status">
+              连接 ChatCut 后，在这里提交请求。涉及修改时，Agent 会先确认项目和目标范围；只有明确要求时才会导出。
+            </div>
+          </section>
+        </section>
+      </div>
+    </main>
+    <script src="assets/app.js"></script>
+  </body>
+</html>

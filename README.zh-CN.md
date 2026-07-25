@@ -48,17 +48,33 @@ bun run pack -- --kind skill --id my-skill
 生成的插件 ZIP 在根目录包含 `manifest.json`，技能 ZIP 在根目录包含
 `SKILL.md`。校验和打包期间不会安装依赖，也不会执行投稿者提供的构建脚本。
 
-新的可执行工具插件使用 `convax.plugin/3`，也可以是无界面的；如果同一个插件还拥有 Skill，
-则使用 `convax.plugin/4`。两种 schema 都将可执行工具、模型列表、智能体工具和画布选中动作
-分开声明，使宿主无需识别插件标识即可完成组合。其 ZIP 仍然只包含惰性包文件：
-manifest 为生成能力和/或固定服务动作声明一个单独安装的裸 `mcp-stdio` 命令，但绝不
-内嵌可执行文件、依赖、厂商凭据或 provider 配置。参见
+可执行工具插件可以是无界面的。`convax.plugin/3` 将可执行工具、模型列表、智能体工具
+和画布选中动作分开声明；`convax.plugin/4` 及更高版本还可以拥有 Skill。本地可执行
+贡献通过 manifest 声明一个单独安装的裸 `mcp-stdio` 命令，但绝不内嵌可执行文件、
+依赖、厂商凭据或 provider 配置。参见
 [`docs/plugin-authoring.md`](docs/plugin-authoring.md#declarative-tool-plugin)。
 对于经过审查的第一方工具，Registry 会在 ZIP 之外发布精确到平台和架构的 companion
 工件。Convax 按字节数和 SHA-256 校验后写入宿主管理目录，因此用户无需通过 `PATH`
 手工安装 sidecar，可执行文件也始终不会进入插件包。
 
-`convax.plugin/4` 新增插件拥有的技能。v4 插件通过 `contributes.skills` 声明技能，
+插件也可以通过 `hooks` 声明一个自包含的 OpenCode Hook 模块。Convax 只会在用户明确
+安装或更新时对其 JavaScript 字节做快照和指纹绑定，再由 OpenCode 加载宿主私有快照。
+Hook 事件完全沿用 OpenCode，Convax 不会另造一套 Hook API。由于它是可执行 Agent
+代码而不是 iframe 内容，默认安装和后台更新不会静默授权新的 Hook 字节。详见
+[`docs/plugin-authoring.md`](docs/plugin-authoring.md#agent-hooks)。
+
+`convax.plugin/5` 和 `/6` 使用与传输无关的
+`convax.plugin-capability/1` 宿主契约。v5 新增 Project/Canvas 权限和通用 LLM
+展示元数据；v6 还可以声明一个 HTTPS 远程 Agent MCP 端点。Convax 将该端点和标准
+OAuth 委托给 OpenCode/原生 MCP 宿主，远程服务继续拥有自己的账号和鉴权系统。声明中
+不包含本地命令、适配层或秘密，只允许有界的非凭据字面量请求头。具体插件、Skill 和
+受审 companion 源码继续归本仓库所有，不会移入 Convax 宿主。
+
+v6 也支持画布 sink 操作：Web 节点只能查看直接连入媒体的无路径元数据；manifest
+声明的本地操作可以把 Agent 引用约束到这些精确入边，并把有界文本结果返回给 Agent，
+而不创建额外画布节点。连线变化只刷新待处理输入，任何外部传输仍需用户明确触发。
+
+`convax.plugin/4` 及更高版本支持插件拥有的技能。插件通过 `contributes.skills` 声明技能，
 打包器会把对应的标准技能 workspace 注入插件 ZIP。Convax 可以在技能列表中展示它，
 但安装、更新和卸载生命周期都归插件所有。独立技能 ZIP 仍可供 Codex 及其他兼容
 Agent Skills 的客户端使用。由于同一份源码会同时改变两个压缩包，发布插件拥有的技能时
@@ -102,9 +118,11 @@ Pet 功能插件使用 `convax.plugin-capability/1` 兼容性组合，通过 `co
 在兼容版本的 Convax 中打开“设置 → 技能与插件”。能力目录从上面的公开 Registry
 加载。点击安装插件或安装技能后，渲染进程只会把包标识传给主进程，由主进程下载并
 校验对应的不可变 Release ZIP。
-若 v2、v3、v4 或 v5 插件声明了 Registry companion，同一次安装会只选择当前平台和架构的精确工件，
+若 v2 至 v6 插件为本地 runtime 声明了 Registry companion，同一次安装会只选择当前
+平台和架构的精确工件，
 并在静态 ZIP 之外独立校验其不可变 URL、字节数和 SHA-256。
-对于 v4 和 v5，插件拥有的技能也在同一插件事务中接纳和移除，不能在 Convax 中独立安装或卸载。
+对于 v4 及更高版本，插件拥有的技能也在同一插件事务中接纳和移除，不能在 Convax 中
+独立安装或卸载。
 
 `microvoid/convax-plugins` 仓库、Registry 和 Release 资源都是公开的，不需要
 GitHub 账号或令牌。主应用仓库 `microvoid/convax` 可以继续保持私有，不会影响包安装。
@@ -167,14 +185,21 @@ Registry 条目、为 ZIP 创建来源证明并发布 GitHub Release。Pages 工
 
 ## 安全边界
 
-第三方插件 ZIP 只能包含惰性文件。Web 界面只能是静态 HTML、CSS 和 JavaScript，
+第三方插件 ZIP 在校验和打包阶段始终按惰性文件处理。Web 界面只能是静态 HTML、CSS 和 JavaScript，
 并由 Convax 放入仅带 `sandbox="allow-scripts"` 的 iframe 中运行；ZIP 不能包含原生
-可执行文件、Node/Electron 代码、网络权限或通用宿主桥接。v2、v3、v4 或 v5 工具插件可以声明一个
+可执行文件、Node/Electron 代码、网络权限或通用宿主桥接。v2 至 v6 工具插件可以声明一个
 单独安装的外部命令。Convax 会在用户明确安装或更新插件时独立解析并校验指纹；这次
 操作即表示同意运行该精确绑定，后续调用不会再弹出本地命令确认。该命令不会进入 ZIP。
 Registry companion 是独立且不可变的 Release 工件，仅在目标、大小和摘要全部精确校验后
 才会被接纳。每个宿主调用都绑定当前插件节点，并按 manifest 中声明的最小权限校验。技能只是工作流
 说明，不会授予可执行权限。
+
+唯一显式例外是 manifest 声明的 `hooks`：一个作为 OpenCode 原生 Plugin 执行的、
+已经打包成单文件的 JavaScript ESM 模块。安装授权会绑定规范化 manifest 和精确字节，
+OpenCode 只加载宿主私有快照。它不是沙箱代码，因此默认安装或后台更新不能静默授权它。
+
+v6 的远程 Agent MCP 贡献不同：它只声明一个由原生 Agent 宿主通过标准 MCP/OAuth
+能力连接的 HTTPS 端点，不会授予 iframe 网络权限，不会发布本地命令，也不会携带凭据。
 
 ## 许可证
 

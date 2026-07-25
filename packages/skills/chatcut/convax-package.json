@@ -1,0 +1,14 @@
+{
+  "schema": "convax.package/1",
+  "kind": "skill",
+  "id": "chatcut",
+  "name": "ChatCut",
+  "description": "Import connected Convax Canvas media and operate authenticated ChatCut projects through MCP while preserving editable project state and explicit export intent.",
+  "version": "0.3.1",
+  "license": "MIT",
+  "compatibility": {
+    "skillSchema": "opencode.skill/1"
+  },
+  "yanked": false,
+  "ownerPluginId": "chatcut"
+}

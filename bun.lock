@@ -4,7 +4,17 @@
   "workspaces": {
     "": {
       "name": "@microvoid/convax-plugins-registry",
-      "version": "0.1.0"
+      "dependencies": {
+        "acorn": "8.17.0"
+      }
+    },
+    "packages/plugins/chatcut": {
+      "name": "@microvoid/convax-plugin-chatcut",
+      "version": "0.3.1",
+      "dependencies": {
+        "@microvoid/convax-chatcut-media-import-mcp": "workspace:*",
+        "@microvoid/convax-skill-chatcut": "workspace:*"
+      }
     },
     "packages/plugins/codex-service": {
       "name": "@microvoid/convax-plugin-codex-service",
@@ -57,6 +67,10 @@
       "name": "@microvoid/convax-skill-audiobook",
       "version": "0.2.0"
     },
+    "packages/skills/chatcut": {
+      "name": "@microvoid/convax-skill-chatcut",
+      "version": "0.3.1"
+    },
     "packages/skills/clip-export": {
       "name": "@microvoid/convax-skill-clip-export",
       "version": "0.3.0"
@@ -97,6 +111,17 @@
       "name": "@microvoid/convax-skill-video-prompting",
       "version": "0.3.0"
     },
+    "packages/tools/chatcut-media-import-mcp": {
+      "name": "@microvoid/convax-chatcut-media-import-mcp",
+      "version": "0.1.1",
+      "bin": {
+        "convax-chatcut-media-import-mcp": "dist/convax-chatcut-media-import-mcp"
+      },
+      "devDependencies": {
+        "@types/bun": "1.3.14",
+        "typescript": "5.9.3"
+      }
+    },
     "packages/tools/codex-mcp": {
       "name": "@microvoid/convax-codex-mcp",
       "version": "0.1.1",
@@ -111,6 +136,9 @@
     "packages/tools/ffmpeg-mcp": {
       "name": "@microvoid/convax-ffmpeg-mcp",
       "version": "0.2.0",
+      "bin": {
+        "convax-ffmpeg-mcp": "dist/convax-ffmpeg-mcp"
+      },
       "devDependencies": {
         "@types/bun": "1.3.14",
         "typescript": "5.9.3"
@@ -159,14 +187,23 @@
       {},
       "sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww=="
     ],
+    "@microvoid/convax-chatcut-media-import-mcp": [
+      "@microvoid/convax-chatcut-media-import-mcp@workspace:packages/tools/chatcut-media-import-mcp"
+    ],
     "@microvoid/convax-codex-mcp": [
       "@microvoid/convax-codex-mcp@workspace:packages/tools/codex-mcp"
     ],
     "@microvoid/convax-ffmpeg-mcp": [
       "@microvoid/convax-ffmpeg-mcp@workspace:packages/tools/ffmpeg-mcp"
     ],
+    "@microvoid/convax-plugin-chatcut": [
+      "@microvoid/convax-plugin-chatcut@workspace:packages/plugins/chatcut"
+    ],
     "@microvoid/convax-plugin-codex-service": [
       "@microvoid/convax-plugin-codex-service@workspace:packages/plugins/codex-service"
+    ],
+    "@microvoid/convax-plugin-convax-pet": [
+      "@microvoid/convax-plugin-convax-pet@workspace:packages/plugins/convax-pet"
     ],
     "@microvoid/convax-plugin-ffmpeg-tools": [
       "@microvoid/convax-plugin-ffmpeg-tools@workspace:packages/plugins/ffmpeg-tools"
@@ -177,6 +214,9 @@
     "@microvoid/convax-plugin-multi-angle": [
       "@microvoid/convax-plugin-multi-angle@workspace:packages/plugins/multi-angle"
     ],
+    "@microvoid/convax-plugin-panorama-viewer": [
+      "@microvoid/convax-plugin-panorama-viewer@workspace:packages/plugins/panorama-viewer"
+    ],
     "@microvoid/convax-plugin-relight-studio": [
       "@microvoid/convax-plugin-relight-studio@workspace:packages/plugins/relight-studio"
     ],
@@ -185,6 +225,9 @@
     ],
     "@microvoid/convax-skill-audiobook": [
       "@microvoid/convax-skill-audiobook@workspace:packages/skills/audiobook"
+    ],
+    "@microvoid/convax-skill-chatcut": [
+      "@microvoid/convax-skill-chatcut@workspace:packages/skills/chatcut"
     ],
     "@microvoid/convax-skill-clip-export": [
       "@microvoid/convax-skill-clip-export@workspace:packages/skills/clip-export"
@@ -1609,6 +1652,16 @@
         }
       },
       "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ=="
+    ],
+    "acorn": [
+      "acorn@8.17.0",
+      "",
+      {
+        "bin": {
+          "acorn": "bin/acorn"
+        }
+      },
+      "sha512-xRQbDb9BnwDafYNn6Vwl839DYVjqXYb1XVGtWAZ1kcDc6iwAL4hg3B1dZlRiuENFeO2H53gFG3in621AdERVAg=="
     ],
     "aria-hidden": [
       "aria-hidden@1.2.6",

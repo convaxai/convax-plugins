@@ -13,8 +13,8 @@ catalog-changing release or yanking deployment. `revision` is the lowercase, ful
 
 Every item contains `kind`, `id`, `name`, `description`, `version`,
 `compatibility`, `artifact`, and `yanked`, plus a complete `manifest` for Plugin items.
-A `convax.plugin/2` through `convax.plugin/5` item with an external runtime may additionally contain
-`companions`; no other item may contain it.
+A `convax.plugin/2` through `/6` item with a local external runtime may additionally
+contain `companions`; no other item may contain it.
 The duplicated Plugin identity fields must equal the manifest so the management UI
 can render and filter without downloading ZIPs. Skill items have no `manifest`.
 
@@ -45,14 +45,15 @@ can render and filter without downloading ZIPs. Skill items have no `manifest`.
 ```
 
 The abbreviated manifest above is explanatory only; production entries contain the
-complete validated manifest. Plugin compatibility accepts exactly one
-version-matched pair: `convax.plugin/1` + `convax.plugin-host/1`,
+complete validated manifest. Plugin compatibility accepts exactly these pairs:
+`convax.plugin/1` + `convax.plugin-host/1`,
 `convax.plugin/2` + `convax.plugin-host/2`,
-`convax.plugin/3` + `convax.plugin-host/3`, or
-`convax.plugin/4` + `convax.plugin-host/4`, or
-`convax.plugin/5` + `convax.plugin-capability/1`. The embedded manifest schema must match
-that pair. Crossed pairs and a v1 compatibility envelope around a v2 manifest are
-rejected. Skill compatibility is exactly `{"skillSchema":"opencode.skill/1"}`.
+`convax.plugin/3` + `convax.plugin-host/3`,
+`convax.plugin/4` + `convax.plugin-host/4`,
+`convax.plugin/5` + `convax.plugin-capability/1`, or
+`convax.plugin/6` + `convax.plugin-capability/1`. The embedded manifest schema must
+match that pair. Crossed pairs and a v1 compatibility envelope around a v2 manifest
+are rejected. Skill compatibility is exactly `{"skillSchema":"opencode.skill/1"}`.
 Artifact objects contain only `url`, `size`, and lowercase hex `sha256`; URLs always
 target `microvoid/convax-plugins` Release assets.
 
@@ -77,7 +78,8 @@ bounded persistence.
 
 A Skill item may additionally contain `ownerPluginId`. This is lifecycle metadata
 for Convax, not an Agent Skills field. The id must resolve to a Plugin item whose
-`convax.plugin/4` or `convax.plugin/5` manifest contains a matching `contributes.skills` item. The
+`convax.plugin/4`, `/5`, or `/6` manifest contains a matching
+`contributes.skills` item. The
 Registry is rejected if either side is missing.
 
 Convax may show an owned Skill as a normal Skill detail with a “Provided by”
@@ -100,7 +102,7 @@ Release entry; a new Skill entry cannot be published beside stale owner Plugin b
 
 ## Verified companion executables
 
-An external v2, v3, v4, or v5 runtime is distributed beside, never inside, its static Plugin ZIP.
+An external v2 through v6 runtime is distributed beside, never inside, its static Plugin ZIP.
 Its Plugin item has the following optional strict field:
 
 ```json
@@ -132,6 +134,16 @@ Bun program for a compatible host's app-owned shared runtime; every other asset 
 executed natively. This byte-level convention adds no Registry v1 field, so older
 clients still parse the catalog and fail closed at execution if the host runner is
 unavailable.
+
+## Remote Agent MCP
+
+A `convax.plugin/6` manifest may contain `contributes.agent.mcp` without
+`companions` or a local `runtime`. The declaration is limited to one absolute HTTPS
+URL, `oauth: "auto" | "none"`, and at most 16 literal non-credential headers; it
+cannot carry secrets, local commands, or executable fallback metadata. Convax
+delegates the connection and standard OAuth flow to OpenCode/the native MCP host.
+The concrete manifest and any owned Skill source remain in this repository; the
+Registry does not turn them into Convax-specific runtime code.
 
 `opencode.skill/1` is the retained Registry v1 compatibility label used by current
 Convax clients; it is not the bundle format. Published Skill ZIPs follow the open

@@ -54,13 +54,11 @@ The generated Plugin ZIP has `manifest.json` at its root. A Skill ZIP has
 `SKILL.md` at its root. No dependency install or contributor build script is run
 while validating or packing a package.
 
-New executable Tool Plugins use `convax.plugin/3` and may be headless; use
-`convax.plugin/4` when the same Plugin also owns Skills. Both schemas separate
-executable tools, model-picker entries, Agent tools, and Canvas selection actions so
-hosts can compose every Plugin without checking its id. Their ZIP still
-contains only inert package files: it declares a separately installed bare
-`mcp-stdio` command for generation and/or fixed service actions, and never embeds
-that executable, its dependencies, vendor credentials, or provider configuration. See
+Executable Tool Plugins may be headless. `convax.plugin/3` separates executable
+tools, model-picker entries, Agent tools, and Canvas selection actions;
+`convax.plugin/4` and later may also own Skills. Local executable contributions
+declare a separately installed bare `mcp-stdio` command and never embed that
+executable, its dependencies, vendor credentials, or provider configuration. See
 [`docs/plugin-authoring.md`](docs/plugin-authoring.md#declarative-tool-plugin).
 For reviewed first-party tools, the Registry publishes exact
 platform/architecture companion artifacts beside the ZIP. Convax verifies their
@@ -72,7 +70,31 @@ metadata. The verified sidecar supplies a random, Main-only loopback gateway at
 runtime; manifests and service projections never contain upstream URLs, Cookies,
 headers, or credentials.
 
-`convax.plugin/4` adds Plugin-owned Skills. A v4 Plugin declares
+A Plugin may also declare one self-contained OpenCode Hook module with `hooks`.
+Convax snapshots and fingerprints its exact JavaScript bytes during an explicit
+install or update, then lets OpenCode load that private snapshot. Hook events stay
+native to OpenCode; Convax does not add another Hook API. Because this module is
+executable Agent code rather than iframe content, default/background provisioning
+never authorizes new Hook bytes. See
+[`docs/plugin-authoring.md`](docs/plugin-authoring.md#agent-hooks).
+
+`convax.plugin/5` and `/6` use the transport-neutral
+`convax.plugin-capability/1` host contract. v5 adds Project/Canvas grants and
+generic LLM display metadata. v6 may additionally declare one HTTPS remote Agent
+MCP endpoint. Convax delegates that endpoint to OpenCode/the native MCP host,
+including standard OAuth, while the remote service retains its own account and
+authentication system. The declaration contains no local command, adapter, or
+secret. Only bounded literal non-credential headers are allowed. Concrete Plugin,
+Skill, and reviewed companion source remains in this repository rather than moving
+into the Convax host.
+
+v6 also supports Canvas sink operations: a Web node can inspect pathless metadata
+for directly connected media, while a manifest-declared local operation can bind
+its Agent references to those exact incoming edges and return a bounded text result
+without creating another Canvas node. Edge changes only refresh pending input
+metadata; external transfer still requires an explicit user action.
+
+`convax.plugin/4` and later support Plugin-owned Skills. The Plugin declares
 `contributes.skills`, and the packer injects each referenced standard Skill
 workspace into the Plugin ZIP. Convax may show that Skill in its catalog, but its
 install, update, and removal lifecycle belongs to the Plugin. The standalone Skill
@@ -125,10 +147,12 @@ Open **Settings → Skills and Plugins** in a compatible Convax build. The catal
 loaded from the public Registry above; selecting **Install Plugin** or **Install
 Skill** sends only the package id to Convax main, which downloads and validates the
 corresponding immutable Release ZIP.
-If a v2, v3, v4, or v5 Plugin declares Registry companions, the same install transaction selects
+If a v2 through v6 Plugin declares Registry companions for a local runtime, the
+same install transaction selects
 only the exact local platform/architecture artifact and verifies its immutable URL,
 byte count, and SHA-256 separately from the static ZIP.
-For v4 and v5, Plugin-owned Skills are admitted and removed in that same Plugin transaction;
+For v4 and later, Plugin-owned Skills are admitted and removed in that same Plugin
+transaction;
 they are never an independent Convax install action.
 
 The `microvoid/convax-plugins` repository, Registry, and Release assets are public
@@ -197,17 +221,28 @@ entries only.
 
 ## Trust boundary
 
-Third-party Plugin ZIPs are inert. Web surfaces are static HTML/CSS/JavaScript
+Third-party Plugin ZIPs are inert during validation and packing. Web surfaces are static HTML/CSS/JavaScript
 rendered by Convax in an iframe with exactly `sandbox="allow-scripts"`; they cannot
 contain native executables, Node/Electron code, network permissions, or a generic
-host bridge. A v2, v3, v4, or v5 Tool Plugin may name a separately installed external command.
+host bridge. A v2 through v6 Tool Plugin may name a separately installed external command.
 Convax resolves and fingerprints it during explicit Plugin install/update; that
 transaction is consent to the exact binding, so later calls do not show a separate
-command prompt. It never becomes part of the ZIP. A Registry companion is an independent immutable Release asset,
+command prompt. It never becomes part of the ZIP. A Registry companion is an
+independent immutable Release asset,
 admitted only after exact target, size, and digest verification. Every host call is
 scoped to the mounted Plugin node and checked
 against the manifest capability allowlist. Skills are instructions, not executable
 capability grants.
+
+The explicit exception is a manifest-declared `hooks` module: one bundled
+JavaScript ESM file executed as a native OpenCode Plugin. Installation consent is
+bound to its normalized manifest and exact bytes; OpenCode loads only a private
+host snapshot. It is not sandboxed, so silent default installation or background
+updates cannot authorize it.
+
+A v6 remote Agent MCP contribution is different: it names only an HTTPS endpoint
+that the native Agent host connects through its standard MCP/OAuth support. It does
+not authorize iframe networking, ship a local command, or carry credentials.
 
 ## License
 

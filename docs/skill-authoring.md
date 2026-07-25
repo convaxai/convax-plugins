@@ -125,7 +125,7 @@ JSON. Do not embed secrets, tokens, absolute paths, dependency trees, generated
 binaries, or instructions to disable safety checks.
 
 A normal standalone Skill has its own install and removal lifecycle. When a
-`convax.plugin/4` Plugin owns the Skill, set `ownerPluginId` in the Skill's
+`convax.plugin/4`, `/5`, or `/6` Plugin owns the Skill, set `ownerPluginId` in the Skill's
 `convax-package.json` and add the matching `{name,path}` item to the Plugin's
 `contributes.skills`. Convax may display this standard Skill with its owner, but it
 must be installed, updated, and removed only with that Plugin. The portable Skill
@@ -138,6 +138,11 @@ establish Convax lifecycle ownership. A package `build` script must finish befor
 validation and emit a self-contained portable `package/` tree; consumers never run
 the package manager. Changing an owned Skill requires a versioned Release for both
 the Skill and its owner Plugin because both deterministic ZIPs change.
+
+If the owner is a v6 remote Agent MCP Plugin, the Skill must still check that the
+MCP tools are available in the current session. OpenCode/the native host owns the
+HTTPS connection and standard OAuth flow; do not copy service credentials, tokens,
+local commands, or adapter instructions into `SKILL.md`.
 
 ## Validate
 

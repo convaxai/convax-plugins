@@ -1,0 +1,11 @@
+{
+  "name": "@microvoid/convax-skill-chatcut",
+  "version": "0.3.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "bun ../../../tooling/validate.mjs --kind skill --id chatcut",
+    "pack": "bun ../../../tooling/pack.mjs --kind skill --id chatcut",
+    "test": "bun test"
+  }
+}

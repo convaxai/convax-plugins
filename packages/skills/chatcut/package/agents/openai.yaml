@@ -1,0 +1,4 @@
+interface:
+  display_name: "ChatCut"
+  short_description: "Import connected Canvas media and edit in ChatCut"
+  default_prompt: "Use $chatcut to import my connected Canvas media in edge order and make the requested editable ChatCut changes without exporting unless I ask."

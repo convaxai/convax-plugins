@@ -26,8 +26,8 @@ STORE method. Thus identical source bytes produce identical SHA-256 digests acro
 machines. Uncompressed storage is intentional: packages are already size-bounded,
 and avoiding compressor-version drift makes releases reproducible.
 
-A headless `convax.plugin/2` through `convax.plugin/5` Tool Plugin may contain only `manifest.json` and a
-license notice. Its generation and/or service contribution uses one declared
+A headless `convax.plugin/2` through `/6` local Tool Plugin may contain only
+`manifest.json` and a license notice. Its executable contributions use one declared
 `mcp-stdio` executable that is a separate distributable and
 must never appear anywhere below `package/`; validation and packing do not install,
 build, or execute companion source under `packages/tools/`.
@@ -50,6 +50,16 @@ dimensions, format, transparency, and decoded image safety before installation.
 The Plugin owns presentation, animation rules, collection, and selection. The host
 owns the native floating window and exposes only bounded, content-free Agent
 activity data.
+
+## Remote Agent MCP metadata
+
+A v6 remote `contributes.agent.mcp` Plugin may also be manifest-only, but it has no
+companion or local command for that contribution. The manifest contains only an
+HTTPS endpoint, OAuth mode, and optional bounded literal non-credential headers;
+never package credentials, tokens, local executables, or an adapter. OpenCode/the
+native host owns the remote connection and standard OAuth flow. The concrete
+manifest and any owned Skill source remain under this repository's package
+workspaces.
 
 The matching source metadata declares the reviewed tool directory and build output
 for each target. For example:
@@ -88,7 +98,7 @@ mode, size and SHA-256 checks as a native companion. Native companions remain va
 
 ## Plugin-owned Skill composition
 
-A `convax.plugin/4` or `convax.plugin/5` manifest may declare `contributes.skills` entries such as
+A `convax.plugin/4` or later manifest may declare `contributes.skills` entries such as
 `{"name":"ffmpeg-canvas","path":"skills/ffmpeg-canvas"}`. The named Skill remains
 an independent workspace and standard portable Skill package. Its source metadata
 declares `ownerPluginId`.

@@ -1,0 +1,309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://microvoid.github.io/convax-plugins/schemas/convax-plugin-manifest-v6.schema.json",
+  "title": "Convax Plugin v6 manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "name", "description", "version", "contributes"],
+  "properties": {
+    "schema": { "const": "convax.plugin/6" },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 80
+    },
+    "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "version": {
+      "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/semver"
+    },
+    "entry": { "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/path" },
+    "hooks": {
+      "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/hookPath"
+    },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 14,
+      "items": {
+        "enum": [
+          "canvas.connectedImages.read",
+          "canvas.connectedInputs.read",
+          "canvas.node.read",
+          "canvas.node.write",
+          "canvas.resources.write",
+          "project.files.read",
+          "agent.prompt",
+          "generation.execute",
+          "ui.fullscreen",
+          "projects.read",
+          "canvas.catalog.read",
+          "canvas.document.read",
+          "canvas.document.write",
+          "canvas.events.subscribe"
+        ]
+      }
+    },
+    "contributes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agent": { "$ref": "#/$defs/agent" },
+        "canvas": {
+          "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/canvas"
+        },
+        "generation": { "$ref": "#/$defs/generation" },
+        "llm": { "$ref": "./convax-plugin-manifest-v5.schema.json#/$defs/llm" },
+        "service": {
+          "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/service"
+        },
+        "skills": {
+          "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/skills"
+        }
+      }
+    },
+    "runtime": {
+      "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/runtime"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "required": ["entry"] },
+      "then": {
+        "properties": {
+          "contributes": {
+            "required": ["canvas"],
+            "properties": { "canvas": { "required": ["renderer"] } }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "contributes": {
+            "required": ["canvas"],
+            "properties": { "canvas": { "required": ["renderer"] } }
+          }
+        },
+        "required": ["contributes"]
+      },
+      "then": { "required": ["entry"] }
+    },
+    {
+      "if": { "required": ["runtime"] },
+      "then": {
+        "properties": {
+          "contributes": {
+            "anyOf": [{ "required": ["generation"] }, { "required": ["llm"] }, { "required": ["service"] }]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "contributes": { "required": ["generation"] } },
+        "required": ["contributes"]
+      },
+      "then": { "required": ["runtime"] }
+    },
+    {
+      "if": {
+        "properties": { "contributes": { "required": ["llm"] } },
+        "required": ["contributes"]
+      },
+      "then": { "required": ["runtime"] }
+    },
+    {
+      "if": {
+        "properties": { "contributes": { "required": ["service"] } },
+        "required": ["contributes"]
+      },
+      "then": { "required": ["runtime"] }
+    },
+    {
+      "if": {
+        "properties": {
+          "contributes": {
+            "required": ["agent"],
+            "properties": { "agent": { "required": ["tools"] } }
+          }
+        },
+        "required": ["contributes"]
+      },
+      "then": {
+        "properties": { "contributes": { "required": ["generation"] } }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "contributes": {
+            "required": ["canvas"],
+            "properties": { "canvas": { "required": ["selectionActions"] } }
+          }
+        },
+        "required": ["contributes"]
+      },
+      "then": {
+        "properties": { "contributes": { "required": ["generation"] } }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "capabilities": {
+            "contains": {
+              "enum": ["generation.execute", "canvas.resources.write"]
+            }
+          }
+        },
+        "required": ["capabilities"]
+      },
+      "then": {
+        "required": ["entry"],
+        "properties": {
+          "contributes": {
+            "required": ["canvas"],
+            "properties": { "canvas": { "required": ["renderer"] } }
+          }
+        }
+      }
+    }
+  ],
+  "anyOf": [
+    { "required": ["runtime"] },
+    { "required": ["entry"] },
+    { "required": ["hooks"] },
+    {
+      "properties": {
+        "contributes": {
+          "required": ["agent"],
+          "properties": { "agent": { "required": ["mcp"] } }
+        }
+      },
+      "required": ["contributes"]
+    },
+    {
+      "properties": {
+        "capabilities": {
+          "contains": {
+            "enum": ["generation.execute", "projects.read", "canvas.catalog.read", "canvas.document.read", "canvas.document.write", "canvas.events.subscribe"]
+          }
+        }
+      },
+      "required": ["capabilities"]
+    }
+  ],
+  "$defs": {
+    "generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["models", "tools"],
+      "properties": {
+        "models": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/generationModel"
+          }
+        },
+        "tools": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": { "$ref": "#/$defs/generationTool" }
+        }
+      }
+    },
+    "generationTool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "description", "output", "acceptedInputs"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)*$",
+          "maxLength": 80
+        },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "output": { "enum": ["text", "image", "video", "audio"] },
+        "delivery": { "enum": ["canvas", "return"] },
+        "inputBinding": { "const": "direct-incoming" },
+        "acceptedInputs": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 6,
+          "items": {
+            "enum": ["reference_image", "reference_video", "first_frame", "last_frame", "audio", "text"]
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "delivery": { "const": "return" } },
+            "required": ["delivery"]
+          },
+          "then": {
+            "properties": { "output": { "const": "text" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "inputBinding": { "const": "direct-incoming" } },
+            "required": ["inputBinding"]
+          },
+          "then": {
+            "properties": { "acceptedInputs": { "minItems": 1 } }
+          }
+        }
+      ]
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mcp": { "$ref": "#/$defs/remoteMcp" },
+        "tools": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/agentTool"
+          }
+        }
+      },
+      "anyOf": [{ "required": ["mcp"] }, { "required": ["tools"] }]
+    },
+    "remoteMcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "url"],
+      "properties": {
+        "type": { "const": "remote" },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "^https://(?![^/?#]*@)[^#\\s]+$"
+        },
+        "oauth": { "enum": ["auto", "none"] },
+        "headers": {
+          "type": "object",
+          "maxProperties": 16,
+          "propertyNames": {
+            "pattern": "^(?!(?:[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Cc][Oo][Oo][Kk][Ii][Ee]|[Pp][Rr][Oo][Xx][Yy]-[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn])$)[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "pattern": "^(?!.*\\{(?:[Ee][Nn][Vv]|[Ff][Ii][Ll][Ee]):)(?!.*\\$\\{[^}]*\\})[^\\u0000-\\u001f\\u007f]+$"
+          }
+        }
+      }
+    }
+  }
+}

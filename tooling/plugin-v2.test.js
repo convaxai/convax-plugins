@@ -1,14 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import {
-  assetNameFor,
-  assertPluginStatic,
-  parsePluginManifest,
-  parseRegistryEntry,
-  parseSourceMetadata,
-  repository,
-  tagFor,
-} from "./lib.mjs"
+import { assetNameFor, assertPluginStatic, parsePluginManifest, parseRegistryEntry, parseSourceMetadata, repository, tagFor } from "./lib.mjs"
 
 function generationManifest(overrides = {}) {
   return {
@@ -19,13 +11,15 @@ function generationManifest(overrides = {}) {
     version: "1.0.0",
     contributes: {
       generation: {
-        tools: [{
-          id: "image.generate",
-          title: "Generate image",
-          description: "Generate an image from a prompt.",
-          output: "image",
-          acceptedInputs: [],
-        }],
+        tools: [
+          {
+            id: "image.generate",
+            title: "Generate image",
+            description: "Generate an image from a prompt.",
+            output: "image",
+            acceptedInputs: [],
+          },
+        ],
       },
     },
     runtime: { type: "mcp-stdio", command: "example-generation-mcp" },
@@ -55,24 +49,79 @@ describe("convax.plugin/2 authoring", () => {
   test("normalizes a manifest-only headless generation declaration", () => {
     const parsed = parsePluginManifest(generationManifest())
 
-    expect(parsed).toEqual(expect.objectContaining({
-      capabilities: [],
-      contributes: generationManifest().contributes,
-      runtime: { type: "mcp-stdio", command: "example-generation-mcp" },
-      schema: "convax.plugin/2",
-    }))
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        capabilities: [],
+        contributes: generationManifest().contributes,
+        runtime: { type: "mcp-stdio", command: "example-generation-mcp" },
+        schema: "convax.plugin/2",
+      }),
+    )
     expect(parsed).not.toHaveProperty("entry")
   })
 
+  test("accepts one exact self-contained native OpenCode Hook module", () => {
+    const hookOnly = generationManifest({
+      contributes: {},
+      hooks: "hooks/index.mjs",
+      runtime: undefined,
+    })
+    const parsed = parsePluginManifest(hookOnly)
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        capabilities: [],
+        contributes: {},
+        hooks: "hooks/index.mjs",
+        schema: "convax.plugin/2",
+      }),
+    )
+    expect(parsed).not.toHaveProperty("runtime")
+
+    const hookFile = {
+      data: Buffer.from('import fs from "node:fs"\nexport default async () => ({})'),
+      mode: 0o100644,
+      relativePath: "hooks/index.mjs",
+    }
+    expect(() => assertPluginStatic([hookFile], "plugin", "hooks/index.mjs")).not.toThrow()
+    expect(() => assertPluginStatic([hookFile], "plugin")).toThrow("Node or executable runtime")
+    expect(() =>
+      assertPluginStatic(
+        [
+          {
+            ...hookFile,
+            data: Buffer.from('import helper from "./helper.mjs"'),
+          },
+        ],
+        "plugin",
+        "hooks/index.mjs",
+      ),
+    ).toThrow("self-contained")
+    expect(() => parsePluginManifest({ ...hookOnly, hooks: "hooks/index.ts" })).toThrow("JavaScript ESM")
+  })
+
   test("accepts only version-matched Plugin schema and host pairs", () => {
-    expect(parseSourceMetadata(sourceMetadata({
+    expect(
+      parseSourceMetadata(
+        sourceMetadata({
+          pluginSchema: "convax.plugin/1",
+          pluginHost: "convax.plugin-host/1",
+        }),
+      ).compatibility,
+    ).toEqual({
       pluginSchema: "convax.plugin/1",
       pluginHost: "convax.plugin-host/1",
-    })).compatibility).toEqual({ pluginSchema: "convax.plugin/1", pluginHost: "convax.plugin-host/1" })
-    expect(parseSourceMetadata(sourceMetadata({
+    })
+    expect(
+      parseSourceMetadata(
+        sourceMetadata({
+          pluginSchema: "convax.plugin/2",
+          pluginHost: "convax.plugin-host/2",
+        }),
+      ).compatibility,
+    ).toEqual({
       pluginSchema: "convax.plugin/2",
       pluginHost: "convax.plugin-host/2",
-    })).compatibility).toEqual({ pluginSchema: "convax.plugin/2", pluginHost: "convax.plugin-host/2" })
+    })
 
     for (const compatibility of [
       { pluginSchema: "convax.plugin/1", pluginHost: "convax.plugin-host/2" },
@@ -92,11 +141,18 @@ describe("convax.plugin/2 authoring", () => {
   })
 
   test("supports service-only and shared generation/service runtimes", () => {
-    const serviceOnly = parsePluginManifest(generationManifest({
-      contributes: { service: serviceContribution() },
-    }))
-    expect(serviceOnly.contributes).toEqual({ service: { actions: ["sign_out"] } })
-    expect(serviceOnly.runtime).toEqual({ type: "mcp-stdio", command: "example-generation-mcp" })
+    const serviceOnly = parsePluginManifest(
+      generationManifest({
+        contributes: { service: serviceContribution() },
+      }),
+    )
+    expect(serviceOnly.contributes).toEqual({
+      service: { actions: ["sign_out"] },
+    })
+    expect(serviceOnly.runtime).toEqual({
+      type: "mcp-stdio",
+      command: "example-generation-mcp",
+    })
 
     const generation = generationManifest()
     const shared = parsePluginManifest({
@@ -109,51 +165,102 @@ describe("convax.plugin/2 authoring", () => {
     expect(shared.contributes.generation.tools).toHaveLength(1)
     expect(shared.contributes.service.actions).toEqual(["reauthorize", "authorization.cancel", "sign_out"])
 
-    const statusOnly = parsePluginManifest(generationManifest({
-      contributes: { service: serviceContribution([]) },
-    }))
+    const statusOnly = parsePluginManifest(
+      generationManifest({
+        contributes: { service: serviceContribution([]) },
+      }),
+    )
     expect(statusOnly.contributes.service.actions).toEqual([])
   })
 
   test("rejects unknown, duplicate, or remapped service actions", () => {
-    expect(() => parsePluginManifest(generationManifest({
-      contributes: { service: serviceContribution(["open_browser"]) },
-    }))).toThrow("unsupported or duplicate")
-    expect(() => parsePluginManifest(generationManifest({
-      contributes: { service: serviceContribution(["sign_out", "sign_out"]) },
-    }))).toThrow("unsupported or duplicate")
-    expect(() => parsePluginManifest(generationManifest({
-      contributes: { service: { actions: ["sign_out"], statusTool: "arbitrary.call" } },
-    }))).toThrow("unsupported field")
+    expect(() =>
+      parsePluginManifest(
+        generationManifest({
+          contributes: { service: serviceContribution(["open_browser"]) },
+        }),
+      ),
+    ).toThrow("unsupported or duplicate")
+    expect(() =>
+      parsePluginManifest(
+        generationManifest({
+          contributes: {
+            service: serviceContribution(["sign_out", "sign_out"]),
+          },
+        }),
+      ),
+    ).toThrow("unsupported or duplicate")
+    expect(() =>
+      parsePluginManifest(
+        generationManifest({
+          contributes: {
+            service: { actions: ["sign_out"], statusTool: "arbitrary.call" },
+          },
+        }),
+      ),
+    ).toThrow("unsupported field")
   })
 
   test("rejects provider fields, unsafe commands, and unsupported reference roles", () => {
     expect(() => parsePluginManifest({ ...generationManifest(), provider: "vendor" })).toThrow("unsupported field")
-    expect(() => parsePluginManifest(generationManifest({
-      runtime: { type: "mcp-stdio", command: "../example-generation-mcp" },
-    }))).toThrow("bare executable")
+    expect(() =>
+      parsePluginManifest(
+        generationManifest({
+          runtime: { type: "mcp-stdio", command: "../example-generation-mcp" },
+        }),
+      ),
+    ).toThrow("bare executable")
     const manifest = generationManifest()
     manifest.contributes.generation.tools[0].acceptedInputs = ["mask"]
     expect(() => parsePluginManifest(manifest)).toThrow("unsupported or duplicate role")
   })
 
   test("keeps executables and Node servers outside the Plugin ZIP", () => {
-    expect(() => assertPluginStatic([
-      { data: Buffer.from("binary"), mode: 0o100755, relativePath: "example-generation-mcp" },
-    ], "plugin")).toThrow("executable file mode")
-    expect(() => assertPluginStatic([
-      { data: Buffer.from('import http from "node:http"\nhttp.createServer(() => {})'), mode: 0o100644, relativePath: "server.js" },
-    ], "plugin")).toThrow("Node or executable runtime")
-    expect(() => assertPluginStatic([
-      { data: Buffer.from("from http.server import HTTPServer"), mode: 0o100644, relativePath: "server.py" },
-    ], "plugin")).toThrow("executable or server source")
+    expect(() =>
+      assertPluginStatic(
+        [
+          {
+            data: Buffer.from("binary"),
+            mode: 0o100755,
+            relativePath: "example-generation-mcp",
+          },
+        ],
+        "plugin",
+      ),
+    ).toThrow("executable file mode")
+    expect(() =>
+      assertPluginStatic(
+        [
+          {
+            data: Buffer.from('import http from "node:http"\nhttp.createServer(() => {})'),
+            mode: 0o100644,
+            relativePath: "server.js",
+          },
+        ],
+        "plugin",
+      ),
+    ).toThrow("Node or executable runtime")
+    expect(() =>
+      assertPluginStatic(
+        [
+          {
+            data: Buffer.from("from http.server import HTTPServer"),
+            mode: 0o100644,
+            relativePath: "server.py",
+          },
+        ],
+        "plugin",
+      ),
+    ).toThrow("executable or server source")
   })
 
   test("rejects a Registry entry whose compatibility does not match its manifest", () => {
-    const metadata = parseSourceMetadata(sourceMetadata({
-      pluginSchema: "convax.plugin/1",
-      pluginHost: "convax.plugin-host/1",
-    }))
+    const metadata = parseSourceMetadata(
+      sourceMetadata({
+        pluginSchema: "convax.plugin/1",
+        pluginHost: "convax.plugin-host/1",
+      }),
+    )
     const entry = {
       kind: metadata.kind,
       id: metadata.id,
