@@ -59,6 +59,10 @@
         "typescript": "5.9.3"
       }
     },
+    "packages/plugins/storyai-3d-director-desk": {
+      "name": "@microvoid/convax-plugin-storyai-3d-director-desk",
+      "version": "0.1.0"
+    },
     "packages/skills/ad-idea": {
       "name": "@microvoid/convax-skill-ad-idea",
       "version": "0.3.0"

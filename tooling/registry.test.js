@@ -41,6 +41,7 @@ describe("source packages", () => {
       "plugin/multi-angle",
       "plugin/panorama-viewer",
       "plugin/relight-studio",
+      "plugin/storyai-3d-director-desk",
       "plugin/example-generation",
       "skill/ad-idea",
       "skill/audiobook",
@@ -63,6 +64,7 @@ describe("source packages", () => {
     const codex = packages.find((pkg) => pkg.metadata.id === "codex-service")
     const multiAngle = packages.find((pkg) => pkg.metadata.id === "multi-angle")
     const panorama = packages.find((pkg) => pkg.metadata.id === "panorama-viewer")
+    const director = packages.find((pkg) => pkg.metadata.id === "storyai-3d-director-desk")
     const Example Generation = packages.find((pkg) => pkg.metadata.id === "example-generation")
     expect(violet.metadata.version).toBe("0.2.2")
     expect(violet.manifest.capabilities).toEqual([
@@ -140,6 +142,18 @@ describe("source packages", () => {
       version: "0.2.1",
     }))
     expect(panorama.metadata.compatibility).toEqual({
+      pluginHost: "convax.plugin-host/1",
+      pluginSchema: "convax.plugin/1",
+    })
+    expect(director.manifest).toEqual(expect.objectContaining({
+      capabilities: ["canvas.node.write", "canvas.image.write"],
+      entry: "index.html",
+      name: "3D Director Desk",
+      schema: "convax.plugin/1",
+      skill: "SKILL.md",
+      version: "0.1.0",
+    }))
+    expect(director.metadata.compatibility).toEqual({
       pluginHost: "convax.plugin-host/1",
       pluginSchema: "convax.plugin/1",
     })

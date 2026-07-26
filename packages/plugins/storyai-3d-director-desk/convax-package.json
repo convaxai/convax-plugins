@@ -1,0 +1,30 @@
+{
+  "schema": "convax.package/1",
+  "kind": "plugin",
+  "id": "storyai-3d-director-desk",
+  "name": "3D Director Desk",
+  "description": "An open-source browser-based 3D blocking surface for characters, props, cameras, panoramas, and shot previews.",
+  "version": "0.1.0",
+  "license": "MIT",
+  "compatibility": {
+    "pluginSchema": "convax.plugin/1",
+    "pluginHost": "convax.plugin-host/1"
+  },
+  "showcase": {
+    "poster": {
+      "path": "showcase/poster.png",
+      "alt": "3D Director Desk read-only planning and review workflow preview.",
+      "mime": "image/png",
+      "width": 1280,
+      "height": 720
+    },
+    "animation": {
+      "path": "showcase/animation.mp4",
+      "alt": "3D Director Desk reads a stage, offers blocking guidance, and reviews the user's adjustments.",
+      "mime": "video/mp4",
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "yanked": false
+}

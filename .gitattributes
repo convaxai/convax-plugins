@@ -1,0 +1,3 @@
+packages/plugins/storyai-3d-director-desk/package/UPSTREAM*.patch whitespace=-trailing-space,-space-before-tab
+packages/plugins/storyai-3d-director-desk/package/assets/app.js whitespace=-trailing-space,-space-before-tab
+packages/plugins/storyai-3d-director-desk/vendor/app.js whitespace=-trailing-space,-space-before-tab
