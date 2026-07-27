@@ -2,9 +2,23 @@
   "schema": "convax.plugin/7",
   "id": "nexus-service",
   "name": "Nexus · OpenRouter",
-  "description": "Connects Convax to the Convax Workspace in Nexus and uses its encrypted OpenRouter Provider through short-lived Data Tokens.",
-  "version": "0.3.3",
+  "description": "Connects Convax to the Convax Workspace in Nexus for OpenRouter chat and image generation through short-lived Data Tokens.",
+  "version": "0.3.4",
   "contributes": {
+    "generation": {
+      "models": [
+        { "tool": "image.generate", "name": "Nexus · OpenRouter Image" }
+      ],
+      "tools": [
+        {
+          "id": "image.generate",
+          "title": "Nexus · OpenRouter Image",
+          "description": "Generate an image with an image-output model available through the connected Nexus OpenRouter Provider.",
+          "output": "image",
+          "acceptedInputs": []
+        }
+      ]
+    },
     "llm": {
       "provider": { "id": "openrouter", "name": "Nexus · OpenRouter" },
       "modelCatalog": "runtime",

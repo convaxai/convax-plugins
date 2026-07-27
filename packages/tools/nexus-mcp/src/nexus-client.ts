@@ -10,6 +10,7 @@ import {
   type HostedSession,
   type HostedTokenResponse,
   type LlmModelCatalog,
+  type NexusProviderModel,
 } from "./contracts.ts";
 import type { NexusSessionStore } from "./session-store.ts";
 
@@ -18,6 +19,7 @@ const productionNexusOrigin = "https://nexus.microvoid.io";
 const refreshSkewMs = 30_000;
 const maximumModelCatalogBytes = 8 * 1024 * 1024;
 const maximumModelCatalogEntries = 2_048;
+const maximumImageCompletionBytes = 16 * 1024 * 1024;
 const openRouterModelIdPattern = /^~?[A-Za-z0-9]+(?:[._/:-][A-Za-z0-9]+)*$/;
 
 export interface NexusClientOptions {
@@ -167,17 +169,31 @@ export class NexusClient {
   }
 
   async models(signal?: AbortSignal): Promise<LlmModelCatalog> {
+    const models = (await this.providerModels(signal))
+      .filter(({ outputModalities }) => outputModalities.includes("text"))
+      .map(({ id, name }) => ({ id, name }));
+    if (models.length === 0)
+      throw new Error("Nexus text model catalog is empty");
+    return { models, schema: llmModelCatalogSchema };
+  }
+
+  async imageModels(signal?: AbortSignal): Promise<readonly NexusProviderModel[]> {
+    return (await this.providerModels(signal)).filter(({ outputModalities }) =>
+      outputModalities.includes("image"),
+    );
+  }
+
+  async providerModels(signal?: AbortSignal): Promise<readonly NexusProviderModel[]> {
     const context = await this.gatewayContext();
     const requestSignal = signal
       ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
       : AbortSignal.timeout(15_000);
-    const response = await this.#fetch(
-      new URL(`${context.provider.gatewayBaseUrl}/models`),
-      {
-        headers: { authorization: `Bearer ${context.dataToken}` },
-        signal: requestSignal,
-      },
-    );
+    const url = new URL(`${context.provider.gatewayBaseUrl}/models`);
+    url.searchParams.set("output_modalities", "all");
+    const response = await this.#fetch(url, {
+      headers: { authorization: `Bearer ${context.dataToken}` },
+      signal: requestSignal,
+    });
     if (!response.ok)
       throw new Error(
         `Nexus model catalog failed with HTTP ${response.status}`,
@@ -199,6 +215,49 @@ export class NexusClient {
       throw new Error("Nexus model catalog response is invalid");
     }
     return parseModelCatalog(parsed);
+  }
+
+  async imageCompletion(
+    model: string,
+    prompt: string,
+    signal: AbortSignal,
+  ): Promise<unknown> {
+    const context = await this.gatewayContext();
+    const response = await this.#fetch(
+      new URL(`${context.provider.gatewayBaseUrl}/chat/completions`),
+      {
+        body: JSON.stringify({
+          messages: [{ content: prompt, role: "user" }],
+          modalities: ["image", "text"],
+          model,
+          stream: false,
+        }),
+        headers: {
+          authorization: `Bearer ${context.dataToken}`,
+          "content-type": "application/json",
+        },
+        method: "POST",
+        signal,
+      },
+    );
+    if (!response.ok)
+      throw new Error(`Nexus image generation failed with HTTP ${response.status}`);
+    const declared = Number(response.headers.get("content-length") ?? 0);
+    if (Number.isFinite(declared) && declared > maximumImageCompletionBytes) {
+      throw new Error("Nexus image generation response is too large");
+    }
+    const serialized = await response.text();
+    if (
+      new TextEncoder().encode(serialized).byteLength >
+      maximumImageCompletionBytes
+    ) {
+      throw new Error("Nexus image generation response is too large");
+    }
+    try {
+      return JSON.parse(serialized) as unknown;
+    } catch {
+      throw new Error("Nexus image generation response is invalid");
+    }
   }
 
   async ensureAccessSession(): Promise<HostedSession> {
@@ -603,7 +662,7 @@ function parseProviderConnection(value: unknown): HostedProviderConnection {
   };
 }
 
-function parseModelCatalog(value: unknown): LlmModelCatalog {
+function parseModelCatalog(value: unknown): readonly NexusProviderModel[] {
   const input = record(value, "Nexus model catalog");
   if (
     !Array.isArray(input.data) ||
@@ -622,6 +681,32 @@ function parseModelCatalog(value: unknown): LlmModelCatalog {
     if (!openRouterModelIdPattern.test(id)) {
       throw new Error(`Nexus model catalog entry ${index} id is invalid`);
     }
+    const architecture = record(
+      model.architecture,
+      `Nexus model catalog entry ${index} architecture`,
+    );
+    if (
+      !Array.isArray(architecture.output_modalities) ||
+      architecture.output_modalities.length === 0 ||
+      architecture.output_modalities.length > 16
+    ) {
+      throw new Error(
+        `Nexus model catalog entry ${index} output modalities are invalid`,
+      );
+    }
+    const outputModalities = architecture.output_modalities.map(
+      (value, modalityIndex) =>
+        boundedString(
+          value,
+          `Nexus model catalog entry ${index} output modality ${modalityIndex}`,
+          32,
+        ),
+    );
+    if (new Set(outputModalities).size !== outputModalities.length) {
+      throw new Error(
+        `Nexus model catalog entry ${index} output modalities contain duplicates`,
+      );
+    }
     return {
       id,
       name: boundedString(
@@ -629,12 +714,13 @@ function parseModelCatalog(value: unknown): LlmModelCatalog {
         `Nexus model catalog entry ${index} name`,
         160,
       ),
+      outputModalities,
     };
   });
   if (new Set(models.map(({ id }) => id)).size !== models.length) {
     throw new Error("Nexus model catalog contains duplicate ids");
   }
-  return { models, schema: llmModelCatalogSchema };
+  return models;
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {

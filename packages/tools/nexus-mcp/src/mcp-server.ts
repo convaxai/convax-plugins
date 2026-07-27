@@ -2,19 +2,69 @@ import { asRecord, type JsonRpcRequest, type ToolResult } from "./contracts.ts";
 import { NexusAuthorization } from "./authorization.ts";
 import { NexusCheckoutStore } from "./checkout-store.ts";
 import { NexusClient, type NexusClientOptions } from "./nexus-client.ts";
+import { NexusImageGenerator } from "./image-generator.ts";
 import { NexusLlmGateway } from "./llm-gateway.ts";
 import { NexusPluginService } from "./plugin-service.ts";
 import { NexusSessionStore } from "./session-store.ts";
 
 const protocolVersion = "2025-03-26";
 const maximumRequestBytes = 4 * 1024 * 1024;
+const imageModelCatalogTtlMs = 60_000;
 const emptyInputSchema = {
   additionalProperties: false,
   properties: {},
   type: "object",
 } as const;
 
-export const tools = [
+const generationCallProperties = {
+  operation_id: { maxLength: 256, minLength: 1, type: "string" },
+  output: { const: "image", type: "string" },
+  output_directory: { maxLength: 4_096, minLength: 1, type: "string" },
+  prompt: { maxLength: 20_000, minLength: 1, type: "string" },
+  references: { maxItems: 0, type: "array" },
+  schema: { const: "convax.generation-call/1", type: "string" },
+} as const;
+
+export function imageGenerationTool(
+  models: readonly { id: string; name: string }[] = [],
+) {
+  const modelSchema =
+    models.length > 0 && models.length <= 64
+      ? {
+          oneOf: models.map(({ id, name }) => ({ const: id, title: name })),
+          title: "Model",
+          type: "string",
+        }
+      : {
+          description:
+            "Enter an image-output model id from the connected Nexus OpenRouter catalog.",
+          maxLength: 191,
+          minLength: 1,
+          title: "Model",
+          type: "string",
+        };
+  return {
+    description:
+      "Generate an image through the connected Nexus OpenRouter Provider.",
+    inputSchema: {
+      additionalProperties: false,
+      properties: { ...generationCallProperties, model: modelSchema },
+      required: [
+        "schema",
+        "operation_id",
+        "prompt",
+        "output",
+        "output_directory",
+        "references",
+        "model",
+      ],
+      type: "object",
+    },
+    name: "image.generate",
+  } as const;
+}
+
+const fixedTools = [
   {
     description:
       "Report the bounded Nexus Workspace, access, quota, and OpenRouter connection status.",
@@ -92,6 +142,8 @@ export const tools = [
   },
 ] as const;
 
+export const tools = [imageGenerationTool(), ...fixedTools] as const;
+
 const toolNames = new Set(tools.map(({ name }) => name));
 const emptyTools = new Set([
   "service.status",
@@ -119,11 +171,18 @@ export interface NexusMcpServerOptions {
 
 export class NexusMcpServer {
   readonly #authorization: NexusAuthorization;
+  readonly #client: NexusClient;
   readonly #gateway: NexusLlmGateway;
   readonly #handlers = new Set<Promise<void>>();
   readonly #inflight = new Map<number | string, AbortController>();
   readonly #sendValue: (value: unknown) => void;
   readonly #service: NexusPluginService;
+  readonly #imageGenerator: NexusImageGenerator;
+  #imageModelsRequest:
+    | Promise<readonly { id: string; name: string }[]>
+    | undefined;
+  #imageModelsLoadedAt = 0;
+  #listedToolsOnce = false;
   #closed = false;
   #reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
 
@@ -134,6 +193,7 @@ export class NexusMcpServer {
     const checkouts =
       options.checkouts ?? new NexusCheckoutStore(options.environment);
     this.#authorization = new NexusAuthorization(client);
+    this.#client = client;
     this.#service = new NexusPluginService(
       this.#authorization,
       client,
@@ -141,6 +201,7 @@ export class NexusMcpServer {
       checkouts,
     );
     this.#gateway = new NexusLlmGateway(client);
+    this.#imageGenerator = new NexusImageGenerator(client);
     this.#sendValue =
       options.send ??
       ((value) => {
@@ -218,12 +279,12 @@ export class NexusMcpServer {
       this.#sendResult(value.id, {
         capabilities: { tools: {} },
         protocolVersion,
-        serverInfo: { name: "convax-nexus-mcp", version: "0.3.3" },
+        serverInfo: { name: "convax-nexus-mcp", version: "0.3.4" },
       });
       return;
     }
     if (value.method === "tools/list") {
-      this.#sendResult(value.id, { tools });
+      this.#sendResult(value.id, { tools: await this.#listedTools() });
       return;
     }
     if (value.method === "tools/call") {
@@ -285,6 +346,13 @@ export class NexusMcpServer {
         structuredContent = await this.#service.checkout(
           input.plan_key as string,
         );
+      } else if (params.name === "image.generate") {
+        structuredContent = {
+          artifacts: await this.#imageGenerator.generate(
+            input,
+            controller.signal,
+          ),
+        };
       } else if (params.name === "llm.models.list") {
         structuredContent = await this.#gateway.models(controller.signal);
       } else {
@@ -313,6 +381,55 @@ export class NexusMcpServer {
     } finally {
       this.#inflight.delete(request.id);
     }
+  }
+
+  async #listedTools() {
+    if (!this.#listedToolsOnce) {
+      this.#listedToolsOnce = true;
+      void this.#loadImageModels().catch(() => undefined);
+      return tools;
+    }
+    try {
+      const models = await this.#loadImageModels();
+      return [imageGenerationTool(models), ...fixedTools];
+    } catch {
+      return tools;
+    }
+  }
+
+  #loadImageModels() {
+    if (
+      this.#imageModelsRequest &&
+      (this.#imageModelsLoadedAt === 0 ||
+        Date.now() - this.#imageModelsLoadedAt < imageModelCatalogTtlMs)
+    ) {
+      return this.#imageModelsRequest;
+    }
+    const request = this.#client.imageModels().then((models) =>
+      models
+        .map(({ id, name }) => ({ id, name }))
+        .sort(
+          (left, right) =>
+            left.name.localeCompare(right.name) ||
+            left.id.localeCompare(right.id),
+        ),
+    );
+    this.#imageModelsLoadedAt = 0;
+    this.#imageModelsRequest = request;
+    void request.then(
+      () => {
+        if (this.#imageModelsRequest === request)
+          this.#imageModelsLoadedAt = Date.now();
+      },
+      () => undefined,
+    );
+    void request.catch(() => {
+      if (this.#imageModelsRequest === request) {
+        this.#imageModelsRequest = undefined;
+        this.#imageModelsLoadedAt = 0;
+      }
+    });
+    return request;
   }
 
   #sendResult(id: number | string, result: unknown) {

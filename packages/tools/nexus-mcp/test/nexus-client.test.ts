@@ -329,6 +329,7 @@ describe("NexusClient", () => {
     const requests: Array<{
       authorization: string | undefined;
       pathname: string;
+      search: string;
     }> = [];
     const client = new NexusClient(sessions, {
       fetch: async (input, init) => {
@@ -337,6 +338,7 @@ describe("NexusClient", () => {
           authorization:
             new Headers(init?.headers).get("authorization") ?? undefined,
           pathname: url.pathname,
+          search: url.search,
         });
         if (url.pathname.endsWith("/auth/token")) {
           return Response.json({
@@ -368,10 +370,20 @@ describe("NexusClient", () => {
         ) {
           return Response.json({
             data: [
-              { id: "~openai/gpt-latest", name: "OpenAI GPT Latest" },
               {
+                architecture: { output_modalities: ["text"] },
+                id: "~openai/gpt-latest",
+                name: "OpenAI GPT Latest",
+              },
+              {
+                architecture: { output_modalities: ["text"] },
                 id: "deepseek/deepseek-v4-flash:free",
                 name: "DeepSeek V4 Flash Free",
+              },
+              {
+                architecture: { output_modalities: ["image", "text"] },
+                id: "openai/gpt-image-1",
+                name: "GPT Image 1",
               },
             ],
           });
@@ -388,12 +400,21 @@ describe("NexusClient", () => {
           id: "deepseek/deepseek-v4-flash:free",
           name: "DeepSeek V4 Flash Free",
         },
+        { id: "openai/gpt-image-1", name: "GPT Image 1" },
       ],
       schema: "convax.llm-model-catalog/1",
     });
     expect(requests.at(-1)).toEqual({
       authorization: "Bearer fresh-data-token-with-sufficient-length",
       pathname: "/providers/26010000-0000-4000-8000-000000000010/models",
+      search: "?output_modalities=all",
     });
+    expect(await client.imageModels()).toEqual([
+      {
+        id: "openai/gpt-image-1",
+        name: "GPT Image 1",
+        outputModalities: ["image", "text"],
+      },
+    ]);
   });
 });

@@ -2,6 +2,13 @@
 
 First-party Convax companion for Nexus Hosted Auth and its OpenAI-compatible Gateway.
 
+The companion requests the complete OpenRouter model catalog through Nexus and
+keeps output modalities bounded locally. Text-output models feed the LLM provider;
+image-output models populate the host-rendered Nexus image-model control. Image
+generation uses the already-metered Chat Completions path and returns only validated
+embedded image artifacts to the host. Nexus video endpoints remain unavailable
+until the service adds a dedicated video Usage Inspector and quota settlement model.
+
 The companion owns PKCE and the loopback callback, stores the rotating Nexus refresh
 grant in a private user file, and exposes only a random loopback Gateway credential to
 the Convax host. Provider credentials remain encrypted in Nexus.
