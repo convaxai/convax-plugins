@@ -187,7 +187,7 @@ describe("source packages", () => {
     }
     expect(Example Generation.metadata.companions).toEqual([{
       command: "example-generation-mcp",
-      version: "0.3.3",
+      version: "0.3.4",
       source: "packages/tools/example-generation-mcp",
       targets: [{
         platform: "darwin",
@@ -287,9 +287,9 @@ describe("source packages", () => {
     ])
     expect(readStoredZip(Example Generation.zip).map((entry) => entry.relativePath)).toEqual(["LICENSE", "manifest.json"])
     expect(Example Generation.companionAssets.map((asset) => asset.assetName)).toEqual([
-      "convax-companion-example-generation-mcp-0.3.3-darwin-arm64",
+      "convax-companion-example-generation-mcp-0.3.4-darwin-arm64",
     ])
-    expect(Example Generation.tag).toBe("plugin-example-generation-v0.3.5")
+    expect(Example Generation.tag).toBe("plugin-example-generation-v0.3.6")
     expect(await fs.readFile(Example Generation.companionAssets[0].path)).toEqual(Example Generation.companionAssets[0].data)
     expect(readStoredZip(skill.zip).map((entry) => entry.relativePath)).toContain("SKILL.md")
     expect(readStoredZip(ffmpeg.zip).map((entry) => entry.relativePath)).toEqual([
@@ -435,7 +435,7 @@ describe("source packages", () => {
     expect(helloEntry.artifact.url).toContain("/plugin-hello-convax-v0.2.0/")
     expect(Example GenerationEntry.manifest.schema).toBe("convax.plugin/3")
     expect(Example GenerationEntry.companions[0].targets[0].artifact.url).toContain(
-      "/convax-companion-example-generation-mcp-0.3.3-darwin-arm64",
+      "/convax-companion-example-generation-mcp-0.3.4-darwin-arm64",
     )
     expect(firstSkill).not.toHaveProperty("manifest")
     expect(ffmpegSkillEntry.ownerPluginId).toBe("ffmpeg-tools")
