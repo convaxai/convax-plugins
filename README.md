@@ -114,7 +114,8 @@ workspace into the Plugin ZIP. Convax may show that Skill in its catalog, but it
 install, update, and removal lifecycle belongs to the Plugin. The standalone Skill
 ZIP remains portable to Codex and other Agent Skills clients. Because the same source
 changes both archives, an owned Skill release must also bump and publish its owner
-Plugin; release coverage verifies the deterministic bytes of both.
+Plugin. Pages withholds an incomplete owner/Skill update and keeps their previous
+published pair visible until both new Releases exist.
 
 `convax.plugin/5` adds transport-neutral host capabilities, including a sandboxed
 desktop pet feature. One Pet feature Plugin uses the
@@ -218,7 +219,8 @@ skill-<id>-v<version>
 For example: `plugin-hello-convax-v0.1.0`. The publish workflow validates the
 tag, creates the deterministic ZIP and Registry entry, attests the ZIP, and creates
 a GitHub Release. The Pages workflow rebuilds the catalog from published Release
-entries only.
+entries only. Each ordinary Plugin or Skill Release can enter the catalog
+independently; unrelated source versions that have not been released do not block it.
 
 ## Troubleshooting installation
 

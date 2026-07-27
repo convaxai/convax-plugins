@@ -167,7 +167,13 @@ disable a compromised version, add its `kind/id@version` identity to
 Pages workflow. This changes catalog policy without replacing the old asset.
 
 The Pages workflow aggregates entry documents from GitHub Releases and publishes
-only valid entries. The production catalog is:
+only valid entries. An ordinary Plugin or Skill becomes eligible as soon as its own
+Release succeeds; a different package's unreleased source version does not block it.
+For a Plugin-owned Skill, Pages retains the previously published owner/Skill pair
+until the current source versions of the owner and all of its owned Skills have
+matching Releases. This prevents a partially published ownership group from replacing
+the working pair without imposing a repository-wide release barrier. The production
+catalog is:
 
 `https://microvoid.github.io/convax-plugins/registry/v1/index.json`
 
@@ -175,7 +181,8 @@ The matching presentation sidecar is:
 
 `https://microvoid.github.io/convax-plugins/showcase/v1/index.json`
 
-Registry deployment is atomic with respect to the package versions on `main`.
-Pages waits until every source package has a matching published Release, so a batch
-of package tags becomes visible as one catalog update under a single new Registry
-sequence instead of exposing partially published batches.
+Each Pages deployment advances `sequence` beyond the currently deployed Registry,
+using `registry/config.json` as a minimum floor. Consequently, multiple package tags
+from the same `main` revision may update the catalog one at a time without reusing a
+sequence. `revision` continues to identify the protected `main` source used by the
+builder.

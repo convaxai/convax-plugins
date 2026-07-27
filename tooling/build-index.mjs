@@ -56,6 +56,20 @@ export async function buildIndex({ entriesDirectory, outputFile, revision, seque
   return registry
 }
 
+export function nextRegistrySequence(minimum, previous) {
+  if (!Number.isSafeInteger(minimum) || minimum < 1) {
+    throw new Error("Registry sequence minimum must be a positive safe integer")
+  }
+  if (previous === undefined) return minimum
+  if (!Number.isSafeInteger(previous) || previous < 1) {
+    throw new Error("Previous Registry sequence must be a positive safe integer")
+  }
+  if (previous === Number.MAX_SAFE_INTEGER) {
+    throw new Error("Previous Registry sequence cannot be incremented safely")
+  }
+  return Math.max(minimum, previous + 1)
+}
+
 function stableVersion(version) {
   const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.exec(version)
   return match ? [BigInt(match[1]), BigInt(match[2]), BigInt(match[3])] : undefined
@@ -77,12 +91,19 @@ function currentRevision() {
 
 export async function buildIndexFromArgs(argv) {
   const args = parseArgs(argv.filter((argument) => argument !== "--"))
-  const supported = new Set(["entries", "output", "revision", "sequence"])
+  const supported = new Set(["entries", "output", "previous", "revision", "sequence"])
   const unknown = Object.keys(args).find((key) => !supported.has(key))
   if (unknown) throw new Error(`arguments: unsupported --${unknown}`)
   const config = await readJson(path.join(root, "registry", "config.json"), "registry/config.json")
   exactKeys(config, ["sequence", "yanked"], ["sequence", "yanked"], "registry/config.json")
-  const sequence = args.sequence === undefined ? config.sequence : Number(args.sequence)
+  const minimumSequence = args.sequence === undefined ? config.sequence : Number(args.sequence)
+  const previous = args.previous === undefined
+    ? undefined
+    : parseRegistry(
+      await readJson(path.resolve(root, args.previous), args.previous),
+      "Previous Registry",
+    )
+  const sequence = nextRegistrySequence(minimumSequence, previous?.sequence)
   const revision = args.revision ?? process.env.GITHUB_SHA ?? currentRevision()
   return buildIndex({
     entriesDirectory: path.resolve(root, args.entries ?? "dist/packages"),

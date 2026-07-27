@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
-import { buildIndex } from "./build-index.mjs";
+import { buildIndex, nextRegistrySequence } from "./build-index.mjs";
 import { checkReleaseCoverage } from "./check-release-coverage.mjs";
 import { fetchReleaseEntries } from "./fetch-release-entries.mjs";
 import {
@@ -17,6 +17,7 @@ import {
   sha256,
 } from "./lib.mjs";
 import { packPackages } from "./pack.mjs";
+import { selectCatalogReleaseTags } from "./prepare-release-catalog.mjs";
 
 const temporaryDirectories = [];
 async function temporaryDirectory() {
@@ -585,6 +586,98 @@ describe("source packages", () => {
     );
   });
 
+  test("selects ordinary Releases independently while withholding incomplete owned-Skill updates", () => {
+    const sourcePackage = (kind, id, version, options = {}) => ({
+      metadata: {
+        kind,
+        id,
+        version,
+        ...(options.ownerPluginId ? { ownerPluginId: options.ownerPluginId } : {}),
+      },
+      ...(kind === "plugin"
+        ? {
+            manifest: {
+              contributes: options.ownedSkillId
+                ? { skills: [{ name: options.ownedSkillId, path: `skills/${options.ownedSkillId}` }] }
+                : {},
+            },
+          }
+        : {}),
+    });
+    const release = (kind, id, version) => ({
+      entry: { kind, id, version },
+      tag: `${kind}-${id}-v${version}`,
+    });
+    const packages = [
+      sourcePackage("plugin", "independent", "2.0.0"),
+      sourcePackage("plugin", "still-unreleased", "3.0.0"),
+      sourcePackage("plugin", "owner", "2.0.0", { ownedSkillId: "owned" }),
+      sourcePackage("skill", "owned", "2.0.0", { ownerPluginId: "owner" }),
+    ];
+    const previousRegistry = {
+      packages: [
+        { kind: "plugin", id: "owner", version: "1.0.0" },
+        { kind: "skill", id: "owned", version: "1.0.0" },
+      ],
+    };
+    const partial = selectCatalogReleaseTags({
+      entries: [
+        release("plugin", "independent", "2.0.0"),
+        release("plugin", "owner", "1.0.0"),
+        release("skill", "owned", "1.0.0"),
+        release("skill", "owned", "2.0.0"),
+      ],
+      packages,
+      previousRegistry,
+    });
+    expect(partial.selectedTags).toEqual([
+      "plugin-independent-v2.0.0",
+      "plugin-owner-v1.0.0",
+      "skill-owned-v1.0.0",
+    ]);
+    expect(partial.withheldGroups).toEqual([
+      { missing: ["plugin-owner-v2.0.0"], ownerPluginId: "owner" },
+    ]);
+
+    const complete = selectCatalogReleaseTags({
+      entries: [
+        release("plugin", "independent", "2.0.0"),
+        release("plugin", "owner", "1.0.0"),
+        release("plugin", "owner", "2.0.0"),
+        release("skill", "owned", "1.0.0"),
+        release("skill", "owned", "2.0.0"),
+      ],
+      packages,
+      previousRegistry,
+    });
+    expect(complete.selectedTags).toEqual([
+      "plugin-independent-v2.0.0",
+      "plugin-owner-v1.0.0",
+      "plugin-owner-v2.0.0",
+      "skill-owned-v1.0.0",
+      "skill-owned-v2.0.0",
+    ]);
+    expect(complete.withheldGroups).toEqual([]);
+  });
+
+  test("advances each production Registry publication beyond the deployed sequence", () => {
+    expect(nextRegistrySequence(43)).toBe(43);
+    expect(nextRegistrySequence(43, 42)).toBe(43);
+    expect(nextRegistrySequence(43, 43)).toBe(44);
+    expect(nextRegistrySequence(43, 80)).toBe(81);
+    expect(() => nextRegistrySequence(43, Number.MAX_SAFE_INTEGER)).toThrow(
+      "cannot be incremented safely",
+    );
+  });
+
+  test("publishes Pages without a whole-repository Release gate", async () => {
+    const workflow = await fs.readFile(path.join(root, ".github", "workflows", "pages.yml"), "utf8");
+    expect(workflow).toContain("prepare-release-catalog.mjs");
+    expect(workflow).toContain("--previous dist/production/index.json");
+    expect(workflow).not.toContain("check-release-coverage.mjs");
+    expect(workflow).not.toContain("steps.coverage.outputs.ready");
+  });
+
   test("builds the strict client Registry with only the latest stable version", async () => {
     const packages = await discoverPackages();
     const directory = await temporaryDirectory();
@@ -786,7 +879,7 @@ describe("source packages", () => {
     ).rejects.toThrow("SHA-256 does not match Registry entry");
   });
 
-  test("defers Registry deployment until every source version has a Release entry", async () => {
+  test("audits source versions against their immutable Release entries", async () => {
     const packages = await discoverPackages();
     const directory = await temporaryDirectory();
     const results = await packPackages(packages, directory);

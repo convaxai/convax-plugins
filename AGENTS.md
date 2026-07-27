@@ -67,7 +67,9 @@ These rules apply to people and AI agents in this repository.
 - Do not use symlinks, absolute paths, traversal, Windows-reserved names, generated
   dependency trees, secrets, or files larger than repository limits.
 - Increment package SemVer whenever released bytes or catalog metadata change.
-- Bump `registry/config.json` sequence for every published catalog change.
+- Treat `registry/config.json` sequence as the production sequence floor. Bump it for
+  explicit catalog-policy changes such as yanking; ordinary package Releases advance
+  the deployed sequence independently through the protected Pages workflow.
 - A generation companion must not impose an arbitrary overall deadline after a
   vendor accepts a job. Bound individual status requests and keep canonical
   queued/running states alive until success, explicit terminal failure, or caller

@@ -225,7 +225,7 @@ describe("Showcase Release aggregation", () => {
     }
   })
 
-  test("requires matching Showcase coverage before atomic deployment", async () => {
+  test("audits Showcase source against its immutable Release entry", async () => {
     const pkg = await showcasePackage()
     const directory = path.join(await temporaryDirectory(), "entries")
     const [packed] = await packPackages([pkg], directory)

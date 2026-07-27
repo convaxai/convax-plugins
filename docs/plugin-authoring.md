@@ -217,8 +217,9 @@ The Skill is authored once under `packages/skills/<name>/package/`; do not copy 
 into the Plugin source. The Skill source metadata declares `ownerPluginId`, and the
 packer injects its files into the Plugin ZIP after validating both declarations.
 Any owned Skill byte change also changes the Plugin ZIP, so publish a new owner
-Plugin version together with the new Skill version; release coverage rejects stale
-same-version owner bytes.
+Plugin version together with the new Skill version. Pages keeps the previous
+owner/Skill pair selected until every package in the current ownership group has a
+matching Release.
 
 Convax may list the Skill with a “Provided by” relationship, but users install,
 update, and remove it only through the owning Plugin. Its standard standalone ZIP

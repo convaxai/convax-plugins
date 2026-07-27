@@ -91,7 +91,7 @@ if (import.meta.main) {
   })
   const summary = result.ready
     ? "Every source package has a matching published Release."
-    : `Catalog deployment deferred; missing or incomplete Releases: ${result.missing.join(", ")}`
+    : `Source release audit found unpublished or incomplete versions: ${result.missing.join(", ")}`
   console.log(summary)
   if (process.env.GITHUB_OUTPUT) await fs.appendFile(process.env.GITHUB_OUTPUT, `ready=${result.ready}\n`)
 }

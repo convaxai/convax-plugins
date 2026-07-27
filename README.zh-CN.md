@@ -78,7 +78,8 @@ v6 也支持画布 sink 操作：Web 节点只能查看直接连入媒体的无�
 打包器会把对应的标准技能 workspace 注入插件 ZIP。Convax 可以在技能列表中展示它，
 但安装、更新和卸载生命周期都归插件所有。独立技能 ZIP 仍可供 Codex 及其他兼容
 Agent Skills 的客户端使用。由于同一份源码会同时改变两个压缩包，发布插件拥有的技能时
-必须同步提升并发布所属插件版本；发布覆盖检查会校验双方的确定性产物字节。
+必须同步提升并发布所属插件版本。若所属插件与技能的新 Release 尚未齐全，Pages 会继续
+展示上一组已发布版本，等双方都发布后再一起更新。
 
 `convax.plugin/5` 新增与传输方式无关的宿主能力，其中包括沙箱化桌面宠物功能。一个
 Pet 功能插件使用 `convax.plugin-capability/1` 兼容性组合，通过 `contributes.pet`
@@ -171,7 +172,8 @@ skill-<id>-v<version>
 
 例如 `plugin-hello-convax-v0.1.0`。发布工作流会校验标签、生成确定性 ZIP 和
 Registry 条目、为 ZIP 创建来源证明并发布 GitHub Release。Pages 工作流只根据
-已经发布的 Release 条目重建目录。
+已经发布的 Release 条目重建目录。普通插件或技能可以独立进入目录；其他尚未发布的
+源码版本不会阻塞这次更新。
 
 ## 安装问题排查
 

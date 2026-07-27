@@ -7,9 +7,11 @@ its existing local installer.
 
 Top-level fields are exactly `schema`, `sequence`, `revision`, and `packages`.
 `sequence` is a monotonically increasing positive integer used to reject rollback.
-It is source-controlled in `registry/config.json` and must increase before each
-catalog-changing release or yanking deployment. `revision` is the lowercase, full
-40-character Git commit SHA used to build the catalog.
+`registry/config.json` provides its source-controlled minimum floor. The production
+Pages builder compares that floor with the currently deployed Registry and advances
+the value for every deployment, so independently published packages from one source
+revision never reuse a sequence. `revision` is the lowercase, full 40-character Git
+commit SHA used to build the catalog.
 
 Every item contains `kind`, `id`, `name`, `description`, `version`,
 `compatibility`, `artifact`, and `yanked`, plus a complete `manifest` for Plugin items.
@@ -89,9 +91,10 @@ The Skill artifact remains a standard root-`SKILL.md` ZIP, so clients such as Co
 may still download and use it independently.
 
 An owned Skill source change also changes the owner Plugin ZIP. Both package versions
-must be bumped and released. Before Pages deployment, release coverage rebuilds every
-source ZIP deterministically and compares its exact size and SHA-256 with the immutable
-Release entry; a new Skill entry cannot be published beside stale owner Plugin bytes.
+must be bumped and released. The package workflow builds and verifies each immutable
+artifact from its exact tag. During catalog publication, an incomplete current
+owner/Skill group is withheld and the previous published pair remains selected; the
+new group becomes eligible only after all of its current source tags have Releases.
 
 ```json
 {
