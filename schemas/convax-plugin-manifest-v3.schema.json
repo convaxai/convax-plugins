@@ -406,7 +406,7 @@
           "uniqueItems": true,
           "maxItems": 4,
           "items": {
-            "enum": ["authorize", "reauthorize", "authorization.cancel", "sign_out"]
+            "enum": ["authorize", "reauthorize", "authorization.cancel", "checkout", "sign_out"]
           }
         }
       }

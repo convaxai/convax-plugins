@@ -1,0 +1,75 @@
+import { describe, expect, test } from "bun:test"
+import { readFile, readdir } from "node:fs/promises"
+import path from "node:path"
+
+const packageRoot = path.join(import.meta.dir, "..", "package")
+
+describe("video-timeline package", () => {
+  test("declares the v7 self-materialization action and minimum implemented capabilities", async () => {
+    const manifest = JSON.parse(await readFile(path.join(packageRoot, "manifest.json"), "utf8"))
+    expect(manifest).toMatchObject({
+      schema: "convax.plugin/7",
+      id: "video-timeline",
+      version: "0.1.3",
+      contributes: {
+        canvas: {
+          renderer: { create: true, height: 520, width: 640 },
+          selectionActions: [{ action: { type: "materialize-own-plugin-node", connect: "selection-to-created" }, target: "video" }],
+        },
+      },
+    })
+    expect(manifest.capabilities).toEqual([
+      "canvas.connectedInputs.read",
+      "canvas.connectedMedia.stream",
+      "canvas.node.read",
+      "canvas.node.write",
+      "ui.fullscreen",
+    ])
+    expect(manifest.runtime).toBeUndefined()
+    expect(manifest.hooks).toBeUndefined()
+  })
+
+  test("ships a compact Composition card backed by a dedicated fullscreen Timeline tool", async () => {
+    const html = await readFile(path.join(packageRoot, "index.html"), "utf8")
+    const app = await readFile(path.join(packageRoot, "assets/app.js"), "utf8")
+    const styles = await readFile(path.join(packageRoot, "assets/styles.css"), "utf8")
+    expect(html).toContain('aria-label="Composition monitor"')
+    expect(html).toContain('id="edit-timeline"')
+    expect(html).toContain('id="composition-summary"')
+    expect(html).toContain('class="card-actions"')
+    expect(html).toContain('id="mini-timeline"')
+    expect(html).toContain('id="mini-tracks"')
+    expect(html).toContain('aria-label="Timeline ruler"')
+    expect(html).toContain('id="split-clip"')
+    expect(html).toContain('id="zoom-fit"')
+    expect(html).toContain('id="zoom-value"')
+    expect(app).toContain('host.request("canvas.connectedMedia.open"')
+    expect(app).toContain('host.request("canvas.connectedInputs.list"')
+    expect(app).toContain('host.request("canvas.node.updateState"')
+    expect(app).toContain("setPointerCapture")
+    expect(app).toContain('addEventListener("wheel"')
+    expect(app).toContain('addEventListener("fullscreenchange"')
+    expect(app).toContain("firstPlayableTimelineStart")
+    expect(app).toContain("requestPreviewRefresh")
+    expect(app).toContain("applyDetectedSourceDuration")
+    expect(app).toContain("requestDurationResolution")
+    expect(app).toContain("mediaMetadataDuration")
+    expect(app).toContain("anchoredScrollLeft")
+    expect(app).toContain("visibilitychange")
+    expect(styles).toContain("overscroll-behavior: contain")
+    expect(styles).toContain('cursor: grabbing')
+    expect(styles).toContain("html:not(.is-editor-mode)")
+    expect(styles).toContain("html.is-editor-mode")
+    expect(styles).toContain(".mini-timeline")
+    expect(styles).toContain('content: "TIMELINE · 00:00.00"')
+  })
+
+  test("contains no dependency tree, companion, native executable, remote script or lockfile", async () => {
+    const entries = await readdir(packageRoot, { recursive: true })
+    expect(entries.some((entry) => entry.includes("node_modules"))).toBeFalse()
+    expect(entries.some((entry) => /(?:^|\/)(?:bun\.lock|package-lock\.json|yarn\.lock)$/.test(entry))).toBeFalse()
+    expect(entries.some((entry) => /\.(?:node|wasm|dylib|so|exe)$/.test(entry))).toBeFalse()
+    const html = await readFile(path.join(packageRoot, "index.html"), "utf8")
+    expect(html).not.toMatch(/https?:\/\//)
+  })
+})

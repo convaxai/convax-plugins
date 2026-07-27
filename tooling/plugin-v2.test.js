@@ -159,11 +159,16 @@ describe("convax.plugin/2 authoring", () => {
       ...generation,
       contributes: {
         ...generation.contributes,
-        service: serviceContribution(["reauthorize", "authorization.cancel", "sign_out"]),
+        service: serviceContribution(["reauthorize", "authorization.cancel", "checkout", "sign_out"]),
       },
     })
     expect(shared.contributes.generation.tools).toHaveLength(1)
-    expect(shared.contributes.service.actions).toEqual(["reauthorize", "authorization.cancel", "sign_out"])
+    expect(shared.contributes.service.actions).toEqual([
+      "reauthorize",
+      "authorization.cancel",
+      "checkout",
+      "sign_out",
+    ])
 
     const statusOnly = parsePluginManifest(
       generationManifest({

@@ -26,7 +26,7 @@ STORE method. Thus identical source bytes produce identical SHA-256 digests acro
 machines. Uncompressed storage is intentional: packages are already size-bounded,
 and avoiding compressor-version drift makes releases reproducible.
 
-A headless `convax.plugin/2` through `/6` local Tool Plugin may contain only
+A headless `convax.plugin/2` through `/7` local Tool Plugin may contain only
 `manifest.json` and a license notice. Its executable contributions use one declared
 `mcp-stdio` executable that is a separate distributable and
 must never appear anywhere below `package/`; validation and packing do not install,

@@ -38,9 +38,11 @@ describe("Codex Plugin service", () => {
     const status = await new CodexPluginService(runtime(client(connectedResponses()))).status()
     expect(status).toEqual({
       account: { availability: "available", displayName: "person@example.com" },
+      billing: { availability: "unavailable" },
       credential: { configured: true, verification: "verified" },
       credits: { availability: "available", remaining: 12.5, unit: "Codex credits" },
-      schema: "convax.plugin-service-status/1",
+      plan: { availability: "unavailable" },
+      schema: "convax.plugin-service-status/2",
       state: "connected",
       usage: {
         availability: "available",

@@ -66,9 +66,17 @@ size and SHA-256 into host-owned storage, so users do not install a sidecar thro
 `PATH` and executables still never enter a Plugin package.
 
 `convax.plugin/5` additionally declares an LLM provider as bounded provider/model
-metadata. The verified sidecar supplies a random, Main-only loopback gateway at
-runtime; manifests and service projections never contain upstream URLs, Cookies,
-headers, or credentials.
+metadata. It may opt into a fixed, bounded runtime model catalog while keeping
+model ids opaque. The verified sidecar supplies that display catalog and a random,
+Main-only loopback gateway at runtime; manifests and service projections never
+contain upstream URLs, Cookies, headers, or credentials.
+
+Executable Service contributions use the breaking
+`convax.plugin-service-status/2` projection for account, current Plan, Billing/
+Checkout availability, credits, and usage. A declared fixed `checkout` action
+accepts only an advertised Plan Key; its canonical HTTPS URL remains Main-only and
+is opened by the host in the system browser. Status v1 plugins must be upgraded
+before they can load in the current Services surface.
 
 A Plugin may also declare one self-contained OpenCode Hook module with `hooks`.
 Convax snapshots and fingerprints its exact JavaScript bytes during an explicit
@@ -87,6 +95,12 @@ authentication system. The declaration contains no local command, adapter, or
 secret. Only bounded literal non-credential headers are allowed. Concrete Plugin,
 Skill, and reviewed companion source remains in this repository rather than moving
 into the Convax host.
+
+`convax.plugin/7` uses `convax.plugin-capability/2`. It adds a declaration that can
+materialize the contributing Plugin's own renderer node from one selected video,
+plus a short-lived `canvas.connectedMedia.stream` grant for directly connected
+audio/video preview. Neither declaration can name another Plugin or expose a
+native Project path.
 
 v6 also supports Canvas sink operations: a Web node can inspect pathless metadata
 for directly connected media, while a manifest-declared local operation can bind
@@ -148,7 +162,7 @@ Open **Settings → Skills and Plugins** in a compatible Convax build. The catal
 loaded from the public Registry above; selecting **Install Plugin** or **Install
 Skill** sends only the package id to Convax main, which downloads and validates the
 corresponding immutable Release ZIP.
-If a v2 through v6 Plugin declares Registry companions for a local runtime, the
+If a v2 through v7 Plugin declares Registry companions for a local runtime, the
 same install transaction selects
 only the exact local platform/architecture artifact and verifies its immutable URL,
 byte count, and SHA-256 separately from the static ZIP.
@@ -225,7 +239,7 @@ entries only.
 Third-party Plugin ZIPs are inert during validation and packing. Web surfaces are static HTML/CSS/JavaScript
 rendered by Convax in an iframe with exactly `sandbox="allow-scripts"`; they cannot
 contain native executables, Node/Electron code, network permissions, or a generic
-host bridge. A v2 through v6 Tool Plugin may name a separately installed external command.
+host bridge. A v2 through v7 Tool Plugin may name a separately installed external command.
 Convax resolves and fingerprints it during explicit Plugin install/update; that
 transaction is consent to the exact binding, so later calls do not show a separate
 command prompt. It never becomes part of the ZIP. A Registry companion is an

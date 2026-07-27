@@ -1,0 +1,29 @@
+{
+  "schema": "convax.plugin/7",
+  "id": "nexus-service",
+  "name": "Nexus · OpenRouter",
+  "description": "Connects Convax to the Convax Workspace in Nexus and uses its encrypted OpenRouter Provider through short-lived Data Tokens.",
+  "version": "0.3.3",
+  "contributes": {
+    "llm": {
+      "provider": { "id": "openrouter", "name": "Nexus · OpenRouter" },
+      "modelCatalog": "runtime",
+      "models": [
+        { "id": "deepseek/deepseek-v4-flash", "name": "DeepSeek V4 Flash" }
+      ]
+    },
+    "service": {
+      "actions": [
+        "authorize",
+        "reauthorize",
+        "authorization.cancel",
+        "checkout",
+        "sign_out"
+      ]
+    }
+  },
+  "runtime": {
+    "type": "mcp-stdio",
+    "command": "convax-nexus-mcp"
+  }
+}

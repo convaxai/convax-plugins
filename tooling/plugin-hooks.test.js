@@ -42,8 +42,8 @@ function hookFile(source) {
 }
 
 describe("native OpenCode Hook authoring", () => {
-  test("keeps hooks additive in v1 and permits Hook-only v2-v6 packages", () => {
-    for (let version = 1; version <= 6; version += 1) {
+  test("keeps hooks additive in v1 and permits Hook-only v2-v7 packages", () => {
+    for (let version = 1; version <= 7; version += 1) {
       const schema = `convax.plugin/${version}`;
       const parsed = parsePluginManifest(hookManifest(schema));
       expect(parsed.schema).toBe(schema);
@@ -68,7 +68,7 @@ describe("native OpenCode Hook authoring", () => {
       path.join(root, "schemas", "convax-plugin-manifest-v4.schema.json"),
     );
 
-    for (let version = 1; version <= 6; version += 1) {
+    for (let version = 1; version <= 7; version += 1) {
       const schema = await readJson(
         path.join(
           root,

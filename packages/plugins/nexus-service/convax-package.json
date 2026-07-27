@@ -1,0 +1,28 @@
+{
+  "schema": "convax.package/1",
+  "kind": "plugin",
+  "id": "nexus-service",
+  "name": "Nexus · OpenRouter",
+  "description": "Connects Convax to the Convax Workspace in Nexus and uses its encrypted OpenRouter Provider through short-lived Data Tokens.",
+  "version": "0.3.3",
+  "license": "MIT",
+  "compatibility": {
+    "pluginSchema": "convax.plugin/7",
+    "pluginHost": "convax.plugin-capability/2"
+  },
+  "companions": [
+    {
+      "command": "convax-nexus-mcp",
+      "version": "0.3.3",
+      "source": "packages/tools/nexus-mcp",
+      "targets": [
+        {
+          "platform": "darwin",
+          "arch": "arm64",
+          "path": "dist/darwin-arm64/convax-nexus-mcp"
+        }
+      ]
+    }
+  ],
+  "yanked": false
+}

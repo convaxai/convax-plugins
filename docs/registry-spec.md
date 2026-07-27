@@ -13,7 +13,7 @@ catalog-changing release or yanking deployment. `revision` is the lowercase, ful
 
 Every item contains `kind`, `id`, `name`, `description`, `version`,
 `compatibility`, `artifact`, and `yanked`, plus a complete `manifest` for Plugin items.
-A `convax.plugin/2` through `/6` item with a local external runtime may additionally
+A `convax.plugin/2` through `/7` item with a local external runtime may additionally
 contain `companions`; no other item may contain it.
 The duplicated Plugin identity fields must equal the manifest so the management UI
 can render and filter without downloading ZIPs. Skill items have no `manifest`.
@@ -50,8 +50,9 @@ complete validated manifest. Plugin compatibility accepts exactly these pairs:
 `convax.plugin/2` + `convax.plugin-host/2`,
 `convax.plugin/3` + `convax.plugin-host/3`,
 `convax.plugin/4` + `convax.plugin-host/4`,
-`convax.plugin/5` + `convax.plugin-capability/1`, or
-`convax.plugin/6` + `convax.plugin-capability/1`. The embedded manifest schema must
+`convax.plugin/5` + `convax.plugin-capability/1`,
+`convax.plugin/6` + `convax.plugin-capability/1`, or
+`convax.plugin/7` + `convax.plugin-capability/2`. The embedded manifest schema must
 match that pair. Crossed pairs and a v1 compatibility envelope around a v2 manifest
 are rejected. Skill compatibility is exactly `{"skillSchema":"opencode.skill/1"}`.
 Artifact objects contain only `url`, `size`, and lowercase hex `sha256`; URLs always
@@ -78,7 +79,7 @@ bounded persistence.
 
 A Skill item may additionally contain `ownerPluginId`. This is lifecycle metadata
 for Convax, not an Agent Skills field. The id must resolve to a Plugin item whose
-`convax.plugin/4`, `/5`, or `/6` manifest contains a matching
+`convax.plugin/4`, `/5`, `/6`, or `/7` manifest contains a matching
 `contributes.skills` item. The
 Registry is rejected if either side is missing.
 
@@ -102,7 +103,7 @@ Release entry; a new Skill entry cannot be published beside stale owner Plugin b
 
 ## Verified companion executables
 
-An external v2 through v6 runtime is distributed beside, never inside, its static Plugin ZIP.
+An external v2 through v7 runtime is distributed beside, never inside, its static Plugin ZIP.
 Its Plugin item has the following optional strict field:
 
 ```json

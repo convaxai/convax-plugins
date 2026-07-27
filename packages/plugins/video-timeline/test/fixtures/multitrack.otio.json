@@ -1,0 +1,123 @@
+{
+  "OTIO_SCHEMA": "Timeline.1",
+  "name": "Multitrack Edit",
+  "global_start_time": null,
+  "metadata": {},
+  "tracks": {
+    "OTIO_SCHEMA": "Stack.1",
+    "name": "Tracks",
+    "metadata": {},
+    "effects": [],
+    "markers": [],
+    "children": [
+      {
+        "OTIO_SCHEMA": "Track.1",
+        "name": "V1",
+        "kind": "Video",
+        "metadata": {},
+        "effects": [],
+        "markers": [],
+        "children": [
+          {
+            "OTIO_SCHEMA": "Clip.2",
+            "name": "Primary",
+            "metadata": { "convax": { "fit": "contain", "opacity": 1 } },
+            "effects": [],
+            "markers": [],
+            "source_range": {
+              "OTIO_SCHEMA": "TimeRange.1",
+              "start_time": { "OTIO_SCHEMA": "RationalTime.1", "value": 24, "rate": 24 },
+              "duration": { "OTIO_SCHEMA": "RationalTime.1", "value": 96, "rate": 24 }
+            },
+            "media_reference": {
+              "OTIO_SCHEMA": "ExternalReference.1",
+              "target_url": "file:///must-not-be-persisted.mov",
+              "available_range": null,
+              "metadata": { "convax": { "sourceNodeId": "video-a" } }
+            }
+          }
+        ]
+      },
+      {
+        "OTIO_SCHEMA": "Track.1",
+        "name": "V2",
+        "kind": "Video",
+        "metadata": {},
+        "effects": [],
+        "markers": [],
+        "children": [
+          {
+            "OTIO_SCHEMA": "Gap.1",
+            "name": "Gap",
+            "metadata": {},
+            "effects": [],
+            "markers": [],
+            "source_range": {
+              "OTIO_SCHEMA": "TimeRange.1",
+              "start_time": { "OTIO_SCHEMA": "RationalTime.1", "value": 0, "rate": 30 },
+              "duration": { "OTIO_SCHEMA": "RationalTime.1", "value": 60, "rate": 30 }
+            }
+          },
+          {
+            "OTIO_SCHEMA": "Clip.2",
+            "name": "Overlay",
+            "metadata": { "convax": { "fit": "cover", "opacity": 0.65 } },
+            "effects": [],
+            "markers": [],
+            "source_range": {
+              "OTIO_SCHEMA": "TimeRange.1",
+              "start_time": { "OTIO_SCHEMA": "RationalTime.1", "value": 15, "rate": 30 },
+              "duration": { "OTIO_SCHEMA": "RationalTime.1", "value": 45, "rate": 30 }
+            },
+            "media_reference": {
+              "OTIO_SCHEMA": "MissingReference.1",
+              "name": "Overlay",
+              "available_range": null,
+              "metadata": { "convax": { "sourceNodeId": "video-b" } }
+            }
+          }
+        ]
+      },
+      {
+        "OTIO_SCHEMA": "Track.1",
+        "name": "A1",
+        "kind": "Audio",
+        "metadata": { "convax": { "muted": false } },
+        "effects": [],
+        "markers": [],
+        "children": [
+          {
+            "OTIO_SCHEMA": "Gap.1",
+            "name": "Gap",
+            "metadata": {},
+            "effects": [],
+            "markers": [],
+            "source_range": {
+              "OTIO_SCHEMA": "TimeRange.1",
+              "start_time": { "OTIO_SCHEMA": "RationalTime.1", "value": 0, "rate": 48 },
+              "duration": { "OTIO_SCHEMA": "RationalTime.1", "value": 24, "rate": 48 }
+            }
+          },
+          {
+            "OTIO_SCHEMA": "Clip.2",
+            "name": "Music",
+            "metadata": { "convax": { "gain": 0.75 } },
+            "effects": [],
+            "markers": [],
+            "source_range": {
+              "OTIO_SCHEMA": "TimeRange.1",
+              "start_time": { "OTIO_SCHEMA": "RationalTime.1", "value": 0, "rate": 48 },
+              "duration": { "OTIO_SCHEMA": "RationalTime.1", "value": 144, "rate": 48 }
+            },
+            "media_reference": {
+              "OTIO_SCHEMA": "MissingReference.1",
+              "name": "Music",
+              "available_range": null,
+              "metadata": { "convax": { "sourceNodeId": "audio-a" } }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

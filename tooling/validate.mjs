@@ -47,6 +47,7 @@ export async function validateRepository(options = {}) {
     "convax-plugin-manifest-v4.schema.json",
     "convax-plugin-manifest-v5.schema.json",
     "convax-plugin-manifest-v6.schema.json",
+    "convax-plugin-manifest-v7.schema.json",
     "convax-registry-v1.schema.json",
     "convax-showcase-entry-v1.schema.json",
     "convax-showcase-v1.schema.json",
@@ -61,7 +62,8 @@ export async function validateRepository(options = {}) {
     pkg.metadata.kind === "plugin" && (
       pkg.manifest.schema === "convax.plugin/4" ||
       pkg.manifest.schema === "convax.plugin/5" ||
-      pkg.manifest.schema === "convax.plugin/6"))) {
+      pkg.manifest.schema === "convax.plugin/6" ||
+      pkg.manifest.schema === "convax.plugin/7"))) {
     for (const contribution of plugin.manifest.contributes.skills ?? []) {
       const prefix = `${contribution.path}/`
       const files = plugin.files

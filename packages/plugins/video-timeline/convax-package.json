@@ -1,0 +1,14 @@
+{
+  "schema": "convax.package/1",
+  "kind": "plugin",
+  "id": "video-timeline",
+  "name": "Video Timeline",
+  "description": "Creates a live Composition video card whose connected media can be edited in a dedicated Timeline tool.",
+  "version": "0.1.3",
+  "license": "MIT",
+  "compatibility": {
+    "pluginSchema": "convax.plugin/7",
+    "pluginHost": "convax.plugin-capability/2"
+  },
+  "yanked": false
+}

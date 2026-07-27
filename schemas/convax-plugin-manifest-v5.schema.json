@@ -7,12 +7,20 @@
   "required": ["schema", "id", "name", "description", "version", "contributes"],
   "properties": {
     "schema": { "const": "convax.plugin/5" },
-    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 80 },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 80
+    },
     "name": { "type": "string", "minLength": 1, "maxLength": 120 },
     "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
-    "version": { "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/semver" },
+    "version": {
+      "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/semver"
+    },
     "entry": { "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/path" },
-    "hooks": { "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/hookPath" },
+    "hooks": {
+      "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/hookPath"
+    },
     "capabilities": {
       "type": "array",
       "uniqueItems": true,
@@ -43,16 +51,28 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "agent": { "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/agent" },
-        "canvas": { "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/canvas" },
-        "generation": { "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/generation" },
+        "agent": {
+          "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/agent"
+        },
+        "canvas": {
+          "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/canvas"
+        },
+        "generation": {
+          "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/generation"
+        },
         "llm": { "$ref": "#/$defs/llm" },
         "pet": { "$ref": "#/$defs/pet" },
-        "service": { "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/service" },
-        "skills": { "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/skills" }
+        "service": {
+          "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/service"
+        },
+        "skills": {
+          "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/skills"
+        }
       }
     },
-    "runtime": { "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/runtime" }
+    "runtime": {
+      "$ref": "./convax-plugin-manifest-v4.schema.json#/$defs/runtime"
+    }
   },
   "allOf": [
     {
@@ -83,7 +103,11 @@
       "then": {
         "properties": {
           "contributes": {
-            "anyOf": [{ "required": ["generation"] }, { "required": ["llm"] }, { "required": ["service"] }]
+            "anyOf": [
+              { "required": ["generation"] },
+              { "required": ["llm"] },
+              { "required": ["service"] }
+            ]
           }
         }
       }
@@ -114,7 +138,9 @@
         "properties": { "contributes": { "required": ["agent"] } },
         "required": ["contributes"]
       },
-      "then": { "properties": { "contributes": { "required": ["generation"] } } }
+      "then": {
+        "properties": { "contributes": { "required": ["generation"] } }
+      }
     },
     {
       "if": {
@@ -126,11 +152,15 @@
         },
         "required": ["contributes"]
       },
-      "then": { "properties": { "contributes": { "required": ["generation"] } } }
+      "then": {
+        "properties": { "contributes": { "required": ["generation"] } }
+      }
     },
     {
       "if": {
-        "properties": { "capabilities": { "contains": { "const": "generation.execute" } } },
+        "properties": {
+          "capabilities": { "contains": { "const": "generation.execute" } }
+        },
         "required": ["capabilities"]
       },
       "then": {
@@ -205,6 +235,7 @@
       "additionalProperties": false,
       "required": ["models", "provider"],
       "properties": {
+        "modelCatalog": { "const": "runtime" },
         "models": {
           "type": "array",
           "minItems": 1,
@@ -214,7 +245,11 @@
             "additionalProperties": false,
             "required": ["id", "name"],
             "properties": {
-              "id": { "type": "string", "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)*$", "maxLength": 128 },
+              "id": {
+                "type": "string",
+                "pattern": "^~?[a-z0-9]+(?:[._/:-][a-z0-9]+)*$",
+                "maxLength": 128
+              },
               "name": { "type": "string", "minLength": 1, "maxLength": 120 }
             }
           }
@@ -224,7 +259,11 @@
           "additionalProperties": false,
           "required": ["id", "name"],
           "properties": {
-            "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 80 },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 80
+            },
             "name": { "type": "string", "minLength": 1, "maxLength": 120 }
           }
         }

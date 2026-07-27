@@ -1,0 +1,11 @@
+{
+  "name": "@microvoid/convax-plugin-video-timeline",
+  "version": "0.1.3",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "bun ../../../tooling/validate.mjs --kind plugin --id video-timeline",
+    "pack": "bun ../../../tooling/pack.mjs --kind plugin --id video-timeline",
+    "test": "bun test"
+  }
+}

@@ -125,7 +125,7 @@ JSON. Do not embed secrets, tokens, absolute paths, dependency trees, generated
 binaries, or instructions to disable safety checks.
 
 A normal standalone Skill has its own install and removal lifecycle. When a
-`convax.plugin/4`, `/5`, or `/6` Plugin owns the Skill, set `ownerPluginId` in the Skill's
+`convax.plugin/4`, `/5`, `/6`, or `/7` Plugin owns the Skill, set `ownerPluginId` in the Skill's
 `convax-package.json` and add the matching `{name,path}` item to the Plugin's
 `contributes.skills`. Convax may display this standard Skill with its owner, but it
 must be installed, updated, and removed only with that Plugin. The portable Skill

@@ -98,6 +98,15 @@
                 "pluginSchema": { "const": "convax.plugin/6" },
                 "pluginHost": { "const": "convax.plugin-capability/1" }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["pluginSchema", "pluginHost"],
+              "properties": {
+                "pluginSchema": { "const": "convax.plugin/7" },
+                "pluginHost": { "const": "convax.plugin-capability/2" }
+              }
             }
           ]
         },
@@ -110,7 +119,8 @@
             { "$ref": "./convax-plugin-manifest-v3.schema.json" },
             { "$ref": "./convax-plugin-manifest-v4.schema.json" },
             { "$ref": "./convax-plugin-manifest-v5.schema.json" },
-            { "$ref": "./convax-plugin-manifest-v6.schema.json" }
+            { "$ref": "./convax-plugin-manifest-v6.schema.json" },
+            { "$ref": "./convax-plugin-manifest-v7.schema.json" }
           ]
         },
         "companions": { "$ref": "#/$defs/companions" }
@@ -189,6 +199,18 @@
           "then": { "properties": { "manifest": { "$ref": "./convax-plugin-manifest-v6.schema.json" } } }
         },
         {
+          "if": {
+            "properties": {
+              "compatibility": {
+                "properties": { "pluginSchema": { "const": "convax.plugin/7" } },
+                "required": ["pluginSchema"]
+              }
+            },
+            "required": ["compatibility"]
+          },
+          "then": { "properties": { "manifest": { "$ref": "./convax-plugin-manifest-v7.schema.json" } } }
+        },
+        {
           "if": { "required": ["companions"] },
           "then": {
             "properties": {
@@ -223,6 +245,12 @@
                       "pluginSchema": { "const": "convax.plugin/6" },
                       "pluginHost": { "const": "convax.plugin-capability/1" }
                     }
+                  },
+                  {
+                    "properties": {
+                      "pluginSchema": { "const": "convax.plugin/7" },
+                      "pluginHost": { "const": "convax.plugin-capability/2" }
+                    }
                   }
                 ]
               },
@@ -242,6 +270,9 @@
                   },
                   {
                     "allOf": [{ "$ref": "./convax-plugin-manifest-v6.schema.json" }, { "required": ["runtime"] }]
+                  },
+                  {
+                    "allOf": [{ "$ref": "./convax-plugin-manifest-v7.schema.json" }, { "required": ["runtime"] }]
                   }
                 ]
               }

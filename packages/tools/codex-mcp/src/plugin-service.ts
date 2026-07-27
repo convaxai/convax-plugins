@@ -18,8 +18,10 @@ function record(value: unknown): Record<string, unknown> | undefined {
 function disconnected(verification: PluginServiceStatus["credential"]["verification"] = "unknown"): PluginServiceStatus {
   return {
     account: unavailable,
+    billing: unavailable,
     credential: { configured: false, verification },
     credits: unavailable,
+    plan: unavailable,
     schema: pluginServiceStatusSchema,
     state: "disconnected",
     usage: unavailable,
@@ -98,8 +100,10 @@ async function inspect(client: CodexAppServerClient): Promise<PluginServiceStatu
   const rateLimits = record(record(rateResult)?.rateLimits)
   return {
     account: displayAccount(account),
+    billing: unavailable,
     credential: { configured: true, verification: catalogReady && imageReady ? "verified" : "unverified" },
     credits: creditsFor(rateLimits),
+    plan: unavailable,
     schema: pluginServiceStatusSchema,
     state: catalogReady && imageReady ? "connected" : "attention",
     usage: usageFor(rateLimits),

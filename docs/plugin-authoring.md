@@ -7,7 +7,7 @@ origin: it cannot inspect the parent DOM, use browser storage as shared applicat
 state, or access Node/Electron. The one exception at runtime is an explicitly
 declared and authorized OpenCode Hook module described below.
 
-`convax.plugin/2` through `/6` may instead be headless Tool Plugins. Local
+`convax.plugin/2` through `/7` may instead be headless Tool Plugins. Local
 executable contributions name a separately distributed bare `mcp-stdio` command;
 their ZIP still contains no executable code. v4 and later may own Skills, v5 adds
 transport-neutral Project/Canvas grants and LLM display metadata, and v6 may expose
@@ -17,7 +17,7 @@ supplies only the generic host ABI and lifecycle.
 
 ## Manifest
 
-`package/manifest.json` uses `convax.plugin/1` through `/6`. Only
+`package/manifest.json` uses `convax.plugin/1` through `/7`. Only
 documented fields are accepted. Source metadata must use the matching pair:
 
 - `convax.plugin/1` with `convax.plugin-host/1`;
@@ -25,9 +25,10 @@ documented fields are accepted. Source metadata must use the matching pair:
 - `convax.plugin/3` with `convax.plugin-host/3`;
 - `convax.plugin/4` with `convax.plugin-host/4`;
 - `convax.plugin/5` with `convax.plugin-capability/1`;
-- `convax.plugin/6` with `convax.plugin-capability/1`.
+- `convax.plugin/6` with `convax.plugin-capability/1`;
+- `convax.plugin/7` with `convax.plugin-capability/2`.
 
-There is no `convax.plugin-host/5` or `/6`. The capability protocol is versioned
+There is no `convax.plugin-host/5`, `/6`, or `/7`. The capability protocol is versioned
 independently from the manifest schema so later schemas can evolve without another
 major-specific host bridge.
 
@@ -178,7 +179,7 @@ Plugin-owned Skill contributions. The owner must still provide a real Plugin
 capability—such as a sandboxed Canvas renderer, an executable generation/service
 runtime, a v5 Project/Canvas grant, or a v6 remote Agent MCP endpoint—beyond merely
 wrapping a Skill. v4, v5, and v6 all use the same `contributes.skills` ownership
-contract:
+contract; v7 retains it:
 
 ```json
 {
@@ -371,7 +372,7 @@ closed and require reinstall. The Plugin manifest never contains build paths,
 vendor credentials, or a fallback download URL, and the user does not need to copy
 the executable into `PATH`.
 
-A v2 through v6 Web surface that calls installed generation tools requests
+A v2 through v7 Web surface that calls installed generation tools requests
 `generation.execute` and uses an ordinary `entry` plus Canvas contribution. It may
 omit `runtime` and `contributes.generation`. Declaring a runtime does not grant the
 Web surface caller authority, and granting `generation.execute` does not let the
@@ -379,7 +380,7 @@ iframe start processes or send arbitrary MCP requests.
 
 ## Plugin service contribution
 
-A v2 through v6 executable Plugin may expose bounded account/service state through the same
+A v2 through v7 executable Plugin may expose bounded account/service state through the same
 verified sidecar process used by generation. The manifest declares only which
 fixed host actions are meaningful; it cannot choose MCP method names or attach an
 action payload:
@@ -402,20 +403,29 @@ action payload:
 ```
 
 `actions` is a unique subset of `authorize`, `reauthorize`,
-`authorization.cancel`, and `sign_out`; an empty array declares status-only UI.
+`authorization.cancel`, `checkout`, and `sign_out`; an empty array declares status-only UI.
 The sidecar must always expose `service.status`, plus the corresponding fixed MCP
 tool for every declared action (`service.authorize`, `service.reauthorize`,
-`service.authorization.cancel`, or `service.sign_out`). Every tool accepts exactly
-an empty object.
+`service.authorization.cancel`, `service.checkout`, or `service.sign_out`).
+All tools except Checkout accept exactly an empty object. `service.checkout` accepts
+exactly `{ "plan_key": "..." }`, where the bounded kebab-case Key was advertised
+by the current status.
 
 Successful service tools return `structuredContent` with exactly the
-`convax.plugin-service-status/1` display contract: `schema`, `state`, `credential`,
-`account`, `credits`, and `usage`. Do not return credentials, URLs, native paths,
-cookies, arbitrary diagnostics, or provider configuration. Unsupported account,
-credit, or usage APIs must be represented as `{ "availability": "unavailable" }`,
-not guessed values. Declaring an action does not grant browser, Cookie, or generic
-network access; the separately reviewed sidecar remains responsible for its own
-documented API boundary.
+`convax.plugin-service-status/2` display contract: `schema`, `state`, `credential`,
+`account`, `plan`, `billing`, `credits`, and `usage`. Status v1 is not accepted.
+Do not return credentials, URLs, native paths, cookies, arbitrary diagnostics, or
+provider configuration. Unsupported account, Plan, Billing, credit, or usage APIs
+must be represented as `{ "availability": "unavailable" }`, not guessed values.
+Available Billing contains a bounded Checkout catalog and optional subscription/
+pending Checkout status; it contains no price or Provider Product metadata.
+
+Successful `service.checkout` returns exactly
+`convax.plugin-service-checkout/1` with `checkout_id` and a canonical HTTPS
+`checkout_url`. That result is consumed and validated only by Desktop Main, which
+opens the system browser; it never reaches preload or renderer. Declaring an action
+does not grant browser, Cookie, or generic network access; the separately reviewed
+sidecar remains responsible for its own documented API boundary.
 
 If a reviewed sidecar must retain a higher-privilege first-party Web session for
 live service metadata, say so in the installed Plugin description. Store it
@@ -435,17 +445,28 @@ only:
   "contributes": {
     "llm": {
       "provider": { "id": "example-llm", "name": "Example LLM" },
+      "modelCatalog": "runtime",
       "models": [{ "id": "example-main", "name": "Example Main" }]
     }
   }
 }
 ```
 
-The sidecar must expose the fixed, empty-input MCP tool `llm.gateway.start`. Its
+`models` is the bounded static catalog and remains required. A provider whose
+available models are account- or runtime-dependent may additionally declare
+`"modelCatalog": "runtime"`. Its sidecar must then expose the fixed, empty-input
+`llm.models.list` tool and return exactly
+`{schema:"convax.llm-model-catalog/1",models:[{id,name}]}`. The host bounds,
+deduplicates and validates this display-only catalog before it reaches OpenCode or
+renderer settings; it does not interpret model ids, pricing, routing, or provider
+payloads. Failure to load the runtime catalog omits that provider rather than
+trusting arbitrary sidecar output.
+
+The sidecar must also expose the fixed, empty-input MCP tool `llm.gateway.start`. Its
 Main-only `structuredContent` is exactly `{schema, base_url, api_key}` with schema
 `convax.llm-gateway/1`, an ephemeral `http://127.0.0.1:<port>/v1` URL, and a random
 process-lifetime key. The gateway accepts only authenticated OpenAI-compatible
-requests for declared models. It owns upstream URLs, headers, credentials, Cookies,
+requests for its validated static or runtime catalog. It owns upstream URLs, headers, credentials, Cookies,
 streaming, cancellation, and vendor error adaptation; none of those values belongs
 in the manifest, renderer, service status, or durable OpenCode config.
 
@@ -504,21 +525,54 @@ v5 and v6 use `convax.plugin-capability/1`, not a synthesized
 `convax.plugin-host/5` or `/6`. Use only the typed capability client supplied by a
 compatible host; do not recreate that transport or forward arbitrary methods.
 
+v7 uses `convax.plugin-capability/2`. A video selection action may replace the
+generation editor/steps fields with the fixed declaration below:
+
+```json
+{
+  "id": "create-timeline",
+  "title": { "default": "Create Timeline" },
+  "description": {
+    "default": "Create an editable Timeline and keep the source."
+  },
+  "target": "video",
+  "action": {
+    "type": "materialize-own-plugin-node",
+    "connect": "selection-to-created"
+  }
+}
+```
+
+This action requires the same manifest to contribute a creatable renderer. The
+host derives the target Plugin identity from the installed manifest principal,
+creates only that renderer, preserves the selected video, and commits node plus
+edge as one revision-checked Canvas business operation. It never grants generic
+Canvas document write access.
+
+`canvas.connectedMedia.stream` is also v7-only. Its node-scoped methods are
+`canvas.connectedMedia.open({nodeId})` and
+`canvas.connectedMedia.close({sessionId})`. Open is for explicit user preview and
+accepts only a current direct incoming video/audio node. The returned URL is
+short-lived, supports streaming ranges, contains no native path, and is revoked
+when the edge, source, Plugin, or frame changes. Never persist the URL or session.
+
 ## Capabilities
 
-| Method                        | Manifest capability           | Scope                                                        |
-| ----------------------------- | ----------------------------- | ------------------------------------------------------------ |
-| `host.context.get`            | none                          | current Project, Canvas, and owning node                     |
-| `canvas.connectedInputs.list` | `canvas.connectedInputs.read` | pathless metadata for direct incoming media                  |
-| `canvas.node.get`             | `canvas.node.read`            | owning node only                                             |
-| `canvas.node.updateState`     | `canvas.node.write`           | Plugin-namespaced node state                                 |
-| `canvas.connectedImages.list` | `canvas.connectedImages.read` | directly connected managed Canvas image nodes                |
-| `canvas.connectedImages.read` | `canvas.connectedImages.read` | bounded bytes for one directly connected managed image       |
-| `canvas.image.create`         | `canvas.image.write`          | one bounded PNG imported as a managed adjacent Canvas image  |
-| `project.file.readText`       | `project.files.read`          | current Project-relative text file                           |
-| `agent.prompt`                | `agent.prompt`                | current Project and owning node resource                     |
-| `generation.tools.list`       | `generation.execute`          | installed generation contracts in the current scope          |
-| `generation.canvas.execute`   | `generation.execute`          | shared scoped Canvas generation operation                    |
+| Method                        | Manifest capability            | Scope                                                       |
+| ----------------------------- | ------------------------------ | ----------------------------------------------------------- |
+| `host.context.get`            | none                           | current Project, Canvas, and owning node                    |
+| `canvas.connectedInputs.list` | `canvas.connectedInputs.read`  | pathless metadata for direct incoming media                 |
+| `canvas.connectedMedia.open`  | `canvas.connectedMedia.stream` | short-lived stream for one direct incoming audio/video node |
+| `canvas.connectedMedia.close` | `canvas.connectedMedia.stream` | revoke a stream opened by the same Plugin frame             |
+| `canvas.node.get`             | `canvas.node.read`             | owning node only                                            |
+| `canvas.node.updateState`     | `canvas.node.write`            | Plugin-namespaced node state                                |
+| `canvas.connectedImages.list` | `canvas.connectedImages.read`  | directly connected managed Canvas image nodes               |
+| `canvas.connectedImages.read` | `canvas.connectedImages.read`  | bounded bytes for one directly connected managed image      |
+| `canvas.image.create`         | `canvas.image.write`           | one bounded PNG imported as a managed adjacent Canvas image |
+| `project.file.readText`       | `project.files.read`           | current Project-relative text file                          |
+| `agent.prompt`                | `agent.prompt`                 | current Project and owning node resource                    |
+| `generation.tools.list`       | `generation.execute`           | installed generation contracts in the current scope         |
+| `generation.canvas.execute`   | `generation.execute`           | shared scoped Canvas generation operation                   |
 
 Request the smallest set. Arguments cannot select another Project, Canvas, or node.
 Treat results as untrusted structured data, bound message sizes, handle errors, and
@@ -544,6 +598,6 @@ refresh its list and wait for an explicit user action.
 No remote scripts/assets, iframe network APIs, popups, downloads, eval-generated
 code, native/WASM executables, packaged Node servers, filesystem paths, secrets,
 telemetry, service workers, or generic method forwarding. Do not edit `.convax`
-files. A v2 through v6 external runtime is a separately installed and authorized
+files. A v2 through v7 external runtime is a separately installed and authorized
 tool, never a Plugin ZIP asset. A v6 remote Agent MCP URL is host-consumed metadata,
 not iframe network permission. Use host capabilities only.

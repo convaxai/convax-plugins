@@ -1,0 +1,13 @@
+{
+  "name": "@microvoid/convax-plugin-nexus-service",
+  "version": "0.3.3",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@microvoid/convax-nexus-mcp": "workspace:*"
+  },
+  "scripts": {
+    "validate": "bun ../../../tooling/validate.mjs --kind plugin --id nexus-service",
+    "pack": "bun ../../../tooling/pack.mjs --kind plugin --id nexus-service"
+  }
+}

@@ -1,7 +1,7 @@
 import path from "node:path"
 
 export const generationCallSchema = "convax.generation-call/1" as const
-export const pluginServiceStatusSchema = "convax.plugin-service-status/1" as const
+export const pluginServiceStatusSchema = "convax.plugin-service-status/2" as const
 export const llmGatewaySchema = "convax.llm-gateway/1" as const
 
 export const codexLlmModels = [
@@ -50,6 +50,7 @@ export interface PluginServiceStatus {
   account:
     | { availability: "available"; displayName: string }
     | { availability: "unavailable" }
+  billing: { availability: "unavailable" }
   credential: {
     configured: boolean
     verification: "verified" | "unverified" | "failed" | "unknown"
@@ -57,6 +58,7 @@ export interface PluginServiceStatus {
   credits:
     | { availability: "available"; remaining: number; unit: string }
     | { availability: "unavailable" }
+  plan: { availability: "unavailable" }
   schema: typeof pluginServiceStatusSchema
   state: "connected" | "disconnected" | "attention" | "unknown"
   usage:
