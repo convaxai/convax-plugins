@@ -182,7 +182,6 @@ export class NexusMcpServer {
     | Promise<readonly { id: string; name: string }[]>
     | undefined;
   #imageModelsLoadedAt = 0;
-  #listedToolsOnce = false;
   #closed = false;
   #reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
 
@@ -279,7 +278,7 @@ export class NexusMcpServer {
       this.#sendResult(value.id, {
         capabilities: { tools: {} },
         protocolVersion,
-        serverInfo: { name: "convax-nexus-mcp", version: "0.3.4" },
+        serverInfo: { name: "convax-nexus-mcp", version: "0.3.5" },
       });
       return;
     }
@@ -384,11 +383,6 @@ export class NexusMcpServer {
   }
 
   async #listedTools() {
-    if (!this.#listedToolsOnce) {
-      this.#listedToolsOnce = true;
-      void this.#loadImageModels().catch(() => undefined);
-      return tools;
-    }
     try {
       const models = await this.#loadImageModels();
       return [imageGenerationTool(models), ...fixedTools];
