@@ -32,8 +32,22 @@ describe("Bun workspace ownership", () => {
     }
   })
 
-  test("keeps one frozen root lockfile", async () => {
-    const lock = await readJson(path.join(root, "bun.lock"))
+  test("uses the official npm registry and keeps one frozen root lockfile", async () => {
+    const lockPath = path.join(root, "bun.lock")
+    const [lock, lockText, bunfig] = await Promise.all([
+      readJson(lockPath),
+      fs.readFile(lockPath, "utf8"),
+      fs.readFile(path.join(root, "bunfig.toml"), "utf8"),
+    ])
+
+    expect(bunfig).toBe('[install]\nregistry = "https://registry.npmjs.org"\n')
+    for (const entry of Object.values(lock.packages)) {
+      const source = Array.isArray(entry) ? entry[1] : undefined
+      if (typeof source === "string" && source.startsWith("http")) {
+        expect(source).toStartWith("https://registry.npmjs.org/")
+      }
+    }
+
     expect(lock.lockfileVersion).toBe(1)
     expect(Object.keys(lock.workspaces)).toContain("packages/tools/codex-mcp")
     expect(Object.keys(lock.workspaces)).toContain("packages/plugins/codex-service")

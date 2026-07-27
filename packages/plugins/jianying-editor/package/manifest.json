@@ -1,0 +1,68 @@
+{
+  "schema": "convax.plugin/6",
+  "id": "jianying-editor",
+  "name": "剪映导入",
+  "description": "将直接连接的 Canvas 图片和视频安全导入剪映当前草稿或新草稿。",
+  "version": "2.0.0",
+  "entry": "index.html",
+  "capabilities": [
+    "canvas.connectedInputs.read",
+    "generation.execute"
+  ],
+  "contributes": {
+    "agent": {
+      "tools": [
+        {
+          "id": "get_draft_status",
+          "tool": "draft.status"
+        },
+        {
+          "id": "export_connected_media",
+          "tool": "media.export"
+        }
+      ]
+    },
+    "generation": {
+      "models": [],
+      "tools": [
+        {
+          "id": "draft.status",
+          "title": "检查剪映草稿",
+          "description": "检查剪映是否运行以及当前是否有稳定打开的草稿，并返回短期草稿令牌。",
+          "output": "text",
+          "delivery": "return",
+          "acceptedInputs": []
+        },
+        {
+          "id": "media.export",
+          "title": "导入到剪映",
+          "description": "将直接连接、由宿主暂存的 Canvas 图片和视频导入剪映当前草稿或新草稿。",
+          "output": "text",
+          "delivery": "return",
+          "inputBinding": "direct-incoming",
+          "acceptedInputs": [
+            "reference_image",
+            "reference_video"
+          ]
+        }
+      ]
+    },
+    "canvas": {
+      "renderer": {
+        "create": true,
+        "width": 600,
+        "height": 440
+      }
+    },
+    "skills": [
+      {
+        "name": "jianying-editor",
+        "path": "skills/jianying-editor"
+      }
+    ]
+  },
+  "runtime": {
+    "type": "mcp-stdio",
+    "command": "convax-jianying-editor-mcp"
+  }
+}

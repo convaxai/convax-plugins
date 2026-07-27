@@ -1,0 +1,81 @@
+:root {
+  color: #f5f6fb;
+  background: #111218;
+  font: 14px/1.5 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+body { min-height: 100vh; margin: 0; }
+main {
+  min-height: 100vh;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 90% -10%, rgb(50 226 217 / 18%), transparent 38%),
+    linear-gradient(145deg, #191b24, #0e0f14);
+}
+header { display: flex; align-items: center; gap: 11px; }
+header > span:nth-child(2) { display: grid; flex: 1; }
+header small, section > p, .empty { color: #9da3b4; }
+.logo {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 13px;
+  color: #0c1516;
+  background: linear-gradient(135deg, #65f4e7, #25cbd1);
+  font-size: 20px;
+  font-weight: 800;
+}
+.status, .count {
+  padding: 4px 9px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 999px;
+  color: #b9c0d1;
+  background: rgb(255 255 255 / 5%);
+  font-size: 12px;
+}
+section {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 16px;
+  background: rgb(255 255 255 / 3%);
+}
+.title-row { display: flex; align-items: center; justify-content: space-between; }
+.title-row small { color: #61ded8; font-size: 10px; font-weight: 700; letter-spacing: .12em; }
+h1 { margin: 2px 0 0; font-size: 17px; }
+section > p { margin: 8px 0 12px; }
+ol { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+li {
+  display: flex;
+  justify-content: space-between;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 5%);
+}
+li span:last-child { color: #8e96a9; }
+.empty { margin: 0; text-align: center; }
+.actions { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; border: 0; padding: 0; background: none; }
+button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 11px;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+button:disabled { cursor: not-allowed; opacity: .42; }
+.secondary { background: #292c37; }
+.primary { color: #071414; background: linear-gradient(135deg, #67f0e5, #2ad0d3); }
+output {
+  display: block;
+  min-height: 42px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #b8bfce;
+  background: rgb(0 0 0 / 18%);
+  white-space: pre-wrap;
+}

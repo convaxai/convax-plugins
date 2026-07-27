@@ -38,6 +38,7 @@ describe("source packages", () => {
       "plugin/convax-pet",
       "plugin/ffmpeg-tools",
       "plugin/hello-convax",
+      "plugin/jianying-editor",
       "plugin/multi-angle",
       "plugin/panorama-viewer",
       "plugin/relight-studio",
@@ -52,6 +53,7 @@ describe("source packages", () => {
       "skill/film-shot",
       "skill/hello-convax-guide",
       "skill/image-remix",
+      "skill/jianying-editor",
       "skill/short-drama-screenwriter",
       "skill/skill-creator",
       "skill/skill-reviewer",
@@ -61,6 +63,7 @@ describe("source packages", () => {
     const ffmpeg = packages.find((pkg) => pkg.metadata.id === "ffmpeg-tools")
     const ffmpegSkill = packages.find((pkg) => pkg.metadata.kind === "skill" && pkg.metadata.id === "ffmpeg-canvas")
     const hello = packages.find((pkg) => pkg.metadata.id === "hello-convax")
+    const jianying = packages.find((pkg) => pkg.metadata.id === "jianying-editor" && pkg.metadata.kind === "plugin")
     const codex = packages.find((pkg) => pkg.metadata.id === "codex-service")
     const multiAngle = packages.find((pkg) => pkg.metadata.id === "multi-angle")
     const panorama = packages.find((pkg) => pkg.metadata.id === "panorama-viewer")
@@ -91,6 +94,31 @@ describe("source packages", () => {
     )
     expect(hello.manifest.schema).toBe("convax.plugin/1")
     expect(hello.manifest.capabilities).toEqual([])
+    expect(jianying.manifest).toEqual(expect.objectContaining({
+      capabilities: ["canvas.connectedInputs.read", "generation.execute"],
+      runtime: { command: "convax-jianying-editor-mcp", type: "mcp-stdio" },
+      schema: "convax.plugin/6",
+      version: "2.0.0",
+    }))
+    expect(jianying.manifest.contributes.generation.tools).toEqual([
+      expect.objectContaining({ acceptedInputs: [], delivery: "return", id: "draft.status" }),
+      expect.objectContaining({
+        acceptedInputs: ["reference_image", "reference_video"],
+        delivery: "return",
+        id: "media.export",
+        inputBinding: "direct-incoming",
+      }),
+    ])
+    expect(jianying.metadata.companions).toEqual([{
+      command: "convax-jianying-editor-mcp",
+      version: "1.0.0",
+      source: "packages/tools/jianying-editor-mcp",
+      targets: [{
+        platform: "darwin",
+        arch: "arm64",
+        path: "dist/darwin-arm64/convax-jianying-editor-mcp",
+      }],
+    }])
     expect(codex.manifest).toEqual(expect.objectContaining({
       runtime: { command: "convax-codex-mcp", type: "mcp-stdio" },
       schema: "convax.plugin/5",

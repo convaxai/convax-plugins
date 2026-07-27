@@ -1,0 +1,15 @@
+{
+  "name": "@microvoid/convax-plugin-jianying-editor",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@microvoid/convax-jianying-editor-mcp": "workspace:*",
+    "@microvoid/convax-skill-jianying-editor": "workspace:*"
+  },
+  "scripts": {
+    "validate": "bun ../../../tooling/validate.mjs --kind plugin --id jianying-editor",
+    "pack": "bun ../../../tooling/pack.mjs --kind plugin --id jianying-editor",
+    "test": "bun test"
+  }
+}

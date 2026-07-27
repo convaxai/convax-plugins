@@ -1,0 +1,4 @@
+interface:
+  display_name: "剪映导入"
+  short_description: "安全导入直接连接的 Canvas 图片和视频"
+  default_prompt: "Use $jianying-editor to inspect the current JianYing draft, confirm the target when required, and import only the directly connected Canvas media."

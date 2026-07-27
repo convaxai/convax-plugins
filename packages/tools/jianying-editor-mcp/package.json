@@ -1,0 +1,22 @@
+{
+  "name": "@microvoid/convax-jianying-editor-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "convax-jianying-editor-mcp": "dist/convax-jianying-editor-mcp"
+  },
+  "scripts": {
+    "build": "bun build --minify --target=bun --outfile dist/convax-jianying-editor-mcp src/index.ts",
+    "build:release": "bun run build:release:darwin-arm64",
+    "build:release:darwin-arm64": "bun build --minify --target=bun --outfile dist/darwin-arm64/convax-jianying-editor-mcp src/index.ts && chmod 755 dist/darwin-arm64/convax-jianying-editor-mcp",
+    "clean": "rm -rf dist",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.14",
+    "typescript": "5.9.3"
+  }
+}
