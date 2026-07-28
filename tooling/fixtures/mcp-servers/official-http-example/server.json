@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.microvoid/official-http-example",
+  "title": "Official HTTP Example",
+  "description": "A fixed HTTPS MCP fixture for Convax Marketplace acceptance.",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/microvoid/convax-plugins",
+    "source": "github",
+    "subfolder": "packages/mcp-servers/official-http-example"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.example.com/v1"
+    }
+  ]
+}

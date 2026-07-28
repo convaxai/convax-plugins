@@ -11,6 +11,7 @@ const active: DraftObservation = {
 
 function call(overrides: Partial<GenerationCall> = {}): GenerationCall {
   return {
+    operationId: `convax-${"a".repeat(64)}`,
     output: "text",
     outputDirectory: "/tmp/output",
     prompt: "Import",
@@ -72,5 +73,22 @@ describe("JianYing service", () => {
     )
     await expect(service.export(call())).rejects.toThrow("changed before import")
     expect(importMedia).not.toHaveBeenCalled()
+  })
+
+  test("imports one toolbar selection with the existing safe automatic draft policy", async () => {
+    const inspect = mock(async () => active)
+    const importMedia = mock(async () => ({ completed: 1 }))
+    const service = new JianyingService(
+      { inspect },
+      { createDraft: mock(async () => undefined), import: importMedia },
+    )
+
+    await expect(service.export(call())).resolves.toMatchObject({
+      createdDraft: false,
+      draftName: "Demo",
+      importedMediaCount: 1,
+      transferStatus: "verified",
+    })
+    expect(importMedia).toHaveBeenCalledTimes(1)
   })
 })

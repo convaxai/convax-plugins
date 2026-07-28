@@ -1,0 +1,14 @@
+{
+  "schema": "convax.preinstalled-config/1",
+  "packages": [
+    {
+      "marketplaceId": "convax-official",
+      "kind": "plugin",
+      "id": "ffmpeg-tools",
+      "targets": [
+        "darwin-arm64"
+      ],
+      "setup": "explicit"
+    }
+  ]
+}

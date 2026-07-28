@@ -15,6 +15,7 @@ export interface StagedReference {
 
 export interface GenerationCall {
   draftToken?: string
+  operationId: string
   output: "text"
   outputDirectory: string
   prompt: string
@@ -76,23 +77,34 @@ function text(value: unknown, label: string, maximum: number) {
   return value
 }
 
-export function parseGenerationCall(value: unknown, operation: "draft.status" | "media.export"): GenerationCall {
+export function parseGenerationCall(
+  value: unknown,
+  operation: "draft.status" | "media.export" | "media.import-selected",
+): GenerationCall {
   const input = record(value, "generation call")
   exactKeys(
     input,
-    ["draft_token", "output", "output_directory", "prompt", "references", "schema", "target"],
+    ["draft_token", "operation_id", "output", "output_directory", "prompt", "references", "schema", "target"],
     "generation call",
   )
   if (input.schema !== generationCallSchema || input.output !== "text") {
     throw new InputError("generation call contract is not supported.")
   }
+  const operationId = text(input.operation_id, "operation_id", 71)
+  if (!/^convax-[0-9a-f]{64}$/u.test(operationId)) {
+    throw new InputError("operation_id is invalid.")
+  }
   if (!Array.isArray(input.references)) throw new InputError("generation references must be an array.")
-  const minimum = operation === "media.export" ? 1 : 0
-  const maximum = operation === "media.export" ? 32 : 0
+  const minimum = operation === "draft.status" ? 0 : 1
+  const maximum = operation === "media.export" ? 32 : operation === "media.import-selected" ? 1 : 0
   if (input.references.length < minimum || input.references.length > maximum) {
-    throw new InputError(operation === "media.export"
-      ? "JianYing export requires between one and 32 staged references."
-      : "JianYing status does not accept media references.")
+    throw new InputError(
+      operation === "draft.status"
+        ? "JianYing status does not accept media references."
+        : operation === "media.import-selected"
+          ? "JianYing toolbar import requires exactly one staged reference."
+          : "JianYing export requires between one and 32 staged references.",
+    )
   }
   const references = input.references.map((raw, index): StagedReference => {
     const reference = record(raw, `reference ${index}`)
@@ -123,11 +135,15 @@ export function parseGenerationCall(value: unknown, operation: "draft.status" | 
   if (operation === "draft.status" && (target !== "auto" || draftToken !== undefined)) {
     throw new InputError("JianYing status does not accept target fields.")
   }
+  if (operation === "media.import-selected" && (target !== "auto" || draftToken !== undefined)) {
+    throw new InputError("JianYing toolbar import does not accept target fields.")
+  }
   if (operation === "media.export" && target !== "auto" && draftToken === undefined) {
     throw new InputError("Explicit JianYing export requires draft_token.")
   }
   return {
     ...(draftToken ? { draftToken } : {}),
+    operationId,
     output: "text",
     outputDirectory: text(input.output_directory, "output_directory", 4_096),
     prompt: text(input.prompt, "prompt", 20_000),

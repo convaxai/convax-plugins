@@ -1,0 +1,12 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.microvoid/official-managed-example",
+  "title": "Official Managed Example",
+  "description": "A managed stdio MCP fixture for Convax Marketplace acceptance.",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/microvoid/convax-plugins",
+    "source": "github",
+    "subfolder": "packages/mcp-servers/official-managed-example"
+  }
+}

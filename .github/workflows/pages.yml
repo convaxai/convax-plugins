@@ -1,72 +1,45 @@
 name: Publish Catalog Pages
 
 on:
-  workflow_dispatch:
-  workflow_run:
-    workflows: ["Publish package"]
-    types: [completed]
-
-concurrency:
-  group: convax-registry-pages
-  cancel-in-progress: false
+  workflow_call:
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
   build:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out the protected catalog source
+      - name: Check out the exact protected catalog source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: main
           persist-credentials: false
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.3.14
-      - name: Build source package workspaces
+      - name: Download the exact low-privilege build
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: marketplace-release-${{ github.sha }}
+          path: dist
+      - name: Reverify and stage strict catalogs
         run: |
-          bun install --frozen-lockfile --ignore-scripts
-          bun run workspaces:build:packages
-      - name: Fetch published release entries
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun tooling/fetch-release-entries.mjs
-      - name: Fetch the current production Registry
-        run: |
-          mkdir -p dist/production
-          curl --fail --location --silent --show-error \
-            --retry 4 --retry-all-errors \
-            "https://microvoid.github.io/convax-plugins/registry/v1/index.json?run=$GITHUB_RUN_ID" \
-            --output dist/production/index.json
-      - name: Prepare independently publishable Releases
-        run: |
-          bun tooling/prepare-release-catalog.mjs \
-            --entries dist/release-entries \
-            --previous dist/production/index.json
-      - name: Build and stage strict catalogs
-        run: |
-          bun tooling/build-index.mjs \
-            --entries dist/release-entries \
-            --previous dist/production/index.json \
-            --revision "$(git rev-parse HEAD)"
-          bun tooling/build-showcase.mjs \
-            --entries dist/release-entries \
-            --registry dist/registry/v1/index.json
-          mkdir -p dist/site/registry/v1 dist/site/showcase/v1 dist/site/schemas
-          cp dist/registry/v1/index.json dist/site/registry/v1/index.json
-          cp dist/showcase/v1/index.json dist/site/showcase/v1/index.json
-          cp schemas/*.json dist/site/schemas/
+          bun tooling/verify-marketplace-output.mjs dist/catalog
+          bun tooling/verify-product-lock-input.mjs dist/product-lock-input.json
+          test "$(find schemas -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' ')" = \
+            "$(find dist/catalog/site/schemas -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' ')"
+          for schema in schemas/*.json; do
+            cmp "$schema" "dist/catalog/site/schemas/$(basename "$schema")"
+          done
       - name: Configure Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: dist/site
+          path: dist/catalog/site
 
   deploy:
     needs: build

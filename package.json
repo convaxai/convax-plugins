@@ -6,10 +6,14 @@
   "dependencies": {
     "acorn": "8.17.0"
   },
+  "devDependencies": {
+    "@convax/marketplace-kit": "0.1.0"
+  },
   "packageManager": "bun@1.3.14",
   "workspaces": [
     "packages/plugins/*",
     "packages/skills/*",
+    "packages/mcp-servers/*",
     "packages/tools/*"
   ],
   "scripts": {
@@ -18,11 +22,17 @@
     "pack": "bun tooling/pack.mjs",
     "render:showcases": "bun tooling/render-showcases.mjs",
     "build:index": "bun tooling/build-index.mjs && bun tooling/build-showcase.mjs",
+    "marketplace:check": "convax-marketplace check .",
+    "marketplace:build-index": "bun tooling/official-marketplace-build.mjs",
+    "marketplace:bundle": "convax-marketplace bundle . --out dist/builtin",
+    "marketplace:lock-input": "convax-marketplace lock-input --catalog dist/catalog --builtin dist/builtin --out dist/product-lock-input.json",
+    "marketplace:verify": "bun tooling/verify-marketplace-output.mjs dist/catalog && bun tooling/verify-product-lock-input.mjs dist/product-lock-input.json",
+    "marketplace:build": "bun run marketplace:bundle && bun run marketplace:build-index && bun run marketplace:lock-input && bun run marketplace:verify",
     "build:companions": "bun tooling/build-companions.mjs",
     "workspaces:typecheck": "bun tooling/run-workspace-script.mjs typecheck",
     "workspaces:test": "bun tooling/run-workspace-script.mjs test",
     "workspaces:build": "bun tooling/run-workspace-script.mjs build",
     "workspaces:build:packages": "bun tooling/run-workspace-script.mjs build skills plugins",
-    "check": "bun run workspaces:build:packages && bun run validate && bun run workspaces:typecheck && bun run workspaces:test && bun run build:companions && bun run test && bun run pack && bun run build:index"
+    "check": "bun run workspaces:build:packages && bun run validate && bun run workspaces:typecheck && bun run workspaces:test && bun run build:companions && bun run marketplace:check && bun run test && bun run marketplace:build"
   }
 }

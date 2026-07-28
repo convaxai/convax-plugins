@@ -32,7 +32,8 @@ const outputDirectory = host
 await mkdir(outputDirectory, { recursive: true })
 const outfile = path.join(outputDirectory, "convax-ffmpeg-mcp")
 const buildDirectory = await mkdtemp(path.join(os.tmpdir(), "convax-ffmpeg-native-"))
-const temporaryOutput = path.join(outputDirectory, `.convax-ffmpeg-mcp-${process.pid}.tmp`)
+const outputStagingDirectory = await mkdtemp(path.join(outputDirectory, ".convax-ffmpeg-release-"))
+const temporaryOutput = path.join(outputStagingDirectory, "convax-ffmpeg-mcp")
 try {
   const [{ stdout: clangOutput }, { stdout: swiftOutput }, { stdout: sdkOutput }] = await Promise.all([
     execute("/usr/bin/xcrun", ["--find", "clang"], { encoding: "utf8" }),
@@ -75,6 +76,7 @@ try {
     bridgeObject,
     "-o", temporaryOutput,
     "-Xlinker", "-dead_strip",
+    "-Xlinker", "-no_uuid",
     "-Xlinker", "-sectcreate",
     "-Xlinker", "__DATA",
     "-Xlinker", "__ffmpeg",
@@ -106,6 +108,7 @@ try {
   await rename(temporaryOutput, outfile)
 } finally {
   await rm(temporaryOutput, { force: true })
+  await rm(outputStagingDirectory, { force: true, recursive: true })
   await rm(buildDirectory, { force: true, recursive: true })
 }
 console.log(`Built ${outfile}`)

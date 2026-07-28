@@ -1,4 +1,32 @@
-# Registry contract (`convax.registry/1`)
+# Marketplace and Registry contracts
+
+`marketplace.json` is the strict `convax.marketplace/1` descriptor for
+`convax-official`. New Convax clients read its `convax.registry/2` and
+`convax.showcase/2` links. Registry v2 is source-qualified by
+`marketplaceId: "convax-official"` and supports `plugin`, `skill`, and
+`mcp-server` as first-class kinds.
+
+Every v2 item contains `kind`, `id`, `version`, Convax compatibility,
+presentation, delivery, and yanked state. Plugin items retain their complete
+validated manifest and companion closure; Skill items retain `ownerPluginId`.
+Artifact delivery fixes an immutable Release URL, byte size, and SHA-256.
+HTTP MCP delivery embeds the reviewed standard `server.json`, its digest, and one
+normalized fixed HTTPS runtime. Managed-stdio delivery additionally embeds the
+strict `convax-mcp.json` and an exact target-specific companion closure. MCP
+metadata is not a ZIP and HTTP MCP never has a companion.
+
+Each revision contains at most one current entry per `{kind,id}`. The sequence is
+monotonic, and reusing one `{kind,id,version}` for changed metadata or artifact
+bytes is invalid. Source history and installed immutable bytes, not a range
+resolver, retain old versions.
+
+## Strict Official v1 projection
+
+The Official builder also emits the existing strict `convax.registry/1`
+projection for older clients. Its schema, top-level fields, Plugin/Skill enum, and
+entry fields remain compatible with `schemas/convax-registry-v1.schema.json`: it
+does not gain `marketplaceId` or MCP Server entries. The projection is generated
+from v2-capable source packages; it is not independently authored.
 
 The Registry is metadata, not an execution endpoint. Convax fetches it from the
 fixed Microvoid Pages URL, selects a compatible item, downloads the fixed HTTPS

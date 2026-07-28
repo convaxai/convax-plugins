@@ -1,15 +1,16 @@
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-# Convax 插件与技能仓库
+# Convax 扩展与 Marketplace 仓库
 
-这是 Convax 插件与可移植 [Agent Skills](https://agentskills.io/) 的官方源码仓库、
-开发工具和发布目录。这里发布的技能遵循开放的 `SKILL.md` 格式，可供 OpenAI Codex
-等兼容客户端使用，并非只能在 Convax 中运行。
+这是 Convax Plugin、可移植 [Agent Skills](https://agentskills.io/) 与标准 MCP
+Server 的官方源码仓库、开发工具和发布目录。这里发布的技能遵循开放的 `SKILL.md`
+格式，可供 OpenAI Codex 等兼容客户端使用，并非只能在 Convax 中运行。
 
 开发者或 AI 可以从模板开始，编写能够独立校验、确定性打包并由 Convax 安全下载的
-插件或技能。包源码通过 Git 进行审查，不可变 ZIP 由 GitHub Releases 发布，轻量
-Registry 由 GitHub Pages 承载：
-`https://microvoid.github.io/convax-plugins/registry/v1/index.json`。
+Plugin、Skill 或 MCP Server。包源码通过 Git 进行审查，不可变工件由 GitHub
+Releases 发布，Marketplace descriptor 由 GitHub Pages 承载：
+`https://microvoid.github.io/convax-plugins/marketplace.json`。新客户端使用 Registry
+v2，旧客户端继续使用严格的 Registry v1 投影。
 
 ![图像重绘、有声书和电商图片技能的动态预览](docs/assets/skill-showcases.gif)
 
@@ -47,6 +48,26 @@ bun run pack -- --kind skill --id my-skill
 
 生成的插件 ZIP 在根目录包含 `manifest.json`，技能 ZIP 在根目录包含
 `SKILL.md`。校验和打包期间不会安装依赖，也不会执行投稿者提供的构建脚本。
+
+## 创建第三方 Marketplace
+
+公开 scaffold 和 Kit 与 Official Marketplace 使用同一套 Plugin、Skill 和 MCP
+Server 合约：
+
+```sh
+bunx create-convax-marketplace@0.1.0 my-market \
+  --owner my-org \
+  --repository my-market \
+  --starter mcp-server
+cd my-market
+bun run check
+bun run build-index
+```
+
+使用 `bun run marketplace -- new plugin --id my-plugin` 新增包。对于经过审查的
+managed-stdio MCP companion，使用
+`bun run marketplace -- add-target packages/mcp-servers/example-mcp --target darwin-arm64 --file /path/to/reviewed-companion`
+接纳一个目标；裸可执行文件只会复制到私有作者输入区，源路径不会进入发布结果。
 
 可执行工具插件可以是无界面的。`convax.plugin/3` 将可执行工具、模型列表、智能体工具
 和画布选中动作分开声明；`convax.plugin/4` 及更高版本还可以拥有 Skill。本地可执行
@@ -141,6 +162,9 @@ packages/skills/<id>/
   convax-package.json      # Convax 发布元数据，不进入 ZIP
   package/                 # 可移植技能根目录，必须包含 SKILL.md
   showcase/                # 可选目录封面和动图，不进入 ZIP
+packages/mcp-servers/<id>/
+  server.json              # 标准 MCP identity/version 和固定 HTTPS profile
+  convax-mcp.json          # 仅 managed-stdio 使用
 packages/tools/<id>/       # 经审查的工具 workspace，单独分发
 templates/                 # 可直接复制的开发模板
 tooling/                   # 校验与确定性 ZIP 工具
@@ -158,22 +182,23 @@ bun run workspaces:test     # 测试声明了脚本的 workspace
 bun test                    # 运行校验器、ZIP、Registry 和协议测试
 bun run render:showcases -- --id ad-idea # 渲染单个封面和动图
 bun run build:companions    # 编译明确审查过的平台目标
-bun run pack                # 将全部包写入 dist/packages
-bun run build:index         # 生成版本一致的 Registry 和 Showcase 索引
+bun run marketplace:check  # 通过打包后的 Kit 校验作者源码
+bun run marketplace:build  # 生成 v2/v1、Release、Builtin 与 lock input
 bun run check               # 执行完整本地 CI
 ```
 
-发布单个包时，需要创建与元数据完全一致的附注标签：
+Marketplace 发布直接使用打包后的 `@convax/marketplace-kit`。仓库将 Kit 精确固定为
+`0.1.0`，本地源码 link 不是有效的发布依赖，因此必须先发布对应 Kit 包，干净环境中的
+frozen install 才能成功。
 
-```text
-plugin-<id>-v<version>
-skill-<id>-v<version>
-```
+作者只修改 Plugin、
+Skill 或 MCP Server 的 identity version，并通过受保护的 `main` 合入；不再手工创建
+发布标签。默认分支工作流会拒绝“字节变化但 version 未变化”，在低权限 job 中生成
+确定性工件，再由最小权限发布 job 只发布已经验证的精确字节。Registry v2、严格 v1
+投影、Showcase v2 和不可变 Builtin bundle 都由工具生成，不手写。
 
-例如 `plugin-hello-convax-v0.1.0`。发布工作流会校验标签、生成确定性 ZIP 和
-Registry 条目、为 ZIP 创建来源证明并发布 GitHub Release。Pages 工作流只根据
-已经发布的 Release 条目重建目录。普通插件或技能可以独立进入目录；其他尚未发布的
-源码版本不会阻塞这次更新。
+`bun run pack` 和 `bun run build:index` 只保留为旧 v1 兼容诊断；v2 发布工作流
+不会从它们读取字节、URL 或元数据。
 
 ## 安装问题排查
 

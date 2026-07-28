@@ -75,4 +75,46 @@ describe("convax.plugin/7 capability host contract", () => {
       }),
     ).toThrow("convax.plugin-capability/2")
   })
+
+  test("retains the v6 bounded return-selection contract without widening v4 or v5", () => {
+    const parsed = parsePluginManifest({
+      capabilities: ["generation.execute"],
+      contributes: {
+        canvas: {
+          renderer: { create: true },
+          selectionActions: [{
+            description: { default: "Import one selected image." },
+            editor: "confirmation",
+            id: "import-image",
+            steps: [{ tool: "media.import-selected" }],
+            target: "image",
+            title: { default: "Import image" },
+          }],
+        },
+        generation: {
+          models: [],
+          tools: [{
+            acceptedInputs: ["reference_image"],
+            delivery: "return",
+            description: "Import one staged image.",
+            id: "media.import-selected",
+            output: "text",
+            title: "Import image",
+          }],
+        },
+      },
+      description: "Exercises the inherited bounded return-selection contract.",
+      entry: "index.html",
+      id: "return-selection",
+      name: "Return Selection",
+      runtime: { command: "return-selection-mcp", type: "mcp-stdio" },
+      schema: "convax.plugin/7",
+      version: "1.0.0",
+    })
+
+    expect(parsed.contributes.canvas.selectionActions[0]).toMatchObject({
+      editor: "confirmation",
+      target: "image",
+    })
+  })
 })

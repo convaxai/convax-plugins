@@ -106,6 +106,39 @@ describe("convax.plugin/5 capability host contract", () => {
       capabilities: ["canvas.connectedInputs.read"],
     }))).toThrow("invalid or duplicate capability")
   })
+
+  test("does not backport v6 image return-selection actions", () => {
+    const imageAction = v5Manifest({
+      capabilities: [],
+      contributes: {
+        canvas: {
+          renderer: { create: true },
+          selectionActions: [{
+            description: { default: "Import one image." },
+            editor: "confirmation",
+            id: "import-image",
+            steps: [{ tool: "image.import" }],
+            target: "image",
+            title: { default: "Import image" },
+          }],
+        },
+        generation: {
+          models: [],
+          tools: [{
+            acceptedInputs: ["reference_image"],
+            description: "Import one selected image.",
+            id: "image.import",
+            output: "image",
+            title: "Import image",
+          }],
+        },
+      },
+      entry: "index.html",
+      runtime: { command: "image-import-mcp", type: "mcp-stdio" },
+    })
+
+    expect(() => parsePluginManifest(imageAction)).toThrow("target must be video")
+  })
 })
 
 describe("convax.plugin/6 remote Agent MCP contract", () => {
@@ -302,6 +335,69 @@ describe("convax.plugin/6 remote Agent MCP contract", () => {
       },
       runtime: { command: "remote-media-import-mcp", type: "mcp-stdio" },
     }))).toThrow("cannot reference direct-incoming operation")
+  })
+
+  test("admits bounded image and video selection sinks without exposing them to Agent tools", () => {
+    const manifest = v6Manifest(undefined, {
+      capabilities: ["generation.execute"],
+      contributes: {
+        canvas: {
+          renderer: { create: true },
+          selectionActions: [
+            {
+              description: { default: "Import the selected image." },
+              editor: "confirmation",
+              id: "import-image",
+              steps: [{ tool: "media.import-selected" }],
+              target: "image",
+              title: { default: "Import image" },
+            },
+            {
+              description: { default: "Import the selected video." },
+              editor: "confirmation",
+              id: "import-video",
+              steps: [{ tool: "media.import-selected" }],
+              target: "video",
+              title: { default: "Import video" },
+            },
+          ],
+        },
+        generation: {
+          models: [],
+          tools: [{
+            acceptedInputs: ["reference_image", "reference_video"],
+            delivery: "return",
+            description: "Import one host-staged selection.",
+            id: "media.import-selected",
+            output: "text",
+            title: "Import selection",
+          }],
+        },
+      },
+      entry: "index.html",
+      runtime: { command: "selection-import-mcp", type: "mcp-stdio" },
+    })
+
+    const parsed = parsePluginManifest(manifest)
+    expect(parsed.contributes.canvas.selectionActions.map(({ target }) => target)).toEqual([
+      "image",
+      "video",
+    ])
+    expect(parsed.contributes.agent).toBeUndefined()
+
+    const inputBound = structuredClone(manifest)
+    inputBound.contributes.generation.tools[0].inputBinding = "direct-incoming"
+    expect(() => parsePluginManifest(inputBound)).toThrow("cannot reference an input-bound operation")
+
+    const nonConfirmation = structuredClone(manifest)
+    nonConfirmation.contributes.canvas.selectionActions[0].editor = "crop-region"
+    expect(() => parsePluginManifest(nonConfirmation)).toThrow("requires a confirmation editor")
+
+    const canvasDelivery = structuredClone(manifest)
+    canvasDelivery.contributes.generation.tools[0].delivery = "canvas"
+    expect(() => parsePluginManifest(canvasDelivery)).toThrow(
+      "image selection action requires a return-delivery operation",
+    )
   })
 
   test("keeps Plugin-owned Skill registry links valid for v6", () => {

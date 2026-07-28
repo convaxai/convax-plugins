@@ -1,0 +1,9 @@
+{
+  "schema": "convax.builtin-config/1",
+  "members": [
+    {
+      "kind": "skill",
+      "id": "canvas-storyboard"
+    }
+  ]
+}

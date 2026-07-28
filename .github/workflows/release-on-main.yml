@@ -1,0 +1,198 @@
+name: Publish changed Marketplace versions
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: convax-marketplace-release
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: macos-14
+    timeout-minutes: 45
+    outputs:
+      count: ${{ steps.plan.outputs.count }}
+    steps:
+      - name: Check out protected source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+      - name: Install inert workspace dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Select exact version changes
+        id: plan
+        env:
+          BASE_SHA: ${{ github.event.before }}
+        run: |
+          bun tooling/marketplace-release.mjs \
+            --base "$BASE_SHA" \
+            --head "$GITHUB_SHA" \
+            --output dist/release-plan.json
+          echo "count=$(jq length dist/release-plan.json)" >> "$GITHUB_OUTPUT"
+          echo "CONVAX_MARKETPLACE_CHANGED=dist/release-plan.json" >> "$GITHUB_ENV"
+      - name: Fetch the current production sequence input
+        if: steps.plan.outputs.count != '0'
+        run: bun tooling/fetch-marketplace-previous.mjs
+      - name: Verify the pinned official FFmpeg source
+        if: steps.plan.outputs.count != '0'
+        run: |
+          set -euo pipefail
+          if ! jq -e '.[] | select(.kind == "plugin" and .id == "ffmpeg-tools")' dist/release-plan.json >/dev/null; then
+            exit 0
+          fi
+          if ! command -v gpg >/dev/null 2>&1; then
+            brew install gnupg
+          fi
+          source_path="$RUNNER_TEMP/ffmpeg-8.1.2.tar.xz"
+          signature_path="$source_path.asc"
+          key_path="$RUNNER_TEMP/ffmpeg-devel.asc"
+          curl --fail --location --silent --show-error https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz --output "$source_path"
+          curl --fail --location --silent --show-error https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz.asc --output "$signature_path"
+          curl --fail --location --silent --show-error https://ffmpeg.org/ffmpeg-devel.asc --output "$key_path"
+          test "$(stat -f '%z' "$source_path")" = "11710924"
+          test "$(shasum -a 256 "$source_path" | awk '{print $1}')" = "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c"
+          test "$(stat -f '%z' "$signature_path")" = "520"
+          test "$(shasum -a 256 "$signature_path" | awk '{print $1}')" = "0a0963fccd70597838073f3e31b20f4a4d8cc2b5e577472c9a5a1f22624246f8"
+          test "$(stat -f '%z' "$key_path")" = "1709"
+          test "$(shasum -a 256 "$key_path" | awk '{print $1}')" = "397b3becedcd5a98769967ff1ff8501ddc89f8368b8f766e4701377d7dbaabe5"
+          export GNUPGHOME="$RUNNER_TEMP/ffmpeg-gnupg"
+          mkdir -m 700 "$GNUPGHOME"
+          gpg --batch --import "$key_path"
+          fingerprint="$(gpg --batch --with-colons --fingerprint | awk -F: '$1 == "fpr" { print $10; exit }')"
+          test "$fingerprint" = "FCF986EA15E6E293A5644F10B4322F04D67658D8"
+          gpg --batch --verify "$signature_path" "$source_path"
+          echo "CONVAX_FFMPEG_SOURCE_ARCHIVE=$source_path" >> "$GITHUB_ENV"
+          echo "CONVAX_FFMPEG_SOURCE_SIGNATURE=$signature_path" >> "$GITHUB_ENV"
+          echo "CONVAX_FFMPEG_SIGNING_KEY=$key_path" >> "$GITHUB_ENV"
+          echo "CONVAX_FFMPEG_REQUIRE_PGP=1" >> "$GITHUB_ENV"
+      - name: Validate and build immutable release inputs
+        if: steps.plan.outputs.count != '0'
+        run: bun run check
+      - name: Stage reviewed public schemas into the low-privilege Pages tree
+        if: steps.plan.outputs.count != '0'
+        run: |
+          mkdir -p dist/catalog/site/schemas
+          cp schemas/*.json dist/catalog/site/schemas/
+      - name: Stage verified FFmpeg source and SBOM beside the companion
+        if: env.CONVAX_FFMPEG_REQUIRE_PGP == '1'
+        run: |
+          set -euo pipefail
+          tag="$(jq -r '.[] | select(.kind == "plugin" and .id == "ffmpeg-tools") | .releaseTag' dist/release-plan.json)"
+          test -n "$tag"
+          package_dir="dist/catalog/releases/$tag"
+          companion_path="$(find "$package_dir" -maxdepth 1 -type f -name '*-convax-ffmpeg-mcp' -print -quit)"
+          test -n "$companion_path"
+          cp "$CONVAX_FFMPEG_SOURCE_ARCHIVE" "$package_dir/convax-source-ffmpeg-8.1.2.tar.xz"
+          cp "$CONVAX_FFMPEG_SOURCE_SIGNATURE" "$package_dir/convax-source-ffmpeg-8.1.2.tar.xz.asc"
+          cp "$CONVAX_FFMPEG_SIGNING_KEY" "$package_dir/convax-source-ffmpeg-signing-key.asc"
+          cp packages/tools/ffmpeg-mcp/FFMPEG-LICENSE "$package_dir/convax-ffmpeg-LGPL-2.1.txt"
+          cp packages/tools/ffmpeg-mcp/THIRD_PARTY_NOTICES.md "$package_dir/convax-ffmpeg-THIRD-PARTY-NOTICES.md"
+          tar -xOf "$CONVAX_FFMPEG_SOURCE_ARCHIVE" ffmpeg-8.1.2/LICENSE.md > "$package_dir/convax-ffmpeg-LICENSE.md"
+          tar -xOf "$CONVAX_FFMPEG_SOURCE_ARCHIVE" ffmpeg-8.1.2/CREDITS > "$package_dir/convax-ffmpeg-CREDITS"
+          SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)" bun packages/tools/ffmpeg-mcp/scripts/build-sbom.ts \
+            --companion "$companion_path" \
+            --output "$package_dir/convax-ffmpeg-sbom.spdx.json" \
+            --revision "$GITHUB_SHA" \
+            --tag "$tag"
+      - name: Compose the exact publication plan
+        if: steps.plan.outputs.count != '0'
+        run: bun tooling/publication-plan.mjs
+      - name: Upload verified exact bytes
+        if: steps.plan.outputs.count != '0'
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: marketplace-release-${{ github.sha }}
+          path: |
+            dist/builtin
+            dist/catalog
+            dist/product-lock-input.json
+            dist/publication-plan.json
+            dist/release-plan.json
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: verify
+    if: needs.verify.outputs.count != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+    steps:
+      - name: Check out protected source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+      - name: Download verified exact bytes
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: marketplace-release-${{ github.sha }}
+          path: dist
+      - name: Attest immutable package and companion assets
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: dist/**/releases/**
+      - name: Publish each selected version once
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          jq -c '.releases[]' dist/publication-plan.json | while read -r item; do
+            tag="$(jq -r '.tag' <<<"$item")"
+            package_dir="dist/$(jq -r '.directory' <<<"$item")"
+            test -d "$package_dir"
+            if gh release view "$tag" >/dev/null 2>&1; then
+              existing_dir="$RUNNER_TEMP/existing-$tag"
+              mkdir "$existing_dir"
+              gh release download "$tag" --dir "$existing_dir"
+              test "$(find "$existing_dir" -type f | wc -l | tr -d ' ')" = \
+                "$(find "$package_dir" -type f | wc -l | tr -d ' ')"
+              for asset in "$package_dir"/*; do
+                test -f "$existing_dir/$(basename "$asset")"
+                cmp "$asset" "$existing_dir/$(basename "$asset")"
+              done
+              remote_tag="$(git ls-remote origin "refs/tags/$tag" | awk '{print $1}')"
+              test "$remote_tag" = "$GITHUB_SHA"
+              continue
+            fi
+            remote_tag="$(git ls-remote origin "refs/tags/$tag" | awk '{print $1}')"
+            if [ -z "$remote_tag" ]; then
+              git tag "$tag" "$GITHUB_SHA"
+              git push origin "refs/tags/$tag"
+            else
+              test "$remote_tag" = "$GITHUB_SHA"
+            fi
+            shopt -s nullglob
+            assets=("$package_dir"/*)
+            test "${#assets[@]}" -gt 0
+            gh release create "$tag" \
+              --verify-tag \
+              --title "$tag" \
+              --notes "Deterministic Convax Marketplace package generated from protected main." \
+              "${assets[@]}"
+          done
+
+  pages:
+    needs: [verify, publish]
+    if: >-
+      always() &&
+      needs.verify.result == 'success' &&
+      needs.publish.result == 'success'
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      pages: write
+    uses: ./.github/workflows/pages.yml

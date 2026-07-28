@@ -3,7 +3,7 @@
   "id": "jianying-editor",
   "name": "剪映导入",
   "description": "将直接连接的 Canvas 图片和视频安全导入剪映当前草稿或新草稿。",
-  "version": "2.0.0",
+  "version": "2.1.1",
   "entry": "index.html",
   "capabilities": [
     "canvas.connectedInputs.read",
@@ -44,6 +44,17 @@
             "reference_image",
             "reference_video"
           ]
+        },
+        {
+          "id": "media.import-selected",
+          "title": "导入所选素材到剪映",
+          "description": "将一个由宿主暂存的 Canvas 图片或视频导入稳定的剪映当前草稿，或安全创建新草稿。",
+          "output": "text",
+          "delivery": "return",
+          "acceptedInputs": [
+            "reference_image",
+            "reference_video"
+          ]
         }
       ]
     },
@@ -52,7 +63,45 @@
         "create": true,
         "width": 600,
         "height": 440
-      }
+      },
+      "selectionActions": [
+        {
+          "id": "import-image-to-jianying",
+          "title": {
+            "default": "Import to JianYing",
+            "zh-CN": "导入剪映"
+          },
+          "description": {
+            "default": "Import the selected image into the stable current JianYing draft, or create a new draft safely.",
+            "zh-CN": "将所选图片导入稳定的剪映当前草稿，或安全创建新草稿。"
+          },
+          "target": "image",
+          "editor": "confirmation",
+          "steps": [
+            {
+              "tool": "media.import-selected"
+            }
+          ]
+        },
+        {
+          "id": "import-video-to-jianying",
+          "title": {
+            "default": "Import to JianYing",
+            "zh-CN": "导入剪映"
+          },
+          "description": {
+            "default": "Import the selected video into the stable current JianYing draft, or create a new draft safely.",
+            "zh-CN": "将所选视频导入稳定的剪映当前草稿，或安全创建新草稿。"
+          },
+          "target": "video",
+          "editor": "confirmation",
+          "steps": [
+            {
+              "tool": "media.import-selected"
+            }
+          ]
+        }
+      ]
     },
     "skills": [
       {

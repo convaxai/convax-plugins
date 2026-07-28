@@ -5,8 +5,8 @@ These rules apply to people and AI agents in this repository.
 ## Repository ownership boundary
 
 - This repository is the authoritative source for concrete Convax Plugins,
-  Plugin-owned Skills, standalone Skills, and reviewed companion tools, including
-  official, default-catalog, and vendor integrations.
+  Plugin-owned Skills, standalone Skills, MCP Servers, reviewed companion tools,
+  the Official Marketplace, and the immutable Builtin bundle.
 - The `microvoid/convax` repository owns the generic host platform: manifest ABI,
   validation at installation, lifecycle, runtime bridges, IPC/UI, and Registry
   consumption. Do not copy its private implementation or create a package-specific
@@ -28,8 +28,15 @@ These rules apply to people and AI agents in this repository.
 
 ## Package rules
 
-- Plugin and Skill sources live under `packages/plugins/<id>` and
-  `packages/skills/<id>` respectively.
+- Plugin, Skill, and MCP Server sources live under `packages/plugins/<id>`,
+  `packages/skills/<id>`, and `packages/mcp-servers/<id>` respectively.
+- MCP Server identity and version come only from the reviewed standard
+  `server.json`. A fixed HTTPS server has exactly one supported remote and no
+  `convax-mcp.json`. A managed-stdio server has no supported remote and uses the
+  strict `convax.mcp-server-extension/1`; its target executable is always a
+  separate immutable companion.
+- Directories below `tooling/fixtures/mcp-servers/` are inert acceptance
+  fixtures only. They are never Marketplace packages or workspaces.
 - Every Plugin, Skill, and Tool directory is a Bun workspace with its own
   `package.json`, dependency declarations, and scripts. The repository owns one
   root `bun.lock`; do not add package-local lockfiles or hard-code workspace ids in CI.
@@ -67,6 +74,16 @@ These rules apply to people and AI agents in this repository.
 - Do not use symlinks, absolute paths, traversal, Windows-reserved names, generated
   dependency trees, secrets, or files larger than repository limits.
 - Increment package SemVer whenever released bytes or catalog metadata change.
+- The protected default branch publishes only packages whose identity version
+  changed. Authors do not create release tags. Any tracked package byte change
+  without an identity version change fails before privileged publication.
+- Official Registry v2, its strict lossless v1 projection, Showcase v2, and the
+  Builtin bundle are generated with `@convax/marketplace-kit`. Do not duplicate its
+  schema parsers, deterministic ZIP writer, or Registry builder in this repository.
+- `catalogs/builtin.json` contains only standalone Skill `canvas-storyboard` in
+  the first bundle. `catalogs/preinstalled.json` contains only Official Plugin
+  `ffmpeg-tools` for `darwin-arm64` with explicit setup. Neither membership grants
+  execution authority.
 - Treat `registry/config.json` sequence as the production sequence floor. Bump it for
   explicit catalog-policy changes such as yanking; ordinary package Releases advance
   the deployed sequence independently through the protected Pages workflow.
@@ -79,10 +96,13 @@ These rules apply to people and AI agents in this repository.
 
 Run `bun install --frozen-lockfile --ignore-scripts`, trusted Plugin/Skill workspace
 builds, `bun run validate`, workspace tests, `bun run build:companions`, `bun test`,
-`bun run pack`, and `bun run build:index` before requesting review. The explicit
-package and companion build phases finish before validation and packing. Validation
-and packing themselves remain inert and never execute contributor-provided scripts.
-Tooling treats package contents as inert bytes.
+`bun run pack`, `bun run build:index`, Marketplace Kit `check`, Official v2/v1
+build, and Builtin `bundle` before requesting review. Dogfood the real packed
+`@convax/marketplace-kit` tarball in an isolated consumer until its exact version is
+published; never commit an absolute `file:` override. The explicit package and
+companion build phases finish before validation and packing. Validation and packing
+themselves remain inert and never execute contributor-provided scripts. Tooling
+treats package contents as inert bytes.
 
 ## Git discipline
 

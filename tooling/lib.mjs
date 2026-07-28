@@ -885,7 +885,12 @@ function parseAgentV3(value, generation, label) {
   return { tools };
 }
 
-function parseSelectionActionsV3(value, generation, label) {
+function parseSelectionActionsV3(
+  value,
+  generation,
+  label,
+  { allowReturnSelectionActions = false } = {},
+) {
   if (!Array.isArray(value) || value.length < 1 || value.length > 32) {
     error(label, "must be a non-empty array with at most 32 items");
   }
@@ -897,7 +902,18 @@ function parseSelectionActionsV3(value, generation, label) {
       ["description", "editor", "id", "steps", "target", "title"],
       itemLabel,
     );
-    if (item.target !== "video") error(itemLabel, "target must be video");
+    if (
+      item.target !== "video" &&
+      !(allowReturnSelectionActions && item.target === "image")
+    ) {
+      error(
+        itemLabel,
+        allowReturnSelectionActions
+          ? "target must be image or video"
+          : "target must be video",
+      );
+    }
+    const target = item.target;
     if (!selectionActionEditors.has(item.editor))
       error(itemLabel, "unsupported editor");
     if (
@@ -934,19 +950,55 @@ function parseSelectionActionsV3(value, generation, label) {
     const returned = steps.find(
       (step) => generationTools.get(step.tool).delivery === "return",
     );
-    if (returned)
+    if (returned && !allowReturnSelectionActions) {
       error(
         itemLabel,
         `cannot reference return-delivery operation ${returned.tool}`,
       );
+    }
+    if (allowReturnSelectionActions) {
+      const inputBound = steps.find(
+        (step) => generationTools.get(step.tool).inputBinding !== undefined,
+      );
+      if (inputBound) {
+        error(
+          itemLabel,
+          `cannot reference an input-bound operation ${inputBound.tool}`,
+        );
+      }
+    }
+    if (returned && allowReturnSelectionActions) {
+      if (item.editor !== "confirmation") {
+        error(
+          itemLabel,
+          `return-delivery operation ${returned.tool} requires a confirmation editor`,
+        );
+      }
+      if (steps.length !== 1) {
+        error(
+          itemLabel,
+          `return-delivery operation ${returned.tool} requires exactly one step`,
+        );
+      }
+      if (generationTools.get(returned.tool).output !== "text") {
+        error(
+          itemLabel,
+          `return-delivery operation ${returned.tool} must return text`,
+        );
+      }
+    } else if (allowReturnSelectionActions && target === "image") {
+      error(itemLabel, "image selection action requires a return-delivery operation");
+    }
+    const referenceRole =
+      target === "image" ? "reference_image" : "reference_video";
     const incompatible = steps.find(
       (step) =>
         !generationTools
           .get(step.tool)
-          .acceptedInputs.includes("reference_video"),
+          .acceptedInputs.includes(referenceRole),
     );
     if (incompatible)
-      error(itemLabel, `tool ${incompatible.tool} must accept reference_video`);
+      error(itemLabel, `tool ${incompatible.tool} must accept ${referenceRole}`);
     return {
       description: parseLocalizedText(
         item.description,
@@ -956,7 +1008,7 @@ function parseSelectionActionsV3(value, generation, label) {
       editor: item.editor,
       id: parsePluginReferenceId(item.id, `${itemLabel} id`),
       steps,
-      target: "video",
+      target,
       title: parseLocalizedText(item.title, `${itemLabel} title`, 120),
     };
   });
@@ -1009,7 +1061,9 @@ function parseSelectionActionsV7(value, generation, label) {
         itemLabel,
         "generation-backed selection action requires a generation contribution",
       );
-    return parseSelectionActionsV3([item], generation, itemLabel)[0];
+    return parseSelectionActionsV3([item], generation, itemLabel, {
+      allowReturnSelectionActions: true,
+    })[0];
   });
   if (new Set(actions.map((action) => action.id)).size !== actions.length)
     error(label, "contains duplicate ids");
@@ -1053,7 +1107,12 @@ function parseCanvasV7(value, generation, label) {
   };
 }
 
-function parseCanvasV3(value, generation, label) {
+function parseCanvasV3(
+  value,
+  generation,
+  label,
+  { allowReturnSelectionActions = false } = {},
+) {
   exactKeys(value, ["renderer", "selectionActions", "toolbar"], [], label);
   if (value.toolbar !== undefined && value.renderer === undefined) {
     error(label, "toolbar requires a renderer");
@@ -1072,6 +1131,7 @@ function parseCanvasV3(value, generation, label) {
           value.selectionActions,
           generation,
           `${label} selectionActions`,
+          { allowReturnSelectionActions },
         );
   const toolbar = parseToolbar(value.toolbar, `${label} toolbar`);
   return {
@@ -1433,7 +1493,12 @@ function parsePluginManifestV4Plus(value, label) {
   const canvas = hasCanvas
     ? v7
       ? parseCanvasV7(value.contributes.canvas, generation, `${label} canvas`)
-      : parseCanvasV3(value.contributes.canvas, generation, `${label} canvas`)
+      : parseCanvasV3(
+          value.contributes.canvas,
+          generation,
+          `${label} canvas`,
+          { allowReturnSelectionActions: v6 },
+        )
     : undefined;
   const hasRenderer = canvas?.renderer !== undefined;
   const hasProjectCanvasCapability = capabilities.some((capability) =>
@@ -1959,6 +2024,20 @@ export async function readJson(file, label = file) {
     return JSON.parse(text);
   } catch (cause) {
     throw new Error(`${label}: invalid JSON`, { cause });
+  }
+}
+
+export async function readJsonc(file, label = file) {
+  let text;
+  try {
+    text = await fs.readFile(file, "utf8");
+  } catch (cause) {
+    throw new Error(`${label}: cannot read`, { cause });
+  }
+  try {
+    return Bun.JSONC.parse(text);
+  } catch (cause) {
+    throw new Error(`${label}: invalid JSONC`, { cause });
   }
 }
 

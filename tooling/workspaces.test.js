@@ -3,18 +3,32 @@ import { promises as fs } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
-import { discoverPackages, readJson, root } from "./lib.mjs"
+import { discoverPackages, readJson, readJsonc, root } from "./lib.mjs"
 import { packFromArgs } from "./pack.mjs"
 import { runWorkspaceScript } from "./run-workspace-script.mjs"
 
 const collections = ["plugins", "skills", "tools"]
 
 describe("Bun workspace ownership", () => {
-  test("discovers every Plugin, Skill, and Tool from the root workspace globs", async () => {
+  test("parses Bun's JSONC lockfile without weakening strict package JSON", async () => {
+    const fixture = await fs.mkdtemp(path.join(os.tmpdir(), "convax-bun-lock-"))
+    try {
+      const lockPath = path.join(fixture, "bun.lock")
+      await fs.writeFile(lockPath, '{\n  // Bun lockfiles are JSONC\n  "lockfileVersion": 1,\n}\n')
+
+      await expect(readJson(lockPath)).rejects.toThrow("invalid JSON")
+      await expect(readJsonc(lockPath)).resolves.toEqual({ lockfileVersion: 1 })
+    } finally {
+      await fs.rm(fixture, { force: true, recursive: true })
+    }
+  })
+
+  test("declares Plugin, Skill, MCP Server, and Tool source collections", async () => {
     const rootPackage = await readJson(path.join(root, "package.json"))
     expect(rootPackage.workspaces).toEqual([
       "packages/plugins/*",
       "packages/skills/*",
+      "packages/mcp-servers/*",
       "packages/tools/*",
     ])
 
@@ -35,7 +49,7 @@ describe("Bun workspace ownership", () => {
   test("uses the official npm registry and keeps one frozen root lockfile", async () => {
     const lockPath = path.join(root, "bun.lock")
     const [lock, lockText, bunfig] = await Promise.all([
-      readJson(lockPath),
+      readJsonc(lockPath),
       fs.readFile(lockPath, "utf8"),
       fs.readFile(path.join(root, "bunfig.toml"), "utf8"),
     ])
@@ -55,8 +69,26 @@ describe("Bun workspace ownership", () => {
     expect(Object.keys(lock.workspaces)).toContain("packages/skills/ffmpeg-canvas")
   })
 
+  test("dogfoods one exact public Kit and documents the third-party scaffold path", async () => {
+    const [rootPackage, readme, readmeZh] = await Promise.all([
+      readJson(path.join(root, "package.json")),
+      fs.readFile(path.join(root, "README.md"), "utf8"),
+      fs.readFile(path.join(root, "README.zh-CN.md"), "utf8"),
+    ])
+    expect(rootPackage.devDependencies["@convax/marketplace-kit"]).toBe("0.1.0")
+    expect(rootPackage.devDependencies["@convax/marketplace-kit"]).not.toContain("file:")
+    expect(rootPackage.scripts["marketplace:check"]).toBe("convax-marketplace check .")
+    expect(rootPackage.scripts["marketplace:build-index"]).toContain("official-marketplace-build.mjs")
+    for (const text of [readme, readmeZh]) {
+      expect(text).toContain("create-convax-marketplace@0.1.0")
+      expect(text).toContain("--starter mcp-server")
+      expect(text).toContain("convax-marketplace")
+      expect(text).toContain("add-target")
+    }
+  })
+
   test("keeps workspace versions synchronized with the root lockfile", async () => {
-    const lock = await readJson(path.join(root, "bun.lock"))
+    const lock = await readJsonc(path.join(root, "bun.lock"))
 
     for (const collection of collections) {
       const directory = path.join(root, "packages", collection)
@@ -138,7 +170,7 @@ describe("Bun workspace ownership", () => {
         rootPackage.scripts.check.indexOf("validate"),
       )
       expect(rootPackage.scripts.check.indexOf("workspaces:build:packages")).toBeLessThan(
-        rootPackage.scripts.check.indexOf("bun run pack"),
+        rootPackage.scripts.check.indexOf("marketplace:build"),
       )
     } finally {
       await fs.rm(fixture, { force: true, recursive: true })

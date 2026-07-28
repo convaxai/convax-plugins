@@ -49,7 +49,14 @@ function processIds(stdout: string) {
   const ids: number[] = []
   for (const line of stdout.split(/\r?\n/u)) {
     const match = /^\s*(\d+)\s+(.+?)\s*$/u.exec(line)
-    if (!match || path.basename(match[2]!) !== executableName) continue
+    const command = match?.[2]
+    if (
+      !command ||
+      path.basename(command) !== executableName ||
+      command.includes("/Contents/Frameworks/")
+    ) {
+      continue
+    }
     const pid = Number(match[1])
     if (Number.isSafeInteger(pid) && pid > 0) ids.push(pid)
   }

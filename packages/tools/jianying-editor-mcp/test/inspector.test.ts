@@ -59,4 +59,32 @@ describe("JianYing draft inspection", () => {
     }).inspect()
     expect(result).toMatchObject({ processIds: [42], status: "ambiguous" })
   })
+
+  test("ignores the same-named Framework helper and inspects only the app main process", async () => {
+    const inspectedPids: string[] = []
+    const run: CommandRunner = async (executable, args) => {
+      if (executable === "/bin/ps") {
+        return {
+          exitCode: 0,
+          stderr: "",
+          stdout: [
+            " 42 /Applications/VideoFusion-macOS.app/Contents/MacOS/VideoFusion-macOS",
+            " 43 /Applications/VideoFusion-macOS.app/Contents/Frameworks/VideoFusion-macOS.app/Contents/MacOS/VideoFusion-macOS",
+          ].join("\n"),
+        }
+      }
+      inspectedPids.push(args.at(-1)!)
+      return { exitCode: 0, stderr: "", stdout: "" }
+    }
+
+    const result = await new JianyingDraftInspector({
+      platform: "darwin",
+      roots: [],
+      run,
+      sleep: async () => undefined,
+    }).inspect()
+
+    expect(result).toEqual({ processIds: [42], status: "no_active_draft" })
+    expect(inspectedPids).toEqual(["42", "42"])
+  })
 })

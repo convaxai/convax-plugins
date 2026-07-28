@@ -1,0 +1,10 @@
+{
+  "name": "@microvoid/convax-skill-canvas-storyboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "bun ../../../tooling/validate.mjs --kind skill --id canvas-storyboard",
+    "pack": "bun ../../../tooling/pack.mjs --kind skill --id canvas-storyboard"
+  }
+}

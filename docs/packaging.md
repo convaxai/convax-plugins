@@ -18,6 +18,8 @@ packages/<kind>/<id>/convax-package.json  # catalog metadata, not shipped
 packages/<kind>/<id>/package.json         # workspace dependencies/scripts, not shipped
 packages/<kind>/<id>/package/             # exact ZIP root
 packages/<kind>/<id>/showcase/            # optional catalog media, not shipped
+packages/mcp-servers/<id>/server.json     # standard MCP identity and version
+packages/mcp-servers/<id>/convax-mcp.json # managed-stdio only; never HTTP
 ```
 
 Plugin ZIPs require root `manifest.json`; Skill ZIPs require root `SKILL.md`.
@@ -132,6 +134,7 @@ bun run build:companions
 bun run pack
 ```
 
+The legacy compatibility command
 `bun run pack -- --kind plugin --id hello-convax` writes a versioned ZIP and
 `registry-entry.json` below `dist/packages/`. `bun run build:index` reads those
 entries and writes `dist/registry/v1/index.json`. A package with `showcase`
@@ -141,48 +144,56 @@ revision as the Registry. A package with `companions` additionally produces one
 standalone `convax-companion-*` Release asset per target; the Registry entry records
 its immutable URL, exact byte size, and SHA-256.
 
-## Release
+Neither directory is a v2 publication input. Official v2, its strict v1
+projection, Showcase v2, grouped Release assets, Builtin bundle, and product-lock
+input come only from the exact `@convax/marketplace-kit` output.
 
-Publish a reviewed package by pushing an annotated tag:
+`bun run marketplace:verify` independently closes those outputs before
+publication. It checks the strict v1 identity projection, every Registry Release
+reference, immutable metadata copies, the Builtin reservation, and the sole
+`ffmpeg-tools` preinstall with its owned Skill and darwin-arm64 companion. Product
+lock reads are bounded, no-follow, single-link reads whose opened inode and size
+must remain stable through hashing.
 
-```sh
-git tag -a plugin-hello-convax-v0.1.0 -m "hello-convax 0.1.0"
-git push origin plugin-hello-convax-v0.1.0
-```
+## Protected default-branch release
 
-Push batch tags in separate `git push` invocations and confirm that every tag
-creates a **Publish package** run. GitHub does not create tag push events when more
-than three tags are pushed at once, so a single bulk push can leave valid tags with
-no Releases. See GitHub's
-[push event documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#push).
+Authors change an extension's identity version and merge through the protected
+default branch. The low-privilege job compares the previous and next Git trees,
+rejects any changed package bytes whose version did not change, runs the complete
+check, and uploads only the exact verified artifacts. A separate minimal
+high-privilege job consumes those bytes, creates the deterministic tag, attests the
+artifacts, and publishes the immutable Release. Pull requests never receive release
+credentials and `pull_request_target` is not used.
 
-The tag must match source metadata exactly. The workflow validates all packages,
-cross-compiles the reviewed target, packs only the tagged package, attests its ZIP
-and each companion, creates a draft Release, uploads the ZIP plus
-`registry-entry.json`, companions, and any declared Showcase assets, and only then
-publishes it. Published versions are
+Plugin and Skill tags retain `<kind>-<id>-v<version>`. Namespaced MCP Server ids are
+never embedded in native paths or tags; the release tag uses the stable hashed item
+key emitted by the Kit. Published versions are
 immutable; never move or reuse a tag. Change bytes by publishing a higher SemVer. To
-disable a compromised version, add its `kind/id@version` identity to
-`registry/config.json`, bump the Registry sequence, and manually run the protected
-Pages workflow. This changes catalog policy without replacing the old asset.
+disable a compromised version for new installs, publish a reviewed higher package
+version with `yanked: true`. Existing immutable assets remain available for
+inventory, recovery, and audit.
 
-The Pages workflow aggregates entry documents from GitHub Releases and publishes
-only valid entries. An ordinary Plugin or Skill becomes eligible as soon as its own
-Release succeeds; a different package's unreleased source version does not block it.
-For a Plugin-owned Skill, Pages retains the previously published owner/Skill pair
-until the current source versions of the owner and all of its owned Skills have
-matching Releases. This prevents a partially published ownership group from replacing
-the working pair without imposing a repository-wide release barrier. The production
-catalog is:
+The serialized workflow fetches and strictly validates the current production v2
+Registry as an explicit sequence input. The one-time bootstrap accepts strict v1
+only after an exact v2 HTTP 404 and inherits only its sequence high-water mark.
+Every other network or validation failure stops publication. The Kit then writes
+one grouped directory per immutable package Release plus one content-addressed
+Registry metadata Release. A changed Storyboard source also publishes the matching
+Builtin bundle Release. The privileged job consumes only those verified directories,
+supports exact-byte retry recovery, and invokes the reusable Pages deployment before
+releasing the repository-wide publication lock.
+
+The production catalogs are:
 
 `https://microvoid.github.io/convax-plugins/registry/v1/index.json`
 
+`https://microvoid.github.io/convax-plugins/registry/v2/index.json`
+
 The matching presentation sidecar is:
 
-`https://microvoid.github.io/convax-plugins/showcase/v1/index.json`
+`https://microvoid.github.io/convax-plugins/showcase/v2/index.json`
 
-Each Pages deployment advances `sequence` beyond the currently deployed Registry,
-using `registry/config.json` as a minimum floor. Consequently, multiple package tags
-from the same `main` revision may update the catalog one at a time without reusing a
-sequence. `revision` continues to identify the protected `main` source used by the
-builder.
+Each content-changing deployment uses
+`max(registry/config.json floor, previous production sequence) + 1` for both v2 and
+v1. Registry v2 revision is the canonical content SHA-256; the v1 projection keeps
+the explicit protected Git SHA required by existing clients.

@@ -1,18 +1,20 @@
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-# Convax Plugins
+# Convax Plugins and Marketplace
 
 The official source registry, authoring kit, and release catalog for Convax
-Plugins and portable [Agent Skills](https://agentskills.io/). Published Skills
+Plugins, portable [Agent Skills](https://agentskills.io/), and standard MCP
+Servers. Published Skills
 follow the open `SKILL.md` format and can be used by compatible agents such as
 OpenAI Codex; they are not designed exclusively for Convax.
 
 This repository lets people and AI agents start from a template and produce a
-Plugin or Skill that can be validated independently, packaged deterministically,
+Plugin, Skill, or MCP Server that can be validated independently and published deterministically,
 and downloaded safely by Convax. Package source is reviewed in Git, immutable ZIPs
 are published through GitHub Releases, and GitHub Pages hosts the lightweight
-Registry at
-`https://microvoid.github.io/convax-plugins/registry/v1/index.json`.
+Marketplace descriptor at
+`https://microvoid.github.io/convax-plugins/marketplace.json`. Current clients use
+Registry v2; a strict Registry v1 projection remains available for older clients.
 
 ![Animated previews of the Image Remix, Audiobook, and Ecommerce Image Skills](docs/assets/skill-showcases.gif)
 
@@ -53,6 +55,27 @@ bun run pack -- --kind skill --id my-skill
 The generated Plugin ZIP has `manifest.json` at its root. A Skill ZIP has
 `SKILL.md` at its root. No dependency install or contributor build script is run
 while validating or packing a package.
+
+## Create a third-party Marketplace
+
+The public scaffold and Kit use the same Plugin, Skill, and MCP Server contracts
+as this Official Marketplace:
+
+```sh
+bunx create-convax-marketplace@0.1.0 my-market \
+  --owner my-org \
+  --repository my-market \
+  --starter mcp-server
+cd my-market
+bun run check
+bun run build-index
+```
+
+Add another package with `bun run marketplace -- new plugin --id my-plugin`.
+For a reviewed managed-stdio MCP companion, admit one target with
+`bun run marketplace -- add-target packages/mcp-servers/example-mcp --target darwin-arm64 --file /path/to/reviewed-companion`;
+the bare executable is copied into the private authoring input area and the source
+path is never published.
 
 Executable Tool Plugins may be headless. `convax.plugin/3` separates executable
 tools, model-picker entries, Agent tools, and Canvas selection actions;
@@ -187,6 +210,9 @@ packages/skills/<id>/
   convax-package.json      # Convax publishing metadata; excluded from the ZIP
   package/                 # portable Skill root; SKILL.md must be here
   showcase/                # optional catalog poster/animation; excluded from ZIP
+packages/mcp-servers/<id>/
+  server.json              # standard MCP identity/version and fixed HTTPS profile
+  convax-mcp.json          # managed-stdio only
 packages/tools/<id>/       # reviewed Tool workspace; separately distributed
 templates/                 # copy-only author starters
 tooling/                   # validation and deterministic ZIP
@@ -204,23 +230,25 @@ bun run workspaces:test     # test workspaces that declare the script
 bun test                    # validator, ZIP, Registry, and protocol tests
 bun run render:showcases -- --id ad-idea # render one poster and animation
 bun run build:companions    # compile explicitly reviewed platform targets
-bun run pack                # pack every package into dist/packages
-bun run build:index         # create matching Registry and Showcase indexes
+bun run marketplace:check  # validate authoring source through the packed Kit
+bun run marketplace:build  # build v2/v1, Releases, Builtin, and lock input
 bun run check               # complete local CI sequence
 ```
 
-To publish one package, create an annotated tag that exactly matches its metadata:
+Marketplace publication dogfoods the packed `@convax/marketplace-kit`.
+The repository pins the Kit to exact version `0.1.0`; local source links are not a
+valid publication dependency. The matching Kit package must therefore be published
+before a clean frozen install of this repository.
 
-```text
-plugin-<id>-v<version>
-skill-<id>-v<version>
-```
+Authors change a Plugin, Skill, or MCP Server version and merge through protected `main`;
+they do not create release tags. The default-branch workflow rejects changed bytes
+without a version change, builds deterministic artifacts in a low-privilege job,
+then lets a minimal privileged job tag and publish only those verified bytes.
+Registry v2, its strict v1 projection, Showcase v2, and the immutable Builtin bundle
+are generated rather than hand-edited.
 
-For example: `plugin-hello-convax-v0.1.0`. The publish workflow validates the
-tag, creates the deterministic ZIP and Registry entry, attests the ZIP, and creates
-a GitHub Release. The Pages workflow rebuilds the catalog from published Release
-entries only. Each ordinary Plugin or Skill Release can enter the catalog
-independently; unrelated source versions that have not been released do not block it.
+`bun run pack` and `bun run build:index` remain legacy v1 compatibility diagnostics.
+They do not provide bytes, URLs, or metadata to the v2 release workflow.
 
 ## Troubleshooting installation
 

@@ -4,7 +4,7 @@ import path from "node:path"
 
 import { isObject, readJson, root } from "./lib.mjs"
 
-const collections = ["plugins", "skills", "tools"]
+const collections = ["plugins", "skills", "mcp-servers", "tools"]
 
 async function discoverWorkspaces(workspaceRoot = root) {
   const workspaces = []
@@ -15,7 +15,7 @@ async function discoverWorkspaces(workspaceRoot = root) {
       throw cause
     })
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue
+      if (!entry.isDirectory() || entry.name.startsWith(".")) continue
       const workspaceDirectory = path.join(directory, entry.name)
       const packageJson = await readJson(
         path.join(workspaceDirectory, "package.json"),
@@ -73,7 +73,7 @@ export async function runWorkspaceScript(script, requestedCollections = collecti
 
 if (import.meta.main) {
   const [script, ...requestedCollections] = process.argv.slice(2)
-  if (!script) throw new Error("Usage: bun tooling/run-workspace-script.mjs <script> [plugins skills tools]")
+  if (!script) throw new Error("Usage: bun tooling/run-workspace-script.mjs <script> [plugins skills mcp-servers tools]")
   const workspaces = await runWorkspaceScript(
     script,
     requestedCollections.length > 0 ? requestedCollections : collections,

@@ -121,4 +121,35 @@ describe("convax.plugin/4 owned Skill contributions", () => {
       yanked: false,
     })).toThrow("ownerPluginId is available only to Skills")
   })
+
+  test("does not backport v6 image return-selection actions", () => {
+    const imageAction = manifest({
+      entry: "index.html",
+      contributes: {
+        canvas: {
+          renderer: { create: true },
+          selectionActions: [{
+            description: { default: "Import one image." },
+            editor: "confirmation",
+            id: "import-image",
+            steps: [{ tool: "image.import" }],
+            target: "image",
+            title: { default: "Import image" },
+          }],
+        },
+        generation: {
+          models: [],
+          tools: [{
+            acceptedInputs: ["reference_image"],
+            description: "Import one selected image.",
+            id: "image.import",
+            output: "image",
+            title: "Import image",
+          }],
+        },
+      },
+    })
+
+    expect(() => parsePluginManifest(imageAction)).toThrow("target must be video")
+  })
 })

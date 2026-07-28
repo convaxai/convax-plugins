@@ -10,13 +10,13 @@ async function read(relativePath: string) {
 }
 
 describe("JianYing Plugin package", () => {
-  test("declares an explicit-install, return-only, direct-input integration", async () => {
+  test("declares direct-input Agent tools and ordinary image/video import actions separately", async () => {
     const manifest = JSON.parse(await read("manifest.json"))
     expect(manifest).toMatchObject({
       capabilities: ["canvas.connectedInputs.read", "generation.execute"],
       id: "jianying-editor",
       schema: "convax.plugin/6",
-      version: "2.0.0",
+      version: "2.1.1",
       runtime: {
         command: "convax-jianying-editor-mcp",
         type: "mcp-stdio",
@@ -30,9 +30,64 @@ describe("JianYing Plugin package", () => {
         id: "media.export",
         inputBinding: "direct-incoming",
       }),
+      expect.objectContaining({
+        acceptedInputs: ["reference_image", "reference_video"],
+        delivery: "return",
+        id: "media.import-selected",
+        output: "text",
+      }),
+    ])
+    expect(manifest.contributes.generation.tools[2]).not.toHaveProperty("inputBinding")
+    expect(manifest.contributes.agent.tools).toEqual([
+      { id: "get_draft_status", tool: "draft.status" },
+      { id: "export_connected_media", tool: "media.export" },
+    ])
+    expect(manifest.contributes.canvas.selectionActions).toEqual([
+      {
+        description: {
+          default: "Import the selected image into the stable current JianYing draft, or create a new draft safely.",
+          "zh-CN": "将所选图片导入稳定的剪映当前草稿，或安全创建新草稿。",
+        },
+        editor: "confirmation",
+        id: "import-image-to-jianying",
+        steps: [{ tool: "media.import-selected" }],
+        target: "image",
+        title: { default: "Import to JianYing", "zh-CN": "导入剪映" },
+      },
+      {
+        description: {
+          default: "Import the selected video into the stable current JianYing draft, or create a new draft safely.",
+          "zh-CN": "将所选视频导入稳定的剪映当前草稿，或安全创建新草稿。",
+        },
+        editor: "confirmation",
+        id: "import-video-to-jianying",
+        steps: [{ tool: "media.import-selected" }],
+        target: "video",
+        title: { default: "Import to JianYing", "zh-CN": "导入剪映" },
+      },
     ])
     expect(manifest.contributes.skills).toEqual([
       { name: "jianying-editor", path: "skills/jianying-editor" },
+    ])
+  })
+
+  test("binds the changed manifest and companion bytes to new immutable versions", async () => {
+    const metadata = JSON.parse(await fs.readFile(
+      path.resolve(import.meta.dir, "..", "convax-package.json"),
+      "utf8",
+    ))
+    const workspace = JSON.parse(await fs.readFile(
+      path.resolve(import.meta.dir, "..", "package.json"),
+      "utf8",
+    ))
+
+    expect(metadata.version).toBe("2.1.1")
+    expect(workspace.version).toBe("2.1.1")
+    expect(metadata.companions).toEqual([
+      expect.objectContaining({
+        command: "convax-jianying-editor-mcp",
+        version: "1.1.1",
+      }),
     ])
   })
 

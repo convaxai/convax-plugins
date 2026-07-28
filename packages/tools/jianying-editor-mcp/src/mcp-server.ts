@@ -59,6 +59,11 @@ export const tools = [
     inputSchema: envelope({ maximum: 32, minimum: 1 }, true),
     name: "media.export",
   },
+  {
+    description: "Import one toolbar-selected, host-staged image or video using the safe automatic draft policy.",
+    inputSchema: envelope({ maximum: 1, minimum: 1 }, false),
+    name: "media.import-selected",
+  },
 ] as const
 
 interface Request {
@@ -163,7 +168,7 @@ export class McpServer {
       return this.result(value.id, {
         capabilities: { tools: {} },
         protocolVersion,
-        serverInfo: { name: "convax-jianying-editor-mcp", version: "1.0.0" },
+        serverInfo: { name: "convax-jianying-editor-mcp", version: "1.1.1" },
       })
     }
     if (value.method === "tools/list") return this.result(value.id, { tools })
@@ -172,7 +177,11 @@ export class McpServer {
     this.#inflight.set(value.id, controller)
     try {
       const params = record(value.params, "tools/call params")
-      if (params.name !== "draft.status" && params.name !== "media.export") {
+      if (
+        params.name !== "draft.status" &&
+        params.name !== "media.export" &&
+        params.name !== "media.import-selected"
+      ) {
         return this.error(value.id, -32602, "Unknown tool")
       }
       const call = parseGenerationCall(params.arguments, params.name)

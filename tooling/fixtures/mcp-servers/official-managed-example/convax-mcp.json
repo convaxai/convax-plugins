@@ -1,0 +1,22 @@
+{
+  "schema": "convax.mcp-server-extension/1",
+  "runtime": {
+    "kind": "managed-stdio",
+    "command": "convax-managed-example-mcp",
+    "argv": [],
+    "compatibility": {
+      "targets": [
+        "darwin-arm64"
+      ]
+    }
+  },
+  "productActions": [
+    {
+      "action": "project.files.read",
+      "tool": "fixture_read"
+    }
+  ],
+  "grants": [
+    "project.files.read"
+  ]
+}

@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test"
 import { InputError, parseGenerationCall } from "../src/contracts.ts"
 
 const envelope = {
+  operation_id: `convax-${"a".repeat(64)}`,
   output: "text",
   output_directory: "/tmp/output",
   prompt: "Import media",
@@ -49,5 +50,34 @@ describe("generation-call contract", () => {
     const status = { ...envelope, prompt: "Inspect", references: [] }
     expect(parseGenerationCall(status, "draft.status")).toMatchObject({ references: [], target: "auto" })
     expect(() => parseGenerationCall({ ...status, target: "current" }, "draft.status")).toThrow("target fields")
+  })
+
+  test("accepts exactly one toolbar-selected image or video with automatic safe targeting", () => {
+    expect(parseGenerationCall(envelope, "media.import-selected")).toMatchObject({
+      operationId: envelope.operation_id,
+      references: [{ role: "reference_image" }],
+      target: "auto",
+    })
+    expect(() => parseGenerationCall({
+      ...envelope,
+      references: [...envelope.references, {
+        ...envelope.references[0],
+        node_id: "node-2",
+      }],
+    }, "media.import-selected")).toThrow("exactly one")
+    expect(() => parseGenerationCall({
+      ...envelope,
+      draft_token: "hidden-token",
+      target: "current",
+    }, "media.import-selected")).toThrow("does not accept target fields")
+  })
+
+  test("requires the exact host operation identity and still rejects unknown fields", () => {
+    expect(() => parseGenerationCall({ ...envelope, operation_id: "operation-1" }, "media.import-selected")).toThrow(
+      "operation_id",
+    )
+    expect(() => parseGenerationCall({ ...envelope, result_mode: "return" }, "media.import-selected")).toThrow(
+      "unsupported fields",
+    )
   })
 })

@@ -1,0 +1,31 @@
+{
+  "schema": "convax.marketplace/1",
+  "id": "convax-official",
+  "name": "Convax Official",
+  "publisher": {
+    "name": "Microvoid"
+  },
+  "repository": {
+    "owner": "microvoid",
+    "name": "convax-plugins"
+  },
+  "registry": {
+    "v2": {
+      "url": "https://microvoid.github.io/convax-plugins/registry/v2/index.json"
+    },
+    "v1": {
+      "url": "https://microvoid.github.io/convax-plugins/registry/v1/index.json"
+    }
+  },
+  "showcase": {
+    "v2": {
+      "url": "https://microvoid.github.io/convax-plugins/showcase/v2/index.json"
+    }
+  },
+  "compatibility": {
+    "convax": ">=0.1.0"
+  },
+  "delivery": {
+    "kind": "github-pages-releases"
+  }
+}

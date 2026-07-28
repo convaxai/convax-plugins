@@ -55,6 +55,7 @@ describe("source packages", () => {
       "plugin/example-generation",
       "skill/ad-idea",
       "skill/audiobook",
+      "skill/canvas-storyboard",
       "skill/chatcut",
       "skill/clip-export",
       "skill/ecommerce-image",
@@ -125,7 +126,7 @@ describe("source packages", () => {
           type: "mcp-stdio",
         },
         schema: "convax.plugin/6",
-        version: "2.0.0",
+        version: "2.1.1",
       }),
     );
     expect(jianying.manifest.contributes.generation.tools).toEqual([
@@ -140,11 +141,30 @@ describe("source packages", () => {
         id: "media.export",
         inputBinding: "direct-incoming",
       }),
+      expect.objectContaining({
+        acceptedInputs: ["reference_image", "reference_video"],
+        delivery: "return",
+        id: "media.import-selected",
+      }),
+    ]);
+    expect(jianying.manifest.contributes.canvas.selectionActions).toEqual([
+      expect.objectContaining({
+        editor: "confirmation",
+        id: "import-image-to-jianying",
+        steps: [{ tool: "media.import-selected" }],
+        target: "image",
+      }),
+      expect.objectContaining({
+        editor: "confirmation",
+        id: "import-video-to-jianying",
+        steps: [{ tool: "media.import-selected" }],
+        target: "video",
+      }),
     ]);
     expect(jianying.metadata.companions).toEqual([
       {
         command: "convax-jianying-editor-mcp",
-        version: "1.0.0",
+      version: "1.1.1",
         source: "packages/tools/jianying-editor-mcp",
         targets: [
           {
@@ -670,12 +690,17 @@ describe("source packages", () => {
     );
   });
 
-  test("publishes Pages without a whole-repository Release gate", async () => {
+  test("publishes the exact verified Kit output before releasing the publication lock", async () => {
     const workflow = await fs.readFile(path.join(root, ".github", "workflows", "pages.yml"), "utf8");
-    expect(workflow).toContain("prepare-release-catalog.mjs");
-    expect(workflow).toContain("--previous dist/production/index.json");
+    expect(workflow).toContain("workflow_call:");
+    expect(workflow).toContain("verify-marketplace-output.mjs dist/catalog");
+    expect(workflow).toContain("path: dist/catalog/site");
+    expect(workflow).toContain("dist/catalog/site/schemas");
+    expect(workflow).not.toContain("cp dist/catalog/registry-v2.json");
+    expect(workflow).not.toContain("cp dist/catalog/registry-v1.json");
+    expect(workflow).not.toContain("cp dist/catalog/showcase-v2.json");
+    expect(workflow).not.toContain("workflow_run:");
     expect(workflow).not.toContain("check-release-coverage.mjs");
-    expect(workflow).not.toContain("steps.coverage.outputs.ready");
   });
 
   test("builds the strict client Registry with only the latest stable version", async () => {
