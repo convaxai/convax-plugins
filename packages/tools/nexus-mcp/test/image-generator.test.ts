@@ -31,7 +31,12 @@ describe("NexusImageGenerator", () => {
           outputModalities: ["image", "text"],
         },
       ],
-      imageCompletion: async () => {
+      imageCompletion: async (
+        _model: string,
+        _prompt: string,
+        operationId: string,
+      ) => {
+        expect(operationId).toBe("operation-123");
         completions += 1;
         return {
           choices: [

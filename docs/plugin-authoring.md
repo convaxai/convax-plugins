@@ -320,6 +320,15 @@ it contains `{tool,name}` references to generation tools and may be `[]` for an
 operation-only Plugin such as FFmpeg. Model names and referenced tools are unique.
 This positive declaration prevents utilities from appearing as generation models.
 
+A companion whose `tools/list` response exposes a live, bounded model catalog may
+annotate exactly one required, top-level string property in that generation tool's
+input schema with `"x-convax-role": "generation-model-id"`. The marked property
+must contain explicit bounded choices (for example, `oneOf` string constants), so
+the host can project those choices directly into its generation-model picker and
+bind the selected opaque value at execution time. Omit the annotation when the
+companion falls back to a free-text model field; the annotation never turns
+unbounded provider input into a trusted catalog.
+
 Outputs are `text`, `image`, `video`, or `audio`. `acceptedInputs` may contain only
 `reference_image`, `reference_video`, `first_frame`, `last_frame`, `audio`, and
 `text`. It describes optional Canvas references; the prompt is always a separate

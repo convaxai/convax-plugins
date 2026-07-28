@@ -20,7 +20,50 @@ const refreshSkewMs = 30_000;
 const maximumModelCatalogBytes = 8 * 1024 * 1024;
 const maximumModelCatalogEntries = 2_048;
 const maximumImageCompletionBytes = 16 * 1024 * 1024;
+const maximumImageErrorBytes = 64 * 1024;
 const openRouterModelIdPattern = /^~?[A-Za-z0-9]+(?:[._/:-][A-Za-z0-9]+)*$/;
+const nexusRequestIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
+const nexusGatewayErrorCodes: ReadonlySet<string> = new Set([
+  "access_unavailable",
+  "invalid_gateway_request",
+  "invalid_gateway_route",
+  "invalid_inference_key",
+  "invalid_usage_request",
+  "metering_unsupported",
+  "provider_configuration_error",
+  "provider_connection_not_found",
+  "provider_first_byte_timeout",
+  "provider_overall_timeout",
+  "provider_unavailable",
+  "quota_exceeded",
+  "unsafe_provider_path",
+  "workspace_access_denied",
+]);
+
+export class NexusImageHttpError extends Error {
+  override name = "NexusImageHttpError";
+  readonly code: string | undefined;
+  readonly requestId: string;
+  readonly status: number;
+
+  constructor(
+    status: number,
+    requestId: string,
+    code?: unknown,
+  ) {
+    super("Nexus image generation request was rejected");
+    if (!Number.isInteger(status) || status < 100 || status > 599) {
+      throw new Error("Nexus image HTTP diagnostic status is invalid");
+    }
+    const trustedRequestId = validRequestId(requestId);
+    if (trustedRequestId === undefined) {
+      throw new Error("Nexus image HTTP diagnostic request id is invalid");
+    }
+    this.status = status;
+    this.code = validErrorCode(code);
+    this.requestId = trustedRequestId;
+  }
+}
 
 export interface NexusClientOptions {
   fetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -220,8 +263,12 @@ export class NexusClient {
   async imageCompletion(
     model: string,
     prompt: string,
+    operationId: string,
     signal: AbortSignal,
   ): Promise<unknown> {
+    if (!nexusRequestIdPattern.test(operationId)) {
+      throw new Error("Nexus image generation operation id is invalid");
+    }
     const context = await this.gatewayContext();
     const response = await this.#fetch(
       new URL(`${context.provider.gatewayBaseUrl}/chat/completions`),
@@ -235,13 +282,20 @@ export class NexusClient {
         headers: {
           authorization: `Bearer ${context.dataToken}`,
           "content-type": "application/json",
+          "x-nexus-request-id": operationId,
         },
         method: "POST",
         signal,
       },
     );
-    if (!response.ok)
-      throw new Error(`Nexus image generation failed with HTTP ${response.status}`);
+    if (!response.ok) {
+      const error = await parseImageHttpError(response);
+      throw new NexusImageHttpError(
+        response.status,
+        operationId,
+        error.code,
+      );
+    }
     const declared = Number(response.headers.get("content-length") ?? 0);
     if (Number.isFinite(declared) && declared > maximumImageCompletionBytes) {
       throw new Error("Nexus image generation response is too large");
@@ -436,6 +490,82 @@ export class NexusClient {
       throw new Error(`Nexus User API failed with HTTP ${response.status}`);
     return (await response.json()) as T;
   }
+}
+
+async function parseImageHttpError(response: Response): Promise<{ code?: string }> {
+  const serialized = await readBoundedResponseText(
+    response,
+    maximumImageErrorBytes,
+  ).catch(() => undefined);
+  if (serialized === undefined) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(serialized) as unknown;
+  } catch {
+    return {};
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return {};
+  }
+  const input = parsed as Record<string, unknown>;
+  const error =
+    input.error && typeof input.error === "object" && !Array.isArray(input.error)
+      ? (input.error as Record<string, unknown>)
+      : undefined;
+  const code = validErrorCode(error?.code);
+  return code === undefined ? {} : { code };
+}
+
+async function readBoundedResponseText(
+  response: Response,
+  maximumBytes: number,
+): Promise<string | undefined> {
+  const declared = Number(response.headers.get("content-length") ?? 0);
+  if (Number.isFinite(declared) && declared > maximumBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    return undefined;
+  }
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maximumBytes) {
+        await reader.cancel().catch(() => undefined);
+        return undefined;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return undefined;
+  }
+}
+
+function validErrorCode(value: unknown) {
+  return typeof value === "string" && nexusGatewayErrorCodes.has(value)
+    ? value
+    : undefined;
+}
+
+function validRequestId(value: unknown) {
+  return typeof value === "string" && nexusRequestIdPattern.test(value)
+    ? value
+    : undefined;
 }
 
 function parseHostedAccess(value: unknown): HostedAccess {

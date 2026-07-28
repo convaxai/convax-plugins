@@ -3,7 +3,7 @@
   "id": "nexus-service",
   "name": "Nexus · OpenRouter",
   "description": "Connects Convax to the Convax Workspace in Nexus for OpenRouter chat and live image-model generation through short-lived Data Tokens.",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "contributes": {
     "generation": {
       "models": [

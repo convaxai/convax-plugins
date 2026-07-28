@@ -8,6 +8,15 @@ image-output models populate the host-rendered Nexus image-model control. Image
 generation uses the already-metered Chat Completions path and returns only validated
 embedded image artifacts to the host. Nexus video endpoints remain unavailable
 until the service adds a dedicated video Usage Inspector and quota settlement model.
+When the live image catalog is bounded, the companion marks its model field so a
+compatible host can present each image model as a direct choice; its unbounded
+free-text fallback remains unmarked.
+
+Each image request sends the host operation id as `x-nexus-request-id` for safe
+diagnostic correlation. A rejected request exposes only its HTTP status, an
+allow-listed Gateway error code, and that locally generated operation id to the MCP
+caller. Response-provided identifiers, raw upstream messages, response bodies,
+prompts, and tokens never cross that diagnostic boundary.
 
 The companion owns PKCE and the loopback callback, stores the rotating Nexus refresh
 grant in a private user file, and exposes only a random loopback Gateway credential to

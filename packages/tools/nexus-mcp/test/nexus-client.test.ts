@@ -3,7 +3,10 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { NexusClient } from "../src/nexus-client.ts";
+import {
+  NexusClient,
+  NexusImageHttpError,
+} from "../src/nexus-client.ts";
 import { NexusSessionStore } from "../src/session-store.ts";
 
 const roots: string[] = [];
@@ -416,5 +419,172 @@ describe("NexusClient", () => {
         outputModalities: ["image", "text"],
       },
     ]);
+  });
+
+  test("correlates image requests and exposes only bounded HTTP diagnostics", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "convax-nexus-client-"),
+    );
+    roots.push(root);
+    const sessions = new NexusSessionStore({ XDG_CONFIG_HOME: root });
+    await sessions.write({
+      nexusOrigin: "http://localhost:3000",
+      refreshToken: "original-refresh-token-value",
+      schema: "convax.nexus-refresh-grant/1",
+      workspaceSlug: "convax",
+    });
+    const imageRequests: Array<{
+      authorization: string | null;
+      body: unknown;
+      requestId: string | null;
+    }> = [];
+    let imageAttempts = 0;
+    const client = new NexusClient(sessions, {
+      fetch: async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (url.pathname.endsWith("/auth/token")) {
+          return Response.json({
+            access_token: "fresh-access-token-with-sufficient-length",
+            data_token: "fresh-data-token-with-sufficient-length",
+            data_token_expires_at: "2026-07-26T08:10:00.000Z",
+            expires_in: 900,
+            refresh_token: "rotated-refresh-token-with-sufficient-length",
+            token_type: "Bearer",
+          });
+        }
+        if (url.pathname === "/user/v1/provider-connections") {
+          return Response.json([
+            {
+              gatewayBaseUrl:
+                "http://localhost:4000/providers/26010000-0000-4000-8000-000000000010",
+              id: "26010000-0000-4000-8000-000000000010",
+              name: "OpenRouter",
+              protocolProfile: "openai-compatible",
+              status: "ACTIVE",
+              workspaceId: "26010000-0000-4000-8000-000000000003",
+            },
+          ]);
+        }
+        if (url.pathname.endsWith("/chat/completions")) {
+          const headers = new Headers(init?.headers);
+          imageRequests.push({
+            authorization: headers.get("authorization"),
+            body: JSON.parse(String(init?.body)),
+            requestId: headers.get("x-nexus-request-id"),
+          });
+          imageAttempts += 1;
+          if (imageAttempts === 1) {
+            return Response.json(
+              {
+                error: {
+                  code: "metering_unsupported",
+                  message:
+                    "raw upstream detail containing secret-token and secret-prompt",
+                },
+                request_id: "sk-or-v1-secret-token",
+              },
+              {
+                headers: {
+                  "x-nexus-request-id": "secret-prompt",
+                  "x-request-id": "sk-or-v1-secret-token",
+                },
+                status: 409,
+              },
+            );
+          }
+          if (imageAttempts === 2) {
+            return Response.json(
+              {
+                error: { code: "secret-prompt" },
+                padding: "x".repeat(70 * 1024),
+                request_id: "sk-or-v1-secret-token",
+              },
+              { status: 500 },
+            );
+          }
+          return Response.json(
+            {
+              error: {
+                code: "secret-prompt",
+                requestId: "sk-or-v1-secret-token",
+              },
+              request_id: "secret-prompt",
+            },
+            { status: 422 },
+          );
+        }
+        throw new Error(`Unexpected request: ${url.pathname}`);
+      },
+      now: () => new Date("2026-07-26T08:00:00.000Z"),
+    });
+
+    let rejected: unknown;
+    try {
+      await client.imageCompletion(
+        "openai/gpt-image-1",
+        "secret-prompt",
+        "operation-123",
+        new AbortController().signal,
+      );
+    } catch (error) {
+      rejected = error;
+    }
+    expect(rejected).toBeInstanceOf(NexusImageHttpError);
+    expect(rejected).toMatchObject({
+      code: "metering_unsupported",
+      requestId: "operation-123",
+      status: 409,
+    });
+    expect(String(rejected)).not.toContain("secret-token");
+    expect(String(rejected)).not.toContain("secret-prompt");
+    expect(imageRequests[0]).toEqual({
+      authorization: "Bearer fresh-data-token-with-sufficient-length",
+      body: {
+        messages: [{ content: "secret-prompt", role: "user" }],
+        modalities: ["image", "text"],
+        model: "openai/gpt-image-1",
+        stream: false,
+      },
+      requestId: "operation-123",
+    });
+
+    let oversized: unknown;
+    try {
+      await client.imageCompletion(
+        "openai/gpt-image-1",
+        "another prompt",
+        "operation-oversized",
+        new AbortController().signal,
+      );
+    } catch (error) {
+      oversized = error;
+    }
+    expect(oversized).toBeInstanceOf(NexusImageHttpError);
+    expect(oversized).toMatchObject({
+      requestId: "operation-oversized",
+      status: 500,
+    });
+    expect((oversized as NexusImageHttpError).code).toBeUndefined();
+
+    let untrustedDiagnostics: unknown;
+    try {
+      await client.imageCompletion(
+        "openai/gpt-image-1",
+        "third prompt",
+        "operation-json",
+        new AbortController().signal,
+      );
+    } catch (error) {
+      untrustedDiagnostics = error;
+    }
+    expect(untrustedDiagnostics).toMatchObject({
+      code: undefined,
+      requestId: "operation-json",
+      status: 422,
+    });
+    expect(JSON.stringify(untrustedDiagnostics)).not.toContain("secret-prompt");
+    expect(JSON.stringify(untrustedDiagnostics)).not.toContain(
+      "sk-or-v1-secret-token",
+    );
   });
 });

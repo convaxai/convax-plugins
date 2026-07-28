@@ -17,6 +17,7 @@ const maximumTotalImageBytes = 32 * 1024 * 1024;
 const maximumImages = 8;
 const maximumTrackedOperations = 256;
 const modelIdPattern = /^~?[A-Za-z0-9]+(?:[._/:-][A-Za-z0-9]+)*$/u;
+const operationIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 
 interface TrackedOperation {
   fingerprint: string;
@@ -76,6 +77,7 @@ export class NexusImageGenerator {
     const response = await this.client.imageCompletion(
       call.model,
       call.prompt,
+      call.operation_id,
       signal,
     );
     if (signal.aborted) throw abortError();
@@ -150,13 +152,17 @@ function parseGenerationCall(value: unknown): GenerationCall {
   if (Buffer.byteLength(prompt, "utf8") > maximumPromptBytes) {
     throw new Error("Nexus image prompt is too large");
   }
+  const operationId = trimmedString(
+    input.operation_id,
+    "Nexus generation operation id",
+    128,
+  );
+  if (!operationIdPattern.test(operationId)) {
+    throw new Error("Nexus generation operation id is invalid");
+  }
   return {
     model,
-    operation_id: trimmedString(
-      input.operation_id,
-      "Nexus generation operation id",
-      256,
-    ),
+    operation_id: operationId,
     output: "image",
     output_directory: trimmedString(
       input.output_directory,

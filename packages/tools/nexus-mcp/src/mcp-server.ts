@@ -1,7 +1,11 @@
 import { asRecord, type JsonRpcRequest, type ToolResult } from "./contracts.ts";
 import { NexusAuthorization } from "./authorization.ts";
 import { NexusCheckoutStore } from "./checkout-store.ts";
-import { NexusClient, type NexusClientOptions } from "./nexus-client.ts";
+import {
+  NexusClient,
+  NexusImageHttpError,
+  type NexusClientOptions,
+} from "./nexus-client.ts";
 import { NexusImageGenerator } from "./image-generator.ts";
 import { NexusLlmGateway } from "./llm-gateway.ts";
 import { NexusPluginService } from "./plugin-service.ts";
@@ -17,7 +21,12 @@ const emptyInputSchema = {
 } as const;
 
 const generationCallProperties = {
-  operation_id: { maxLength: 256, minLength: 1, type: "string" },
+  operation_id: {
+    maxLength: 128,
+    minLength: 1,
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+    type: "string",
+  },
   output: { const: "image", type: "string" },
   output_directory: { maxLength: 4_096, minLength: 1, type: "string" },
   prompt: { maxLength: 20_000, minLength: 1, type: "string" },
@@ -34,6 +43,7 @@ export function imageGenerationTool(
           oneOf: models.map(({ id, name }) => ({ const: id, title: name })),
           title: "Model",
           type: "string",
+          "x-convax-role": "generation-model-id",
         }
       : {
           description:
@@ -161,6 +171,28 @@ function isJsonRpcRequest(value: unknown): value is JsonRpcRequest {
   return input.jsonrpc === "2.0" && typeof input.method === "string";
 }
 
+export function publicImageGenerationErrorMessage(error: unknown) {
+  if (!(error instanceof NexusImageHttpError)) {
+    return "Nexus image generation failed. Check Nexus before retrying because the upstream task result may be unknown.";
+  }
+  const details = [
+    `HTTP ${error.status}`,
+    ...(error.code === undefined ? [] : [`code ${error.code}`]),
+    `request id ${error.requestId}`,
+  ].join(", ");
+  const action =
+    error.status === 401 || error.status === 403
+      ? "Reconnect Nexus in Services before trying again."
+      : error.status === 429
+        ? "Check the Nexus quota or Plan before trying again."
+        : error.code === "metering_unsupported"
+          ? "This image route is not enabled for Nexus metering; contact Nexus support before trying again."
+          : error.status >= 500
+            ? "Use the request id to review Nexus diagnostics before trying again."
+            : "Review Nexus Services and choose a currently listed image model before trying again.";
+  return `Nexus rejected image generation (${details}). ${action}`;
+}
+
 export interface NexusMcpServerOptions {
   checkouts?: NexusCheckoutStore;
   client?: NexusClientOptions;
@@ -278,7 +310,7 @@ export class NexusMcpServer {
       this.#sendResult(value.id, {
         capabilities: { tools: {} },
         protocolVersion,
-        serverInfo: { name: "convax-nexus-mcp", version: "0.3.5" },
+        serverInfo: { name: "convax-nexus-mcp", version: "0.3.7" },
       });
       return;
     }
@@ -296,6 +328,7 @@ export class NexusMcpServer {
   async #callTool(request: JsonRpcRequest & { id: number | string }) {
     const controller = new AbortController();
     this.#inflight.set(request.id, controller);
+    let toolName: string | undefined;
     try {
       const params = asRecord(request.params, "tools/call params");
       if (
@@ -305,6 +338,7 @@ export class NexusMcpServer {
         this.#sendError(request.id, -32_602, "Unknown tool");
         return;
       }
+      toolName = params.name;
       const input = asRecord(params.arguments ?? {}, "tool arguments");
       if (emptyTools.has(params.name) && Object.keys(input).length !== 0) {
         this.#sendError(
@@ -361,7 +395,7 @@ export class NexusMcpServer {
         content: [{ text: "Nexus service operation completed.", type: "text" }],
         structuredContent,
       } satisfies ToolResult);
-    } catch {
+    } catch (error) {
       const cancelled = controller.signal.aborted;
       console.error(
         cancelled ? "[nexus] request cancelled" : "[nexus] request failed",
@@ -371,7 +405,9 @@ export class NexusMcpServer {
           {
             text: cancelled
               ? "Nexus request was cancelled."
-              : "Nexus request failed.",
+              : toolName === "image.generate"
+                ? publicImageGenerationErrorMessage(error)
+                : "Nexus request failed.",
             type: "text",
           },
         ],

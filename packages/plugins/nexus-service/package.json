@@ -1,6 +1,6 @@
 {
   "name": "@microvoid/convax-plugin-nexus-service",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "private": true,
   "type": "module",
   "dependencies": {
