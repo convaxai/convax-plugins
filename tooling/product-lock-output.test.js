@@ -190,6 +190,33 @@ describe("Convax product lock input closure", () => {
       })
   })
 
+  test("verifies an existing preinstall outside a selected package release-plan", async () => {
+    const fixture = await writeFixture()
+    const planPath = path.join(fixture.root, "catalog", "release-plan.json")
+    const plan = JSON.parse(await fs.readFile(planPath, "utf8"))
+    plan.releases = plan.releases.filter((release) =>
+      release.tag.startsWith("registry-v2-"))
+    await fs.writeFile(planPath, `${JSON.stringify(plan)}\n`)
+    const lockPath = path.join(fixture.root, "product-lock-input.json")
+
+    await expect(verifyProductLockInput(lockPath)).resolves.toEqual({
+      builtinReservations: 1,
+      preinstalledPackages: 1,
+      verifiedArtifacts: 7,
+    })
+
+    const pluginPath = path.join(
+      fixture.root,
+      "catalog",
+      "releases",
+      "plugin-ffmpeg-tools-v0.3.1",
+      "convax-plugin-ffmpeg-tools-0.3.1.zip",
+    )
+    await fs.writeFile(pluginPath, "PLUGIN")
+    await expect(verifyProductLockInput(lockPath))
+      .rejects.toThrow("preinstalled Plugin artifact bytes differ from Registry v2")
+  })
+
   test("rejects a source swap or widened preinstall policy", async () => {
     const fixture = await writeFixture()
     const lockPath = path.join(fixture.root, "product-lock-input.json")

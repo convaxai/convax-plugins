@@ -259,6 +259,43 @@ describe("published Marketplace output closure", () => {
       .rejects.toThrow("release-plan tags differ from Registry v2")
   })
 
+  test("verifies only selected package Releases while retaining the complete Registry", async () => {
+    const fixture = await writeFixture()
+    const selected = fixture.releasePlan[0]
+    const metadata = fixture.releasePlan.at(-1)
+    await fs.writeFile(
+      path.join(fixture.catalogDirectory, "release-plan.json"),
+      `${JSON.stringify({
+        schema: "convax.release-plan/1",
+        releases: [selected, metadata],
+      })}\n`,
+    )
+    const selectedVersions = [{
+      id: "fixture-plugin",
+      itemKey: sha256(Buffer.from("plugin\0fixture-plugin", "utf8")),
+      kind: "plugin",
+      previousVersion: "0.9.0",
+      releaseTag: "plugin-fixture-plugin-v1.0.0",
+      version: "1.0.0",
+    }]
+
+    await expect(verifyMarketplaceOutput(
+      fixture.catalogDirectory,
+      { selectedVersions },
+    )).resolves.toEqual({
+      packages: 3,
+      releaseAssets: 4,
+      releaseTags: 2,
+      v1Packages: 2,
+    })
+
+    selectedVersions[0].releaseTag = "plugin-fixture-plugin-v9.9.9"
+    await expect(verifyMarketplaceOutput(
+      fixture.catalogDirectory,
+      { selectedVersions },
+    )).rejects.toThrow("selected version change plugin/fixture-plugin differs from Registry v2")
+  })
+
   test("rejects a descriptor or Showcase that changes the Official publication identity", async () => {
     const descriptorFixture = await writeFixture()
     const descriptor = JSON.parse(await fs.readFile(

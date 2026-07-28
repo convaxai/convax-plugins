@@ -81,6 +81,52 @@ function expectedReleaseTag(entry) {
   return `${entry.kind}-${entry.id}-v${entry.version}`
 }
 
+function selectedPackageTags(registryPackages, selectedVersions) {
+  const packageTags = new Set(registryPackages.map(expectedReleaseTag))
+  if (selectedVersions === undefined) return packageTags
+  if (!Array.isArray(selectedVersions)) {
+    throw new Error("selected version changes must be an array")
+  }
+
+  const registryByIdentity = new Map(
+    registryPackages.map((entry) => [`${entry.kind}\0${entry.id}`, entry]),
+  )
+  const selectedIdentities = new Set()
+  const selectedTags = new Set()
+  for (const entry of selectedVersions) {
+    if (
+      !entry ||
+      typeof entry !== "object" ||
+      Array.isArray(entry) ||
+      typeof entry.kind !== "string" ||
+      typeof entry.id !== "string" ||
+      typeof entry.version !== "string" ||
+      typeof entry.itemKey !== "string" ||
+      typeof entry.releaseTag !== "string" ||
+      (entry.previousVersion !== undefined && typeof entry.previousVersion !== "string")
+    ) {
+      throw new Error("selected version change is incomplete")
+    }
+    const identity = `${entry.kind}\0${entry.id}`
+    const registryEntry = registryByIdentity.get(identity)
+    const expectedItemKey = sha256(Buffer.from(identity, "utf8"))
+    if (
+      !registryEntry ||
+      registryEntry.version !== entry.version ||
+      entry.itemKey !== expectedItemKey ||
+      entry.releaseTag !== expectedReleaseTag(registryEntry)
+    ) {
+      throw new Error(`selected version change ${entry.kind}/${entry.id} differs from Registry v2`)
+    }
+    if (selectedIdentities.has(identity) || selectedTags.has(entry.releaseTag)) {
+      throw new Error(`selected version change duplicates ${entry.kind}/${entry.id}`)
+    }
+    selectedIdentities.add(identity)
+    selectedTags.add(entry.releaseTag)
+  }
+  return selectedTags
+}
+
 function releaseReference(value, label) {
   if (
     !value ||
@@ -230,7 +276,10 @@ async function readExactCatalogFile(
   return fs.readFile(real)
 }
 
-export async function verifyMarketplaceOutput(catalogDirectory) {
+export async function verifyMarketplaceOutput(
+  catalogDirectory,
+  { selectedVersions } = {},
+) {
   const [descriptor, registryV2, registryV1, showcaseV2, releasePlan] = await Promise.all([
     readJson(path.join(catalogDirectory, "marketplace.json"), "Marketplace descriptor"),
     readJson(path.join(catalogDirectory, "registry-v2.json"), "Registry v2"),
@@ -271,8 +320,9 @@ export async function verifyMarketplaceOutput(catalogDirectory) {
   )
 
   const packageTags = new Set(registryV2.packages.map(expectedReleaseTag))
+  const publishedPackageTags = selectedPackageTags(registryV2.packages, selectedVersions)
   const metadataTag = `registry-v2-${registryV2.revision}`
-  const admittedPlanTags = new Set([...packageTags, metadataTag])
+  const admittedPlanTags = new Set([...publishedPackageTags, metadataTag])
   const assetsByUrl = new Map()
   const actualTags = new Set()
   const catalogRealPath = await fs.realpath(catalogDirectory)
@@ -361,6 +411,8 @@ export async function verifyMarketplaceOutput(catalogDirectory) {
 
   for (const reference of collectReleaseReferences(registryV2)) {
     await readExactLocalRelease(catalogDirectory, catalogRealPath, reference.url, reference)
+    const { tag } = parseReleaseUrl(reference.url, "Registry")
+    if (!publishedPackageTags.has(tag)) continue
     const asset = assetsByUrl.get(reference.url)
     if (!asset) {
       throw new Error(`${reference.url} is absent from the release-plan`)
@@ -391,7 +443,13 @@ export async function verifyMarketplaceOutput(catalogDirectory) {
 async function main(argv) {
   if (argv.length > 1) throw new Error("Usage: verify-marketplace-output [catalog-directory]")
   const directory = path.resolve(argv[0] ?? "dist/catalog")
-  const result = await verifyMarketplaceOutput(directory)
+  const selectedVersions = process.env.CONVAX_MARKETPLACE_CHANGED
+    ? await readJson(
+        path.resolve(process.env.CONVAX_MARKETPLACE_CHANGED),
+        "selected version changes",
+      )
+    : undefined
+  const result = await verifyMarketplaceOutput(directory, { selectedVersions })
   console.log(
     `Verified ${result.packages} packages, ${result.v1Packages} v1 identities, ` +
     `${result.releaseTags} immutable Releases, and ${result.releaseAssets} exact assets.`,

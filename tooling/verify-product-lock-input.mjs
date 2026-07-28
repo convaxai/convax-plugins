@@ -205,6 +205,7 @@ async function verifyLockedArtifact({
   releaseAssets,
   label,
   expected,
+  allowExistingRelease = false,
 }) {
   exactKeys(lock, ["path", "url"], label)
   const relativePath = validateRelativePath(lock.path, `${label}.path`)
@@ -216,15 +217,19 @@ async function verifyLockedArtifact({
     throw new Error(`${label} path and URL identify different immutable bytes`)
   }
   const releaseAsset = releaseAssets.get(lock.url)
-  if (!releaseAsset) throw new Error(`${label} is absent from the ${area} release-plan`)
-  if (releaseAsset.path !== `releases/${tag}/${name}`) {
-    throw new Error(`${label} release-plan path differs from its URL`)
+  if (!releaseAsset && (!allowExistingRelease || !expected)) {
+    throw new Error(`${label} is absent from the ${area} release-plan`)
   }
-  if (expected && (
-    releaseAsset.size !== expected.size ||
-    releaseAsset.sha256 !== expected.sha256
-  )) {
-    throw new Error(`${label} differs from Registry v2`)
+  if (releaseAsset) {
+    if (releaseAsset.path !== `releases/${tag}/${name}`) {
+      throw new Error(`${label} release-plan path differs from its URL`)
+    }
+    if (expected && (
+      releaseAsset.size !== expected.size ||
+      releaseAsset.sha256 !== expected.sha256
+    )) {
+      throw new Error(`${label} differs from Registry v2`)
+    }
   }
   const maximumSize = area === "builtin"
     ? builtinLimit
@@ -238,8 +243,13 @@ async function verifyLockedArtifact({
     label,
     maximumSize,
   )
-  if (bytes.length !== releaseAsset.size || sha256(bytes) !== releaseAsset.sha256) {
-    throw new Error(`${label} bytes differ from the immutable release-plan`)
+  const admitted = releaseAsset ?? expected
+  if (bytes.length !== admitted.size || sha256(bytes) !== admitted.sha256) {
+    throw new Error(
+      releaseAsset
+        ? `${label} bytes differ from the immutable release-plan`
+        : `${label} bytes differ from Registry v2`,
+    )
   }
   return bytes
 }
@@ -461,6 +471,7 @@ export async function verifyProductLockInput(inputFile) {
     releaseAssets: catalogAssets,
     label: "preinstalled Plugin artifact",
     expected: registryArtifact(plugin, "ffmpeg-tools"),
+    allowExistingRelease: true,
   })
 
   const declaredOwnedSkills = plugin.manifest?.contributes?.skills
@@ -482,6 +493,7 @@ export async function verifyProductLockInput(inputFile) {
     releaseAssets: catalogAssets,
     label: "preinstalled owned Skill artifact",
     expected: registryArtifact(ownedSkill, "ffmpeg-canvas"),
+    allowExistingRelease: true,
   })
 
   const lockedCompanion = preinstalled.companions[0]
@@ -503,6 +515,7 @@ export async function verifyProductLockInput(inputFile) {
     releaseAssets: catalogAssets,
     label: "preinstalled companion artifact",
     expected: companionTarget.artifact,
+    allowExistingRelease: true,
   })
 
   return {
