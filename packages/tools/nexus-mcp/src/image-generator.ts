@@ -103,7 +103,10 @@ export class NexusImageGenerator {
         } finally {
           await handle.close();
         }
-        artifacts.push({ mimeType: image.mimeType, name, path: outputPath });
+        // Convax owns output_directory and admits only portable paths relative
+        // to it. Keep the native path private to this writer and return the
+        // generated file name through the MCP result contract.
+        artifacts.push({ mimeType: image.mimeType, name, path: name });
       }
       return artifacts;
     } catch (error) {

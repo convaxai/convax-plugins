@@ -70,8 +70,10 @@ describe("NexusImageGenerator", () => {
     expect(first[0]).toMatchObject({
       mimeType: "image/png",
       name: "nexus-operation-123-1.png",
+      path: "nexus-operation-123-1.png",
     });
-    expect(await fs.readFile(first[0]!.path)).toEqual(png);
+    expect(path.isAbsolute(first[0]!.path)).toBe(false);
+    expect(await fs.readFile(path.join(root, first[0]!.path))).toEqual(png);
   });
 
   test("rejects a model that is no longer in the image-output catalog", async () => {
