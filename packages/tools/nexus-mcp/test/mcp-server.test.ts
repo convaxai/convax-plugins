@@ -75,7 +75,7 @@ test("Nexus image diagnostics expose only typed bounded HTTP fields", () => {
   expect(generic).not.toContain("/private/output/path");
 });
 
-test("the first tools/list response includes live image model choices", async () => {
+test("MCP excludes automatic routers only from live image model choices", async () => {
   const responses: unknown[] = [];
   const sessions = {
     async read() {
@@ -118,6 +118,16 @@ test("the first tools/list response includes live image model choices", async ()
         if (url.pathname.endsWith("/models")) {
           return Response.json({
             data: [
+              {
+                architecture: { output_modalities: ["image", "text"] },
+                id: "openrouter/auto",
+                name: "Auto Router",
+              },
+              {
+                architecture: { output_modalities: ["image", "text"] },
+                id: "openrouter/auto-beta",
+                name: "Auto Router Beta",
+              },
               {
                 architecture: { output_modalities: ["image", "text"] },
                 id: "openai/gpt-image-1",
@@ -168,6 +178,34 @@ test("the first tools/list response includes live image model choices", async ()
     title: "Model",
     type: "string",
     "x-convax-role": "generation-model-id",
+  });
+
+  controller.enqueue(
+    new TextEncoder().encode(
+      `${JSON.stringify({
+        id: 2,
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: { arguments: {}, name: "llm.models.list" },
+      })}\n`,
+    ),
+  );
+  for (let attempt = 0; attempt < 100 && responses.length < 2; attempt += 1) {
+    await Bun.sleep(10);
+  }
+  expect(responses).toHaveLength(2);
+  expect(responses[1]).toMatchObject({
+    id: 2,
+    result: {
+      structuredContent: {
+        models: [
+          { id: "openrouter/auto", name: "Auto Router" },
+          { id: "openrouter/auto-beta", name: "Auto Router Beta" },
+          { id: "openai/gpt-image-1", name: "GPT Image 1" },
+        ],
+        schema: "convax.llm-model-catalog/1",
+      },
+    },
   });
 
   await server.shutdown(1_000);

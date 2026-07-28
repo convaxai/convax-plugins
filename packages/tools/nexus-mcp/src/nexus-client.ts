@@ -23,6 +23,10 @@ const maximumImageCompletionBytes = 16 * 1024 * 1024;
 const maximumImageErrorBytes = 64 * 1024;
 const openRouterModelIdPattern = /^~?[A-Za-z0-9]+(?:[._/:-][A-Za-z0-9]+)*$/;
 const nexusRequestIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
+const automaticOpenRouterModelIds: ReadonlySet<string> = new Set([
+  "openrouter/auto",
+  "openrouter/auto-beta",
+]);
 const nexusGatewayErrorCodes: ReadonlySet<string> = new Set([
   "access_unavailable",
   "invalid_gateway_request",
@@ -221,8 +225,10 @@ export class NexusClient {
   }
 
   async imageModels(signal?: AbortSignal): Promise<readonly NexusProviderModel[]> {
-    return (await this.providerModels(signal)).filter(({ outputModalities }) =>
-      outputModalities.includes("image"),
+    return (await this.providerModels(signal)).filter(
+      ({ id, outputModalities }) =>
+        outputModalities.includes("image") &&
+        !automaticOpenRouterModelIds.has(id),
     );
   }
 

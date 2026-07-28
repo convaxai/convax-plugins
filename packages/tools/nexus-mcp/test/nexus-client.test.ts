@@ -317,7 +317,7 @@ describe("NexusClient", () => {
     });
   });
 
-  test("loads and bounds the opaque OpenRouter catalog through the Nexus Gateway", async () => {
+  test("keeps automatic routers in the LLM catalog but excludes them from image models", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "convax-nexus-client-"),
     );
@@ -385,6 +385,16 @@ describe("NexusClient", () => {
               },
               {
                 architecture: { output_modalities: ["image", "text"] },
+                id: "openrouter/auto",
+                name: "Auto Router",
+              },
+              {
+                architecture: { output_modalities: ["image", "text"] },
+                id: "openrouter/auto-beta",
+                name: "Auto Router Beta",
+              },
+              {
+                architecture: { output_modalities: ["image", "text"] },
                 id: "openai/gpt-image-1",
                 name: "GPT Image 1",
               },
@@ -403,6 +413,8 @@ describe("NexusClient", () => {
           id: "deepseek/deepseek-v4-flash:free",
           name: "DeepSeek V4 Flash Free",
         },
+        { id: "openrouter/auto", name: "Auto Router" },
+        { id: "openrouter/auto-beta", name: "Auto Router Beta" },
         { id: "openai/gpt-image-1", name: "GPT Image 1" },
       ],
       schema: "convax.llm-model-catalog/1",
