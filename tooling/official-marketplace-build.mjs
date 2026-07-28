@@ -30,6 +30,13 @@ export function officialBuildArgs({ bootstrapPreviousV1, changed, previous, v1Re
   return [...args, "--initial", "--v1-revision", v1Revision]
 }
 
+export function officialBuildInvocation(args) {
+  return {
+    args: [fileURLToPath(import.meta.resolve("@convax/marketplace-kit/cli")), ...args],
+    command: process.execPath,
+  }
+}
+
 function main() {
   const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)))
   const v1Revision = process.env.GITHUB_SHA ?? spawnSync(
@@ -43,7 +50,8 @@ function main() {
     previous: process.env.CONVAX_MARKETPLACE_PREVIOUS,
     v1Revision,
   })
-  const result = spawnSync("convax-marketplace", args, {
+  const invocation = officialBuildInvocation(args)
+  const result = spawnSync(invocation.command, invocation.args, {
     cwd: root,
     encoding: "utf8",
     env: process.env,

@@ -2,11 +2,15 @@ import { describe, expect, test } from "bun:test"
 import { promises as fs } from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 import {
   assertOfficialMarketplaceSource,
   loadOfficialMarketplaceSource,
 } from "./official-marketplace.mjs"
-import { officialBuildArgs } from "./official-marketplace-build.mjs"
+import {
+  officialBuildArgs,
+  officialBuildInvocation,
+} from "./official-marketplace-build.mjs"
 import { fetchPreviousRegistry } from "./fetch-marketplace-previous.mjs"
 import { root, sha256 } from "./lib.mjs"
 
@@ -149,6 +153,24 @@ describe("Official and Builtin marketplace source", () => {
     })).toThrow("exactly one previous Registry mode")
     expect(() => officialBuildArgs({ v1Revision: "bad" }))
       .toThrow("v1 revision must be an exact Git SHA")
+  })
+
+  test("runs the locked Marketplace CLI with the current Bun runtime", () => {
+    expect(officialBuildInvocation([
+      "build-index",
+      ".",
+      "--changed",
+      "dist/release-plan.json",
+    ])).toEqual({
+      args: [
+        fileURLToPath(import.meta.resolve("@convax/marketplace-kit/cli")),
+        "build-index",
+        ".",
+        "--changed",
+        "dist/release-plan.json",
+      ],
+      command: process.execPath,
+    })
   })
 
   test("prefers production v2 and bootstraps from strict v1 only after an exact v2 404", async () => {
