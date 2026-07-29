@@ -282,6 +282,14 @@ describe("default-branch version-change release selection", () => {
     expect(workflow).toContain("gh release download")
     expect(workflow).toContain("cmp \"$asset\"")
     expect(workflow).toContain(
+      "release_revision=\"$(git ls-remote origin \"refs/tags/$tag\"",
+    )
+    expect(workflow).toContain(
+      "git merge-base --is-ancestor \"$release_revision\" \"$GITHUB_SHA\"",
+    )
+    expect(workflow).toContain("SOURCE_DATE_EPOCH=\"$release_epoch\"")
+    expect(workflow).toContain("--revision \"$release_revision\"")
+    expect(workflow).toContain(
       "repos/$GITHUB_REPOSITORY/compare/$remote_tag...$GITHUB_SHA",
     )
     expect(workflow).toContain("ahead|identical")

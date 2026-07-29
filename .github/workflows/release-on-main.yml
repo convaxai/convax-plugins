@@ -93,10 +93,17 @@ jobs:
           cp packages/tools/ffmpeg-mcp/THIRD_PARTY_NOTICES.md "$package_dir/convax-ffmpeg-THIRD-PARTY-NOTICES.md"
           tar -xOf "$CONVAX_FFMPEG_SOURCE_ARCHIVE" ffmpeg-8.1.2/LICENSE.md > "$package_dir/convax-ffmpeg-LICENSE.md"
           tar -xOf "$CONVAX_FFMPEG_SOURCE_ARCHIVE" ffmpeg-8.1.2/CREDITS > "$package_dir/convax-ffmpeg-CREDITS"
-          SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)" bun packages/tools/ffmpeg-mcp/scripts/build-sbom.ts \
+          release_revision="$(git ls-remote origin "refs/tags/$tag" | awk '{print $1}')"
+          if [ -z "$release_revision" ]; then
+            release_revision="$GITHUB_SHA"
+          else
+            git merge-base --is-ancestor "$release_revision" "$GITHUB_SHA"
+          fi
+          release_epoch="$(git show -s --format=%ct "$release_revision")"
+          SOURCE_DATE_EPOCH="$release_epoch" bun packages/tools/ffmpeg-mcp/scripts/build-sbom.ts \
             --companion "$companion_path" \
             --output "$package_dir/convax-ffmpeg-sbom.spdx.json" \
-            --revision "$GITHUB_SHA" \
+            --revision "$release_revision" \
             --tag "$tag"
       - name: Compose the exact publication plan
         run: bun tooling/publication-plan.mjs
