@@ -281,6 +281,10 @@ describe("default-branch version-change release selection", () => {
     expect(workflow).toContain("publication-plan.mjs")
     expect(workflow).toContain("gh release download")
     expect(workflow).toContain("cmp \"$asset\"")
+    expect(workflow).toContain(
+      "repos/$GITHUB_REPOSITORY/compare/$remote_tag...$GITHUB_SHA",
+    )
+    expect(workflow).toContain("ahead|identical")
     expect(workflow).not.toContain("already exists; immutable versions are never overwritten")
     expect(workflow).not.toContain("if: steps.plan.outputs.count != '0'")
     expect(workflow).not.toContain("if: needs.verify.outputs.count != '0'")

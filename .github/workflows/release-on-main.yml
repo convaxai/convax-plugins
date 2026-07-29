@@ -155,7 +155,15 @@ jobs:
                 cmp "$asset" "$existing_dir/$(basename "$asset")"
               done
               remote_tag="$(git ls-remote origin "refs/tags/$tag" | awk '{print $1}')"
-              test "$remote_tag" = "$GITHUB_SHA"
+              tag_relation="$(
+                gh api \
+                  "repos/$GITHUB_REPOSITORY/compare/$remote_tag...$GITHUB_SHA" \
+                  --jq '.status'
+              )"
+              case "$tag_relation" in
+                ahead|identical) ;;
+                *) exit 1 ;;
+              esac
               continue
             fi
             remote_tag="$(git ls-remote origin "refs/tags/$tag" | awk '{print $1}')"
