@@ -198,6 +198,14 @@ describe("Convax product lock input closure", () => {
       release.tag.startsWith("registry-v2-"))
     await fs.writeFile(planPath, `${JSON.stringify(plan)}\n`)
     const lockPath = path.join(fixture.root, "product-lock-input.json")
+    const lock = JSON.parse(await fs.readFile(lockPath, "utf8"))
+    const originalPluginPath = lock.packages[0].artifact.path
+    const pluginBytes = await fs.readFile(path.join(fixture.root, originalPluginPath))
+    const inheritedPluginPath = `catalog/inherited/${sha256(pluginBytes)}/${path.basename(originalPluginPath)}`
+    await fs.mkdir(path.dirname(path.join(fixture.root, inheritedPluginPath)), { recursive: true })
+    await fs.writeFile(path.join(fixture.root, inheritedPluginPath), pluginBytes)
+    lock.packages[0].artifact.path = inheritedPluginPath
+    await fs.writeFile(lockPath, `${JSON.stringify(lock)}\n`)
 
     await expect(verifyProductLockInput(lockPath)).resolves.toEqual({
       builtinReservations: 1,
@@ -205,13 +213,7 @@ describe("Convax product lock input closure", () => {
       verifiedArtifacts: 7,
     })
 
-    const pluginPath = path.join(
-      fixture.root,
-      "catalog",
-      "releases",
-      "plugin-ffmpeg-tools-v0.3.1",
-      "convax-plugin-ffmpeg-tools-0.3.1.zip",
-    )
+    const pluginPath = path.join(fixture.root, inheritedPluginPath)
     await fs.writeFile(pluginPath, "PLUGIN")
     await expect(verifyProductLockInput(lockPath))
       .rejects.toThrow("preinstalled Plugin artifact bytes differ from Registry v2")

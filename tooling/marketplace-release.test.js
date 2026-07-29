@@ -256,7 +256,7 @@ describe("default-branch version-change release selection", () => {
       .rejects.toThrow("managed MCP companion input must be a real directory")
   })
 
-  test("publishes only from a protected default-branch version change", async () => {
+  test("publishes versions and redeploys the verified catalog only from the protected default branch", async () => {
     const workflow = await fs.readFile(path.join(
       import.meta.dir,
       "..",
@@ -270,7 +270,7 @@ describe("default-branch version-change release selection", () => {
     expect(workflow).toContain("branches: [main]")
     expect(workflow).not.toContain("tags:")
     expect(workflow).toContain("bun tooling/marketplace-release.mjs")
-    expect(workflow).toContain("--base \"$BASE_SHA\"")
+    expect(workflow).toContain("--base \"$CONVAX_MARKETPLACE_BASE_SHA\"")
     expect(workflow).toContain("permissions:\n  contents: read")
     expect(workflow).toContain("attestations: write")
     expect(workflow).toContain("contents: write")
@@ -282,14 +282,15 @@ describe("default-branch version-change release selection", () => {
     expect(workflow).toContain("gh release download")
     expect(workflow).toContain("cmp \"$asset\"")
     expect(workflow).not.toContain("already exists; immutable versions are never overwritten")
-    expect(workflow.match(/if: steps\.plan\.outputs\.count != '0'/g)?.length).toBeGreaterThanOrEqual(5)
-    expect(workflow).toContain("if: needs.verify.outputs.count != '0'")
+    expect(workflow).not.toContain("if: steps.plan.outputs.count != '0'")
+    expect(workflow).not.toContain("if: needs.verify.outputs.count != '0'")
     expect(workflow).toContain("needs.publish.result == 'success'")
     expect(workflow).not.toContain("needs.publish.result == 'skipped'")
     expect(workflow).not.toContain("pull_request_target")
     expect(pages).toContain("workflow_call:")
     expect(pages).not.toContain("workflow_run:")
     expect(pages).not.toContain("concurrency:")
+    expect(pages).toContain("CONVAX_MARKETPLACE_CHANGED: dist/release-plan.json")
   })
 
   test("publishes changed packages with one metadata Release and the changed Builtin bundle", () => {

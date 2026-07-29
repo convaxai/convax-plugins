@@ -270,6 +270,12 @@ describe("published Marketplace output closure", () => {
         releases: [selected, metadata],
       })}\n`,
     )
+    for (const release of fixture.releasePlan.slice(1, -1)) {
+      await fs.rm(
+        path.join(fixture.catalogDirectory, "releases", release.tag),
+        { recursive: true },
+      )
+    }
     const selectedVersions = [{
       id: "fixture-plugin",
       itemKey: sha256(Buffer.from("plugin\0fixture-plugin", "utf8")),
@@ -369,7 +375,7 @@ describe("published Marketplace output closure", () => {
     registryAsset.sha256 = sha256(Buffer.from(changedRegistry))
     await fs.writeFile(planPath, `${JSON.stringify(plan)}\n`)
     await expect(verifyMarketplaceOutput(fixture.catalogDirectory))
-      .rejects.toThrow("has no exact local Release asset")
+      .rejects.toThrow("does not use its immutable Release tag")
   })
 
   test("rejects a Pages tree that differs from the descriptor-addressed flat catalogs", async () => {

@@ -107,7 +107,11 @@ describe("Official and Builtin marketplace source", () => {
   test("uses an explicit production snapshot in CI and an explicit initial candidate locally", () => {
     expect(officialBuildArgs({
       changed: "dist/release-plan.json",
+      previousDescriptor: "dist/production/marketplace.json",
       previous: "dist/production/registry-v2.json",
+      previousV1: "dist/production/registry-v1.json",
+      previousShowcase: "dist/production/showcase-v2.json",
+      previousShowcaseV1: "dist/production/showcase-v1.json",
       v1Revision: "a".repeat(40),
     })).toEqual([
       "build-index",
@@ -117,13 +121,23 @@ describe("Official and Builtin marketplace source", () => {
       "--official",
       "--changed",
       "dist/release-plan.json",
+      "--previous-descriptor",
+      "dist/production/marketplace.json",
       "--previous",
       "dist/production/registry-v2.json",
+      "--previous-showcase",
+      "dist/production/showcase-v2.json",
+      "--previous-v1",
+      "dist/production/registry-v1.json",
+      "--previous-showcase-v1",
+      "dist/production/showcase-v1.json",
       "--v1-revision",
       "a".repeat(40),
     ])
     expect(officialBuildArgs({
       bootstrapPreviousV1: "dist/production/registry-v1.json",
+      previousDescriptor: "marketplace.json",
+      previousShowcaseV1: "dist/production/showcase-v1.json",
       v1Revision: "a".repeat(40),
     })).toEqual([
       "build-index",
@@ -131,8 +145,12 @@ describe("Official and Builtin marketplace source", () => {
       "--out",
       "dist/catalog",
       "--official",
+      "--previous-descriptor",
+      "marketplace.json",
       "--bootstrap-previous-v1",
       "dist/production/registry-v1.json",
+      "--previous-showcase-v1",
+      "dist/production/showcase-v1.json",
       "--v1-revision",
       "a".repeat(40),
     ])
@@ -148,9 +166,21 @@ describe("Official and Builtin marketplace source", () => {
     ])
     expect(() => officialBuildArgs({
       bootstrapPreviousV1: "dist/production/registry-v1.json",
+      previousDescriptor: "marketplace.json",
       previous: "dist/production/registry-v2.json",
+      previousShowcaseV1: "dist/production/showcase-v1.json",
       v1Revision: "a".repeat(40),
     })).toThrow("exactly one previous Registry mode")
+    expect(() => officialBuildArgs({
+      changed: "dist/release-plan.json",
+      previous: "dist/production/registry-v2.json",
+      v1Revision: "a".repeat(40),
+    })).toThrow("complete previous v2 closure")
+    expect(() => officialBuildArgs({
+      bootstrapPreviousV1: "dist/production/registry-v1.json",
+      previousDescriptor: "marketplace.json",
+      v1Revision: "a".repeat(40),
+    })).toThrow("complete previous v1 closure")
     expect(() => officialBuildArgs({ v1Revision: "bad" }))
       .toThrow("v1 revision must be an exact Git SHA")
   })
@@ -187,16 +217,43 @@ describe("Official and Builtin marketplace source", () => {
       const v2 = await fetchPreviousRegistry({
         fetchImpl: async (url) => {
           requests.push(url)
-          return new Response(v2Bytes, { status: 200 })
+          if (url.endsWith("/v2")) return new Response(v2Bytes, { status: 200 })
+          if (url.endsWith("/descriptor")) return new Response('{"schema":"convax.marketplace/1"}', { status: 200 })
+          if (url.endsWith("/showcase-v2")) return new Response('{"schema":"convax.showcase/2"}', { status: 200 })
+          if (url.endsWith("/v1")) {
+            return new Response(JSON.stringify({
+              schema: "convax.registry/1",
+              sequence: 45,
+              revision: "c".repeat(40),
+              packages: [],
+            }), { status: 200 })
+          }
+          return new Response('{"schema":"convax.showcase/1"}', { status: 200 })
         },
+        descriptorUrl: "https://example.test/descriptor",
         outputDirectory: output,
         parseV1: strictRegistryParser(1),
         parseV2: strictRegistryParser(2),
+        v1ShowcaseUrl: "https://example.test/showcase-v1",
         v1Url: "https://example.test/v1",
+        v2ShowcaseUrl: "https://example.test/showcase-v2",
         v2Url: "https://example.test/v2",
       })
       expect(v2.mode).toBe("v2")
-      expect(requests).toEqual(["https://example.test/v2"])
+      expect(v2).toMatchObject({
+        baseRevision: "c".repeat(40),
+        descriptorSnapshot: path.join(output, "marketplace.json"),
+        legacyRegistrySnapshot: path.join(output, "registry-v1.json"),
+        legacyShowcaseSnapshot: path.join(output, "showcase-v1.json"),
+        showcaseSnapshot: path.join(output, "showcase-v2.json"),
+      })
+      expect(requests).toEqual([
+        "https://example.test/v2",
+        "https://example.test/descriptor",
+        "https://example.test/showcase-v2",
+        "https://example.test/v1",
+        "https://example.test/showcase-v1",
+      ])
 
       requests = []
       const bootstrap = await fetchPreviousRegistry({
@@ -204,6 +261,8 @@ describe("Official and Builtin marketplace source", () => {
           requests.push(url)
           return url.endsWith("/v2")
             ? new Response("", { status: 404 })
+            : url.endsWith("/showcase-v1")
+              ? new Response('{"schema":"convax.showcase/1"}', { status: 200 })
             : new Response(JSON.stringify({
                 schema: "convax.registry/1",
                 sequence: 44,
@@ -211,14 +270,25 @@ describe("Official and Builtin marketplace source", () => {
                 packages: [],
               }), { status: 200 })
         },
+        descriptorUrl: "https://example.test/descriptor",
         outputDirectory: output,
         parseV1: strictRegistryParser(1),
         parseV2: strictRegistryParser(2),
+        v1ShowcaseUrl: "https://example.test/showcase-v1",
         v1Url: "https://example.test/v1",
+        v2ShowcaseUrl: "https://example.test/showcase-v2",
         v2Url: "https://example.test/v2",
       })
       expect(bootstrap.mode).toBe("bootstrap-v1")
-      expect(requests).toEqual(["https://example.test/v2", "https://example.test/v1"])
+      expect(bootstrap).toMatchObject({
+        baseRevision: "b".repeat(40),
+        showcaseSnapshot: path.join(output, "showcase-v1.json"),
+      })
+      expect(requests).toEqual([
+        "https://example.test/v2",
+        "https://example.test/v1",
+        "https://example.test/showcase-v1",
+      ])
 
       requests = []
       await expect(fetchPreviousRegistry({
@@ -226,10 +296,13 @@ describe("Official and Builtin marketplace source", () => {
           requests.push(url)
           return new Response("", { status: 503 })
         },
+        descriptorUrl: "https://example.test/descriptor",
         outputDirectory: output,
         parseV1: strictRegistryParser(1),
         parseV2: strictRegistryParser(2),
+        v1ShowcaseUrl: "https://example.test/showcase-v1",
         v1Url: "https://example.test/v1",
+        v2ShowcaseUrl: "https://example.test/showcase-v2",
         v2Url: "https://example.test/v2",
       })).rejects.toThrow("v2 returned HTTP 503")
       expect(requests).toEqual(["https://example.test/v2"])
@@ -237,16 +310,21 @@ describe("Official and Builtin marketplace source", () => {
       await expect(fetchPreviousRegistry({
         fetchImpl: async (url) => url.endsWith("/v2")
           ? new Response("", { status: 404 })
+          : url.endsWith("/showcase-v1")
+            ? new Response('{"schema":"convax.showcase/1"}', { status: 200 })
           : new Response(JSON.stringify({
               schema: "convax.registry/1",
               sequence: 0,
               revision: "bad",
               packages: [],
             }), { status: 200 }),
+        descriptorUrl: "https://example.test/descriptor",
         outputDirectory: output,
         parseV1: strictRegistryParser(1),
         parseV2: strictRegistryParser(2),
+        v1ShowcaseUrl: "https://example.test/showcase-v1",
         v1Url: "https://example.test/v1",
+        v2ShowcaseUrl: "https://example.test/showcase-v2",
         v2Url: "https://example.test/v2",
       })).rejects.toThrow("v1 is not a strict sequence input")
 
@@ -262,10 +340,13 @@ describe("Official and Builtin marketplace source", () => {
           ],
           unexpected: true,
         }), { status: 200 }),
+        descriptorUrl: "https://example.test/descriptor",
         outputDirectory: output,
         parseV1: strictRegistryParser(1),
         parseV2: strictRegistryParser(2),
+        v1ShowcaseUrl: "https://example.test/showcase-v1",
         v1Url: "https://example.test/v1",
+        v2ShowcaseUrl: "https://example.test/showcase-v2",
         v2Url: "https://example.test/v2",
       })).rejects.toThrow("strict validation failed")
     } finally {
@@ -273,7 +354,7 @@ describe("Official and Builtin marketplace source", () => {
     }
   })
 
-  test("keeps no-op publication inert and deploys only reverified low-privilege bytes", async () => {
+  test("redeploys only reverified low-privilege bytes when no package version changes", async () => {
     const releaseWorkflow = await fs.readFile(
       path.join(root, ".github/workflows/release-on-main.yml"),
       "utf8",
@@ -284,8 +365,8 @@ describe("Official and Builtin marketplace source", () => {
     )
     expect(releaseWorkflow).toContain("branches: [main]")
     expect(releaseWorkflow).not.toContain("pull_request_target")
-    expect(releaseWorkflow).toContain("if: steps.plan.outputs.count != '0'")
-    expect(releaseWorkflow).toContain("if: needs.verify.outputs.count != '0'")
+    expect(releaseWorkflow).not.toContain("if: steps.plan.outputs.count != '0'")
+    expect(releaseWorkflow).not.toContain("if: needs.verify.outputs.count != '0'")
     expect(releaseWorkflow).toContain("needs: [verify, publish]")
     expect(releaseWorkflow).toContain("uses: ./.github/workflows/pages.yml")
     expect(pagesWorkflow).toContain(
@@ -294,9 +375,15 @@ describe("Official and Builtin marketplace source", () => {
     expect(pagesWorkflow).toContain(
       "bun tooling/verify-product-lock-input.mjs dist/product-lock-input.json",
     )
+    expect(pagesWorkflow).toContain(
+      "CONVAX_MARKETPLACE_CHANGED: dist/release-plan.json",
+    )
     expect(releaseWorkflow).toContain(
       "cp schemas/*.json dist/catalog/site/schemas/",
     )
+    expect(releaseWorkflow.indexOf("Fetch the current production closure"))
+      .toBeLessThan(releaseWorkflow.indexOf("Select exact unpublished version changes"))
+    expect(releaseWorkflow).toContain('--base "$CONVAX_MARKETPLACE_BASE_SHA"')
     expect(pagesWorkflow).toContain('cmp "$schema" "dist/catalog/site/schemas/$(basename "$schema")"')
     expect(pagesWorkflow).toContain("path: dist/catalog/site")
     expect(pagesWorkflow).not.toContain("cp schemas/*.json")

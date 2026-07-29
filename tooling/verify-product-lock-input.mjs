@@ -213,7 +213,14 @@ async function verifyLockedArtifact({
     throw new Error(`${label} differs from Registry v2`)
   }
   const { tag, name } = parseReleaseUrl(lock.url, `${label}.url`)
-  if (relativePath !== `${area}/releases/${tag}/${name}`) {
+  const releasePath = `${area}/releases/${tag}/${name}`
+  const inheritedPath = expected
+    ? `${area}/inherited/${expected.sha256}/${name}`
+    : undefined
+  if (
+    relativePath !== releasePath &&
+    (!allowExistingRelease || relativePath !== inheritedPath)
+  ) {
     throw new Error(`${label} path and URL identify different immutable bytes`)
   }
   const releaseAsset = releaseAssets.get(lock.url)

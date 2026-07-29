@@ -133,7 +133,7 @@ final class MCPServer {
       sendResult(id: id, result: [
         "capabilities": ["tools": [:]],
         "protocolVersion": protocolVersion,
-        "serverInfo": ["name": "convax-ffmpeg-mcp", "version": "0.2.0"],
+        "serverInfo": ["name": "convax-ffmpeg-mcp", "version": "0.2.1"],
       ])
     } catch {
       sendError(id: id, code: -32602, message: "Invalid initialize params")

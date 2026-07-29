@@ -319,7 +319,6 @@ export async function verifyMarketplaceOutput(
     "v1 Plugin/Skill versions differ from Registry v2",
   )
 
-  const packageTags = new Set(registryV2.packages.map(expectedReleaseTag))
   const publishedPackageTags = selectedPackageTags(registryV2.packages, selectedVersions)
   const metadataTag = `registry-v2-${registryV2.revision}`
   const admittedPlanTags = new Set([...publishedPackageTags, metadataTag])
@@ -409,19 +408,25 @@ export async function verifyMarketplaceOutput(
     }
   }
 
-  for (const reference of collectReleaseReferences(registryV2)) {
-    await readExactLocalRelease(catalogDirectory, catalogRealPath, reference.url, reference)
-    const { tag } = parseReleaseUrl(reference.url, "Registry")
-    if (!publishedPackageTags.has(tag)) continue
-    const asset = assetsByUrl.get(reference.url)
-    if (!asset) {
-      throw new Error(`${reference.url} is absent from the release-plan`)
-    }
-    if (asset.size !== reference.size || asset.sha256 !== reference.sha256) {
-      throw new Error(`${reference.url} Registry metadata differs from release-plan bytes`)
+  for (const entry of registryV2.packages) {
+    const expectedTag = expectedReleaseTag(entry)
+    for (const reference of collectReleaseReferences(entry)) {
+      const { tag } = parseReleaseUrl(reference.url, "Registry")
+      if (tag !== expectedTag) {
+        throw new Error(`${entry.kind}/${entry.id} does not use its immutable Release tag`)
+      }
+      if (!publishedPackageTags.has(tag)) continue
+      await readExactLocalRelease(catalogDirectory, catalogRealPath, reference.url, reference)
+      const asset = assetsByUrl.get(reference.url)
+      if (!asset) {
+        throw new Error(`${reference.url} is absent from the release-plan`)
+      }
+      if (asset.size !== reference.size || asset.sha256 !== reference.sha256) {
+        throw new Error(`${reference.url} Registry metadata differs from release-plan bytes`)
+      }
     }
   }
-  for (const tag of packageTags) {
+  for (const tag of publishedPackageTags) {
     const releaseDirectory = path.join(catalogDirectory, "releases", tag)
     const state = await fs.lstat(releaseDirectory).catch((cause) => {
       if (cause?.code === "ENOENT") return undefined

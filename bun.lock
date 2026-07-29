@@ -8,7 +8,7 @@
         "acorn": "8.17.0",
       },
       "devDependencies": {
-        "@convax/marketplace-kit": "0.1.0",
+        "@convax/marketplace-kit": "0.1.1",
       },
     },
     "packages/plugins/chatcut": {
@@ -32,7 +32,7 @@
     },
     "packages/plugins/ffmpeg-tools": {
       "name": "@microvoid/convax-plugin-ffmpeg-tools",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "dependencies": {
         "@microvoid/convax-ffmpeg-mcp": "workspace:*",
         "@microvoid/convax-skill-ffmpeg-canvas": "workspace:*",
@@ -111,7 +111,7 @@
     },
     "packages/skills/ffmpeg-canvas": {
       "name": "@microvoid/convax-skill-ffmpeg-canvas",
-      "version": "0.3.1",
+      "version": "0.3.2",
     },
     "packages/skills/film-shot": {
       "name": "@microvoid/convax-skill-film-shot",
@@ -169,7 +169,7 @@
     },
     "packages/tools/ffmpeg-mcp": {
       "name": "@microvoid/convax-ffmpeg-mcp",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "bin": {
         "convax-ffmpeg-mcp": "dist/convax-ffmpeg-mcp",
       },
@@ -202,9 +202,9 @@
     },
   },
   "packages": {
-    "@convax/marketplace": ["@convax/marketplace@0.1.0", "", { "dependencies": { "ajv": "8.20.0" } }, "sha512-Etzca0NT5o2is6HMbupFP0xyFzP1DrTzCXWVNSsFmTXgID2UTaR4D4g5tDb8qfyy7TjNIOdQqnhPUbmzObVSdA=="],
+    "@convax/marketplace": ["@convax/marketplace@0.1.1", "", { "dependencies": { "ajv": "8.20.0" } }, "sha512-FHrcTrHlmywDbWfm8N5LndUQLuYpHohw2eqGaQBrnevOHNmoOQ/sgSIAUm8QvSWdn2cZ/HKl1IdT1VtJMT4wAg=="],
 
-    "@convax/marketplace-kit": ["@convax/marketplace-kit@0.1.0", "", { "dependencies": { "@convax/marketplace": "^0.1.0" }, "bin": { "convax-marketplace": "dist/cli.js" } }, "sha512-tHlWRQURnRuLyFiajCpeBA/KYukLQlh++nFJC+/q+yqXIwBgkCuGvGTz9BhJ1eklbM8hDnS/dwN7+SHr8v1vag=="],
+    "@convax/marketplace-kit": ["@convax/marketplace-kit@0.1.1", "", { "dependencies": { "@convax/marketplace": "^0.1.1" }, "bin": { "convax-marketplace": "dist/cli.js" } }, "sha512-+XZynFr4B2lRLA8ZFVUiA9MFbAplhXdIzgd3+mmz8/HWfvHVW0jWt5zeVLVIjUVMvIJbrlUmQp2pjSkJyWaD+g=="],
 
     "@floating-ui/core": ["@floating-ui/core@1.8.0", "", { "dependencies": { "@floating-ui/utils": "^0.2.12" } }, "sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ=="],
 

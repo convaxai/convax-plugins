@@ -83,11 +83,14 @@ async function writeSnapshot(outputDirectory, name, bytes) {
 }
 
 export async function fetchPreviousRegistry({
+  descriptorUrl,
   fetchImpl = fetch,
   outputDirectory,
   parseV1,
   parseV2,
+  v1ShowcaseUrl,
   v1Url,
+  v2ShowcaseUrl,
   v2Url,
 }) {
   if (typeof parseV1 !== "function" || typeof parseV2 !== "function") {
@@ -98,7 +101,57 @@ export async function fetchPreviousRegistry({
     const bytes = await responseBytes(v2Response, "production Registry v2")
     const registry = parseSequenceInput(bytes, "v2", parseV2)
     const snapshot = await writeSnapshot(outputDirectory, "registry-v2.json", bytes)
-    return { mode: "v2", registry, snapshot }
+    const descriptorResponse = await fetchExact(fetchImpl, descriptorUrl, "production Marketplace descriptor")
+    if (descriptorResponse.status !== 200) {
+      throw new Error(`production Marketplace descriptor returned HTTP ${descriptorResponse.status}`)
+    }
+    const descriptorSnapshot = await writeSnapshot(
+      outputDirectory,
+      "marketplace.json",
+      await responseBytes(descriptorResponse, "production Marketplace descriptor"),
+    )
+    const showcaseResponse = await fetchExact(fetchImpl, v2ShowcaseUrl, "production Showcase v2")
+    if (showcaseResponse.status !== 200) {
+      throw new Error(`production Showcase v2 returned HTTP ${showcaseResponse.status}`)
+    }
+    const showcaseSnapshot = await writeSnapshot(
+      outputDirectory,
+      "showcase-v2.json",
+      await responseBytes(showcaseResponse, "production Showcase v2"),
+    )
+    const legacyRegistryResponse = await fetchExact(fetchImpl, v1Url, "production legacy Registry v1")
+    if (legacyRegistryResponse.status !== 200) {
+      throw new Error(`production legacy Registry v1 returned HTTP ${legacyRegistryResponse.status}`)
+    }
+    const legacyRegistryBytes = await responseBytes(legacyRegistryResponse, "production legacy Registry v1")
+    const legacyRegistry = parseSequenceInput(legacyRegistryBytes, "v1", parseV1)
+    if (legacyRegistry.sequence !== registry.sequence) {
+      throw new Error("production Registry v1 and v2 sequences differ")
+    }
+    const legacyRegistrySnapshot = await writeSnapshot(
+      outputDirectory,
+      "registry-v1.json",
+      legacyRegistryBytes,
+    )
+    const legacyShowcaseResponse = await fetchExact(fetchImpl, v1ShowcaseUrl, "production legacy Showcase v1")
+    if (legacyShowcaseResponse.status !== 200) {
+      throw new Error(`production legacy Showcase v1 returned HTTP ${legacyShowcaseResponse.status}`)
+    }
+    const legacyShowcaseSnapshot = await writeSnapshot(
+      outputDirectory,
+      "showcase-v1.json",
+      await responseBytes(legacyShowcaseResponse, "production legacy Showcase v1"),
+    )
+    return {
+      mode: "v2",
+      registry,
+      snapshot,
+      baseRevision: legacyRegistry.revision,
+      descriptorSnapshot,
+      legacyRegistrySnapshot,
+      legacyShowcaseSnapshot,
+      showcaseSnapshot,
+    }
   }
   if (v2Response.status !== 404) {
     throw new Error(`production Registry v2 returned HTTP ${v2Response.status}`)
@@ -111,17 +164,29 @@ export async function fetchPreviousRegistry({
   const bytes = await responseBytes(v1Response, "production Registry v1 bootstrap")
   const registry = parseSequenceInput(bytes, "v1", parseV1)
   const snapshot = await writeSnapshot(outputDirectory, "registry-v1.json", bytes)
-  return { mode: "bootstrap-v1", registry, snapshot }
+  const showcaseResponse = await fetchExact(fetchImpl, v1ShowcaseUrl, "production Showcase v1 bootstrap")
+  if (showcaseResponse.status !== 200) {
+    throw new Error(`production Showcase v1 bootstrap returned HTTP ${showcaseResponse.status}`)
+  }
+  const showcaseSnapshot = await writeSnapshot(
+    outputDirectory,
+    "showcase-v1.json",
+    await responseBytes(showcaseResponse, "production Showcase v1 bootstrap"),
+  )
+  return { mode: "bootstrap-v1", registry, snapshot, baseRevision: registry.revision, showcaseSnapshot }
 }
 
 async function main() {
   const kit = await import("@convax/marketplace-kit")
   const run = encodeURIComponent(process.env.GITHUB_RUN_ID ?? "local")
   const result = await fetchPreviousRegistry({
+    descriptorUrl: `https://microvoid.github.io/convax-plugins/marketplace.json?run=${run}`,
     outputDirectory: path.resolve("dist/production"),
     parseV1: kit.parseRegistryV1,
     parseV2: kit.parseRegistryV2,
+    v1ShowcaseUrl: `https://microvoid.github.io/convax-plugins/showcase/v1/index.json?run=${run}`,
     v1Url: `https://microvoid.github.io/convax-plugins/registry/v1/index.json?run=${run}`,
+    v2ShowcaseUrl: `https://microvoid.github.io/convax-plugins/showcase/v2/index.json?run=${run}`,
     v2Url: `https://microvoid.github.io/convax-plugins/registry/v2/index.json?run=${run}`,
   })
   const environment = process.env.GITHUB_ENV
@@ -129,7 +194,25 @@ async function main() {
   const variable = result.mode === "v2"
     ? "CONVAX_MARKETPLACE_PREVIOUS"
     : "CONVAX_MARKETPLACE_BOOTSTRAP_PREVIOUS_V1"
-  await fs.appendFile(environment, `${variable}=${path.relative(process.cwd(), result.snapshot)}\n`)
+  const lines = [
+    `${variable}=${path.relative(process.cwd(), result.snapshot)}`,
+    `CONVAX_MARKETPLACE_BASE_SHA=${result.baseRevision}`,
+    `CONVAX_MARKETPLACE_PREVIOUS_DESCRIPTOR=${
+      result.mode === "v2" ? path.relative(process.cwd(), result.descriptorSnapshot) : "marketplace.json"
+    }`,
+    `${
+      result.mode === "v2"
+        ? "CONVAX_MARKETPLACE_PREVIOUS_SHOWCASE"
+        : "CONVAX_MARKETPLACE_PREVIOUS_SHOWCASE_V1"
+    }=${path.relative(process.cwd(), result.showcaseSnapshot)}`,
+  ]
+  if (result.mode === "v2") {
+    lines.push(
+      `CONVAX_MARKETPLACE_PREVIOUS_V1=${path.relative(process.cwd(), result.legacyRegistrySnapshot)}`,
+      `CONVAX_MARKETPLACE_PREVIOUS_SHOWCASE_V1=${path.relative(process.cwd(), result.legacyShowcaseSnapshot)}`,
+    )
+  }
+  await fs.appendFile(environment, `${lines.join("\n")}\n`)
   console.log(
     result.mode === "v2"
       ? `Using strict production Registry v2 sequence ${result.registry.sequence}.`

@@ -75,7 +75,7 @@ describe("Bun workspace ownership", () => {
       fs.readFile(path.join(root, "README.md"), "utf8"),
       fs.readFile(path.join(root, "README.zh-CN.md"), "utf8"),
     ])
-    expect(rootPackage.devDependencies["@convax/marketplace-kit"]).toBe("0.1.0")
+    expect(rootPackage.devDependencies["@convax/marketplace-kit"]).toBe("0.1.1")
     expect(rootPackage.devDependencies["@convax/marketplace-kit"]).not.toContain("file:")
     expect(rootPackage.scripts["marketplace:check"]).toBe("convax-marketplace check .")
     expect(rootPackage.scripts["marketplace:build-index"]).toContain("official-marketplace-build.mjs")

@@ -249,7 +249,7 @@ export class McpServer {
       this.#sendResult(value.id, {
         capabilities: { tools: {} },
         protocolVersion,
-        serverInfo: { name: "convax-ffmpeg-mcp", version: "0.2.0" },
+        serverInfo: { name: "convax-ffmpeg-mcp", version: "0.2.1" },
       })
       return
     }

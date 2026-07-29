@@ -393,7 +393,7 @@ describe("source packages", () => {
     expect(ffmpeg.metadata.companions).toEqual([
       {
         command: "convax-ffmpeg-mcp",
-        version: "0.2.0",
+        version: "0.2.1",
         source: "packages/tools/ffmpeg-mcp",
         targets: [
           {
@@ -475,7 +475,7 @@ describe("source packages", () => {
       "skills/ffmpeg-canvas/references/convax.md",
     ]);
     expect(ffmpeg.companionAssets.map((asset) => asset.assetName)).toEqual([
-      "convax-companion-convax-ffmpeg-mcp-0.2.0-darwin-arm64",
+      "convax-companion-convax-ffmpeg-mcp-0.2.1-darwin-arm64",
     ]);
     const ffmpegLicense = readStoredZip(ffmpeg.zip).find(
       (entry) => entry.relativePath === "FFMPEG-LICENSE",

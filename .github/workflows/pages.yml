@@ -26,6 +26,8 @@ jobs:
           name: marketplace-release-${{ github.sha }}
           path: dist
       - name: Reverify and stage strict catalogs
+        env:
+          CONVAX_MARKETPLACE_CHANGED: dist/release-plan.json
         run: |
           bun tooling/verify-marketplace-output.mjs dist/catalog
           bun tooling/verify-product-lock-input.mjs dist/product-lock-input.json

@@ -158,7 +158,8 @@ must remain stable through hashing.
 ## Protected default-branch release
 
 Authors change an extension's identity version and merge through the protected
-default branch. The low-privilege job compares the previous and next Git trees,
+default branch. The low-privilege job compares the Git tree recorded by the
+currently deployed strict v1 Registry with the protected-branch candidate,
 rejects any changed package bytes whose version did not change, runs the complete
 check, and uploads only the exact verified artifacts. A separate minimal
 high-privilege job consumes those bytes, creates the deterministic tag, attests the
@@ -173,15 +174,22 @@ disable a compromised version for new installs, publish a reviewed higher packag
 version with `yanked: true`. Existing immutable assets remain available for
 inventory, recovery, and audit.
 
-The serialized workflow fetches and strictly validates the current production v2
-Registry as an explicit sequence input. The one-time bootstrap accepts strict v1
-only after an exact v2 HTTP 404 and inherits only its sequence high-water mark.
-Every other network or validation failure stops publication. The Kit then writes
+The serialized workflow fetches and strictly validates the complete current
+production closure: Registry v2, descriptor, Showcase v2, and the strict v1
+Registry and Showcase projections. The one-time bootstrap accepts strict v1 only
+after an exact v2 HTTP 404 and uses the checked-in descriptor while retaining the
+deployed source revision as the cumulative change-plan baseline. Every other
+network or validation failure stops publication. The Kit then writes
 one grouped directory per immutable package Release plus one content-addressed
 Registry metadata Release. A changed Storyboard source also publishes the matching
 Builtin bundle Release. The privileged job consumes only those verified directories,
 supports exact-byte retry recovery, and invokes the reusable Pages deployment before
-releasing the repository-wide publication lock.
+releasing the repository-wide publication lock. Every protected-main push rebuilds,
+reverifies, and redeploys the current Pages catalog even when the selected
+package-version plan is empty. Existing immutable Releases are accepted only after
+an exact-byte comparison. This lets a reviewed publication-workflow repair restore
+the descriptor, Registry v2, Showcase, and strict v1 projection without inventing a
+package version change or bypassing the ordinary release closure.
 
 The production catalogs are:
 
