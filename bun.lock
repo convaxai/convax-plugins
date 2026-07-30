@@ -30,6 +30,13 @@
       "name": "@microvoid/convax-plugin-convax-pet",
       "version": "0.2.2",
     },
+    "packages/plugins/cutout-studio": {
+      "name": "@microvoid/convax-plugin-cutout-studio",
+      "version": "0.2.0",
+      "dependencies": {
+        "@microvoid/convax-cutout-mcp": "workspace:*",
+      },
+    },
     "packages/plugins/ffmpeg-tools": {
       "name": "@microvoid/convax-plugin-ffmpeg-tools",
       "version": "0.3.2",
@@ -178,6 +185,17 @@
         "typescript": "5.9.3",
       },
     },
+    "packages/tools/cutout-mcp": {
+      "name": "@microvoid/convax-cutout-mcp",
+      "version": "0.1.2",
+      "bin": {
+        "convax-cutout-mcp": "dist/convax-cutout-mcp",
+      },
+      "devDependencies": {
+        "@types/bun": "1.3.14",
+        "typescript": "5.9.3",
+      },
+    },
     "packages/tools/ffmpeg-mcp": {
       "name": "@microvoid/convax-ffmpeg-mcp",
       "version": "0.2.1",
@@ -229,6 +247,8 @@
 
     "@microvoid/convax-codex-mcp": ["@microvoid/convax-codex-mcp@workspace:packages/tools/codex-mcp"],
 
+    "@microvoid/convax-cutout-mcp": ["@microvoid/convax-cutout-mcp@workspace:packages/tools/cutout-mcp"],
+
     "@microvoid/convax-ffmpeg-mcp": ["@microvoid/convax-ffmpeg-mcp@workspace:packages/tools/ffmpeg-mcp"],
 
     "@microvoid/convax-jianying-editor-mcp": ["@microvoid/convax-jianying-editor-mcp@workspace:packages/tools/jianying-editor-mcp"],
@@ -240,6 +260,8 @@
     "@microvoid/convax-plugin-codex-service": ["@microvoid/convax-plugin-codex-service@workspace:packages/plugins/codex-service"],
 
     "@microvoid/convax-plugin-convax-pet": ["@microvoid/convax-plugin-convax-pet@workspace:packages/plugins/convax-pet"],
+
+    "@microvoid/convax-plugin-cutout-studio": ["@microvoid/convax-plugin-cutout-studio@workspace:packages/plugins/cutout-studio"],
 
     "@microvoid/convax-plugin-ffmpeg-tools": ["@microvoid/convax-plugin-ffmpeg-tools@workspace:packages/plugins/ffmpeg-tools"],
 

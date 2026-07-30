@@ -1,0 +1,50 @@
+{
+  "schema": "convax.plugin/7",
+  "id": "cutout-studio",
+  "name": "智能抠图",
+  "description": "使用 U²-Netp 在本机快速移除图片背景，保留柔和边缘；图片不会上传到远程服务。",
+  "version": "0.2.0",
+  "contributes": {
+    "generation": {
+      "models": [],
+      "tools": [
+        {
+          "id": "background.remove",
+          "title": "本地智能抠图",
+          "description": "使用 U²-Netp ONNX 在本机生成带透明通道的 PNG。",
+          "output": "image",
+          "acceptedInputs": [
+            "reference_image"
+          ]
+        }
+      ]
+    },
+    "canvas": {
+      "selectionActions": [
+        {
+          "id": "remove-background",
+          "title": {
+            "default": "Remove background",
+            "zh-CN": "抠图"
+          },
+          "description": {
+            "default": "Create a new transparent PNG beside the selected image.",
+            "zh-CN": "保留原图，并在旁边创建新的透明 PNG 图片节点。"
+          },
+          "target": "image",
+          "editor": "immediate",
+          "presentation": "cutout-scan",
+          "steps": [
+            {
+              "tool": "background.remove"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "runtime": {
+    "type": "mcp-stdio",
+    "command": "convax-cutout-mcp"
+  }
+}

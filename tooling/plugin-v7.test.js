@@ -52,6 +52,60 @@ describe("convax.plugin/7 capability host contract", () => {
     ).toEqual({ pluginSchema: "convax.plugin/7", pluginHost: "convax.plugin-capability/2" })
   })
 
+  test("binds one immediate adjacent image action to a declared reference-image operation", () => {
+    const cutout = {
+      contributes: {
+        canvas: {
+          selectionActions: [{
+            description: { default: "Create a transparent PNG beside the selected image." },
+            editor: "immediate",
+            id: "remove-background",
+            presentation: "cutout-scan",
+            steps: [{ tool: "background.remove" }],
+            target: "image",
+            title: { default: "Remove background" },
+          }],
+        },
+        generation: {
+          models: [],
+          tools: [{
+            acceptedInputs: ["reference_image"],
+            description: "Remove the image background.",
+            id: "background.remove",
+            output: "image",
+            title: "Remove background",
+          }],
+        },
+      },
+      description: "Cutout",
+      id: "cutout-studio",
+      name: "Cutout Studio",
+      runtime: { command: "convax-cutout-mcp", type: "mcp-stdio" },
+      schema: "convax.plugin/7",
+      version: "1.0.0",
+    }
+    expect(parsePluginManifest(cutout).contributes.canvas.selectionActions[0]).toMatchObject({
+      editor: "immediate",
+      presentation: "cutout-scan",
+      steps: [{ tool: "background.remove" }],
+      target: "image",
+    })
+
+    const wrongTarget = structuredClone(cutout)
+    wrongTarget.contributes.canvas.selectionActions[0].target = "video"
+    expect(() => parsePluginManifest(wrongTarget)).toThrow("immediate editor target must be image")
+
+    const unknownTool = structuredClone(cutout)
+    unknownTool.contributes.canvas.selectionActions[0].steps[0].tool = "background.unknown"
+    expect(() => parsePluginManifest(unknownTool)).toThrow("references unknown generation tool")
+
+    const unsupportedPresentation = structuredClone(cutout)
+    unsupportedPresentation.contributes.canvas.selectionActions[0].presentation = "spinner"
+    expect(() => parsePluginManifest(unsupportedPresentation)).toThrow("cutout-scan presentation")
+
+    expect(() => parsePluginManifest({ ...cutout, schema: "convax.plugin/6" })).toThrow("presentation")
+  })
+
   test("does not backport v7 grants or let a contribution name another Plugin", () => {
     expect(() => parsePluginManifest({ ...timelineManifest(), schema: "convax.plugin/6" })).toThrow("capability")
     const arbitraryTarget = timelineManifest()

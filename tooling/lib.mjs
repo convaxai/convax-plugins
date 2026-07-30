@@ -889,7 +889,10 @@ function parseSelectionActionsV3(
   value,
   generation,
   label,
-  { allowReturnSelectionActions = false } = {},
+  {
+    allowImmediateImageOutput = false,
+    allowReturnSelectionActions = false,
+  } = {},
 ) {
   if (!Array.isArray(value) || value.length < 1 || value.length > 32) {
     error(label, "must be a non-empty array with at most 32 items");
@@ -898,7 +901,15 @@ function parseSelectionActionsV3(
     const itemLabel = `${label} item ${index}`;
     exactKeys(
       item,
-      ["description", "editor", "id", "steps", "target", "title"],
+      [
+        "description",
+        "editor",
+        "id",
+        ...(allowImmediateImageOutput ? ["presentation"] : []),
+        "steps",
+        "target",
+        "title",
+      ],
       ["description", "editor", "id", "steps", "target", "title"],
       itemLabel,
     );
@@ -914,7 +925,10 @@ function parseSelectionActionsV3(
       );
     }
     const target = item.target;
-    if (!selectionActionEditors.has(item.editor))
+    if (
+      !selectionActionEditors.has(item.editor) &&
+      !(allowImmediateImageOutput && item.editor === "immediate")
+    )
       error(itemLabel, "unsupported editor");
     if (
       !Array.isArray(item.steps) ||
@@ -987,7 +1001,30 @@ function parseSelectionActionsV3(
         );
       }
     } else if (allowReturnSelectionActions && target === "image") {
-      error(itemLabel, "image selection action requires a return-delivery operation");
+      if (!allowImmediateImageOutput) {
+        error(itemLabel, "image selection action requires a return-delivery operation");
+      }
+      const tool = generationTools.get(steps[0]?.tool);
+      if (
+        item.editor !== "immediate" ||
+        item.presentation !== "cutout-scan" ||
+        steps.length !== 1 ||
+        tool?.output !== "image"
+      ) {
+        error(
+          itemLabel,
+          "image Canvas output requires one immediate image operation with cutout-scan presentation",
+        );
+      }
+    }
+    if (item.editor === "immediate" && target !== "image") {
+      error(itemLabel, "immediate editor target must be image");
+    }
+    if (
+      item.presentation !== undefined &&
+      (item.editor !== "immediate" || item.presentation !== "cutout-scan")
+    ) {
+      error(itemLabel, "unsupported selection action presentation");
     }
     const referenceRole =
       target === "image" ? "reference_image" : "reference_video";
@@ -1007,6 +1044,9 @@ function parseSelectionActionsV3(
       ),
       editor: item.editor,
       id: parsePluginReferenceId(item.id, `${itemLabel} id`),
+      ...(item.presentation === undefined
+        ? {}
+        : { presentation: item.presentation }),
       steps,
       target,
       title: parseLocalizedText(item.title, `${itemLabel} title`, 120),
@@ -1062,6 +1102,7 @@ function parseSelectionActionsV7(value, generation, label) {
         "generation-backed selection action requires a generation contribution",
       );
     return parseSelectionActionsV3([item], generation, itemLabel, {
+      allowImmediateImageOutput: true,
       allowReturnSelectionActions: true,
     })[0];
   });

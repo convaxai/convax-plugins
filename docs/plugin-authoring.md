@@ -536,7 +536,7 @@ v5 and v6 use `convax.plugin-capability/1`, not a synthesized
 `convax.plugin-host/5` or `/6`. Use only the typed capability client supplied by a
 compatible host; do not recreate that transport or forward arbitrary methods.
 
-v7 uses `convax.plugin-capability/2`. A video selection action may replace the
+v7 uses `convax.plugin-capability/2`. An image or video selection action may replace the
 generation editor/steps fields with the fixed declaration below:
 
 ```json
@@ -556,9 +556,31 @@ generation editor/steps fields with the fixed declaration below:
 
 This action requires the same manifest to contribute a creatable renderer. The
 host derives the target Plugin identity from the installed manifest principal,
-creates only that renderer, preserves the selected video, and commits node plus
+creates only that renderer, preserves the selected media node, and commits node plus
 edge as one revision-checked Canvas business operation. It never grants generic
 Canvas document write access.
+
+v7 image actions may instead run one declared image operation immediately and
+create a connected image result beside the selected source:
+
+```json
+{
+  "id": "remove-background",
+  "title": { "default": "Remove background" },
+  "description": { "default": "Create a transparent PNG beside the selected image." },
+  "target": "image",
+  "editor": "immediate",
+  "presentation": "cutout-scan",
+  "steps": [{ "tool": "background.remove" }]
+}
+```
+
+The referenced tool must accept `reference_image`, return one image, and must not
+be a model, return tool, or use declarative input binding. The host preserves the
+selected source, creates one connected pending image node through the same
+generation pipeline used by FFmpeg operations, and replaces only that pending node
+with the result. The fixed `cutout-scan` presentation is host rendered on the new
+node; Plugin code does not receive Canvas DOM access.
 
 `canvas.connectedMedia.stream` is also v7-only. Its node-scoped methods are
 `canvas.connectedMedia.open({nodeId})` and

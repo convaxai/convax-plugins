@@ -43,6 +43,7 @@ describe("source packages", () => {
       "plugin/chatcut",
       "plugin/codex-service",
       "plugin/convax-pet",
+      "plugin/cutout-studio",
       "plugin/ffmpeg-tools",
       "plugin/hello-convax",
       "plugin/jianying-editor",
