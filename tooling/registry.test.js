@@ -51,6 +51,7 @@ describe("source packages", () => {
       "plugin/panorama-viewer",
       "plugin/relight-studio",
       "plugin/storyai-3d-director-desk",
+      "plugin/storyboard-studio",
       "plugin/video-timeline",
       "plugin/example-generation",
       "skill/ad-idea",
@@ -67,6 +68,7 @@ describe("source packages", () => {
       "skill/short-drama-screenwriter",
       "skill/skill-creator",
       "skill/skill-reviewer",
+      "skill/storyboard-studio",
       "skill/video-prompting",
     ]);
     const violet = packages.find((pkg) => pkg.metadata.id === "convax-pet");

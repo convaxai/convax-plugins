@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>故事板</title>
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell" id="appShell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <i></i><i></i><i></i>
+          </span>
+          <span class="brand-copy">
+            <strong>故事板</strong>
+            <small>STORYBOARD STUDIO</small>
+          </span>
+        </div>
+        <div class="topbar-center" id="documentBreadcrumb" aria-label="当前故事板位置"></div>
+        <div class="topbar-actions">
+          <span class="connection-pill is-waiting" id="connectionPill">
+            <i></i><span id="connectionText">等待 Convax</span>
+          </span>
+          <button class="icon-button" id="refreshButton" type="button" aria-label="刷新故事板" title="刷新故事板">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"></path></svg>
+          </button>
+          <button class="icon-button" id="fullscreenButton" type="button" aria-label="打开独立故事板" title="打开独立故事板">
+            <svg class="enter-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"></path></svg>
+            <svg class="exit-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h5V3M21 8h-5V3M3 16h5v5M21 16h-5v5"></path></svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="launcher-view" id="launcherView">
+        <section class="launch-composer">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">CREATE A STORY</span>
+              <h1>从一句话，到可拍的故事板</h1>
+              <p>连接剧本节点，或直接写下一个念头。Agent 会建立分集、分镜和资产文件，并按分集自动打组。</p>
+            </div>
+            <span class="input-mode" id="inputMode">一句话构思</span>
+          </div>
+
+          <div class="connected-source-shell">
+            <div class="connected-source-heading">
+              <span>已连接剧本 / 参考</span>
+              <small id="connectedInputCount">0 个节点</small>
+            </div>
+            <div class="connected-inputs" id="connectedInputs"></div>
+            <p class="connected-empty" id="connectedEmpty">可把剧本、梗概或参考卡连到这个节点；Agent 只会读取当前画布中明确关联的内容。</p>
+          </div>
+
+          <label class="idea-field" for="ideaInput">
+            <span>故事构思或改编要求</span>
+            <textarea id="ideaInput" maxlength="12000" rows="5" placeholder="例如：一个总说错天气的主播，发现每次口误都会让城市重置一天……"></textarea>
+            <output id="ideaCount" for="ideaInput">0 / 12000</output>
+          </label>
+
+          <div class="launch-settings" aria-label="故事板生成设置">
+            <label>分集数
+              <select id="episodeCount">
+                <option value="4">4 集</option>
+                <option value="6" selected>6 集</option>
+                <option value="12">12 集</option>
+                <option value="24">24 集</option>
+              </select>
+            </label>
+            <label>单集时长
+              <select id="episodeDuration">
+                <option value="60">约 60 秒</option>
+                <option value="90" selected>约 90 秒</option>
+                <option value="180">约 3 分钟</option>
+              </select>
+            </label>
+            <label>画幅
+              <select id="aspectRatio">
+                <option value="9:16" selected>9:16 竖屏</option>
+                <option value="16:9">16:9 横屏</option>
+                <option value="1:1">1:1 方形</option>
+              </select>
+            </label>
+            <label>类型
+              <select id="genre">
+                <option value="悬疑轻喜剧" selected>悬疑轻喜剧</option>
+                <option value="都市情感">都市情感</option>
+                <option value="奇幻冒险">奇幻冒险</option>
+                <option value="品牌短片">品牌短片</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="launch-actions">
+            <button class="primary-button" id="generateButton" type="button">
+              <span class="button-spark" aria-hidden="true">✦</span>
+              <span id="generateButtonText">让 Agent 生成完整故事板</span>
+            </button>
+            <span class="launch-hint">生成前只创建方案；文件写入和 Canvas 变更由 Agent 在当前 Project 中完成。</span>
+          </div>
+        </section>
+
+        <aside class="pipeline-panel">
+          <div class="pipeline-heading">
+            <span class="eyebrow">AGENT PIPELINE</span>
+            <strong>交付结构</strong>
+          </div>
+          <ol class="pipeline-list">
+            <li class="is-active"><span>01</span><div><strong>故事引擎</strong><small>核心冲突 · 角色关系 · 连续性锁</small></div><i>✓</i></li>
+            <li><span>02</span><div><strong>自动分集</strong><small>钩子 · 反转 · 尾钩 · 节奏</small></div><i>→</i></li>
+            <li><span>03</span><div><strong>镜头拆解</strong><small>景别 · 运镜 · 动作 · 声音</small></div><i>→</i></li>
+            <li><span>04</span><div><strong>资产建档</strong><small>人物 · 场景 · 道具 · 音频</small></div><i>→</i></li>
+            <li><span>05</span><div><strong>画布打组</strong><small>每集一组 · 顺序连线 · 结构总览</small></div><i>→</i></li>
+          </ol>
+          <div class="file-tree-preview">
+            <div class="file-tree-title"><span>规范文件包</span><code>Storyboards/</code></div>
+            <div class="tree-row level-0"><i>▾</i><b>雾港失物招领处</b></div>
+            <div class="tree-row level-1"><i>▾</i><span>episodes</span></div>
+            <div class="tree-row level-2"><i>▸</i><span>ep-001-来客</span><em>8 shots</em></div>
+            <div class="tree-row level-2"><i>▸</i><span>ep-002-录音带</span><em>8 shots</em></div>
+            <div class="tree-row level-1"><i>▸</i><span>assets / characters</span></div>
+          </div>
+        </aside>
+      </main>
+
+      <main class="story-view" id="storyView" hidden>
+        <header class="workbench-toolbar">
+          <div class="episode-switcher">
+            <button class="round-tool-button" id="leaveStoryButton" type="button" aria-label="返回故事创建器">‹</button>
+            <label class="episode-select-shell" for="episodeSelect">
+              <span id="episodeNumber">第 1 集</span>
+              <select id="episodeSelect" aria-label="切换分集"></select>
+            </label>
+            <button class="round-tool-button" id="episodeInfoButton" type="button" aria-label="查看本集信息">☰</button>
+            <button class="round-tool-button workbench-fullscreen" id="workbenchFullscreenButton" type="button" aria-label="打开全屏故事板">⛶</button>
+          </div>
+          <div class="production-settings" aria-label="视频生产设置">
+            <label>
+              <span>规划</span>
+              <select id="workbenchModel">
+                <option>Agent 智能分镜</option>
+                <option>导演强化</option>
+                <option>连续性优先</option>
+              </select>
+            </label>
+            <label>
+              <span>清晰度</span>
+              <select id="workbenchResolution">
+                <option>720P</option>
+                <option selected>1080P</option>
+                <option>2K</option>
+              </select>
+            </label>
+            <label class="style-setting">
+              <span>风格</span>
+              <select id="workbenchStyle">
+                <option selected>90 年代写实电影</option>
+                <option>都市纪实</option>
+                <option>高反差悬疑</option>
+              </select>
+            </label>
+            <label>
+              <span>画幅</span>
+              <select id="workbenchAspect">
+                <option>16:9</option>
+                <option>9:16</option>
+                <option>1:1</option>
+              </select>
+            </label>
+            <span class="cost-estimate" id="costEstimate" title="生成成本需由实际媒体工具确认">成本待确认</span>
+            <button class="toolbar-quiet-button" id="exportStoryboardButton" type="button">导出</button>
+            <button class="toolbar-primary-button" id="composeEpisodeButton" type="button">合成本集</button>
+          </div>
+        </header>
+
+        <aside class="asset-library-pane">
+          <div class="library-scope-tabs" role="tablist" aria-label="资产范围">
+            <button class="is-active" data-library-scope="episode" type="button" role="tab" aria-selected="true">本集</button>
+            <button data-library-scope="story" type="button" role="tab" aria-selected="false">全集</button>
+          </div>
+          <div class="asset-type-tabs" role="tablist" aria-label="资产类型">
+            <button class="is-active" data-asset-tab="characters" type="button" role="tab" aria-selected="true">角色</button>
+            <button data-asset-tab="locations" type="button" role="tab" aria-selected="false">场景</button>
+            <button data-asset-tab="materials" type="button" role="tab" aria-selected="false">素材</button>
+            <button data-asset-tab="props" type="button" role="tab" aria-selected="false">道具</button>
+          </div>
+          <div class="asset-section-heading">
+            <span id="assetSectionLabel">角色</span>
+            <small id="assetCount">0</small>
+          </div>
+          <div class="asset-list" id="assetList"></div>
+          <section class="asset-inspector" id="assetInspector"></section>
+        </aside>
+
+        <section class="segment-editor-pane">
+          <header class="segment-heading">
+            <div class="segment-title-row">
+              <span class="segment-cover demo-frame" id="segmentCover" aria-hidden="true"></span>
+              <div>
+                <span class="segment-kicker" id="segmentNumber">片段 01</span>
+                <h1 id="segmentTitle">片段</h1>
+              </div>
+            </div>
+            <div class="segment-heading-meta">
+              <span id="segmentStatus" data-status="planned">待生成</span>
+              <small id="segmentCost">3 个分镜 · 成本待确认</small>
+            </div>
+          </header>
+
+          <div class="segment-reference-bar">
+            <span class="reference-label">@ 引用资产及工具</span>
+            <div class="segment-references" id="segmentReferences"></div>
+            <button id="addReferenceButton" type="button" aria-label="添加参考资产">＋</button>
+          </div>
+
+          <article class="segment-script" id="segmentScript" aria-label="当前片段分镜脚本"></article>
+
+          <footer class="segment-action-bar">
+            <div class="segment-save-state">
+              <i></i>
+              <span id="segmentSaveState">已读取 Project 事实源</span>
+            </div>
+            <div class="segment-actions">
+              <button id="cancelSegmentEditButton" type="button" hidden>取消</button>
+              <button id="editSegmentButton" type="button">编辑</button>
+              <button id="saveSegmentButton" class="primary" type="button" hidden>交给 Agent 保存</button>
+              <button id="generateSegmentButton" type="button">生成片段</button>
+            </div>
+          </footer>
+        </section>
+
+        <aside class="preview-pane">
+          <header class="preview-heading">
+            <div>
+              <strong>片段预览</strong>
+              <small id="previewSourceLabel">关键帧预演 · 非成片</small>
+            </div>
+            <div class="preview-tools" aria-label="预览工具">
+              <button type="button" aria-label="显示模式">◉</button>
+              <button type="button" aria-label="高清预览">HD</button>
+              <button type="button" aria-label="适配画幅">↗</button>
+              <button id="downloadPreviewButton" type="button" aria-label="查看媒体引用">⌁</button>
+            </div>
+          </header>
+          <div class="preview-stage" id="previewStage" data-state="ready">
+            <div class="preview-frame demo-frame" id="previewFrame"></div>
+            <div class="preview-state-card" id="previewStateCard">
+              <span>✦</span>
+              <strong id="previewStateTitle">关键帧预演</strong>
+              <small id="previewStateText">真实视频需由媒体工具生成并写入 Project。</small>
+            </div>
+            <button class="preview-fullscreen-button" id="previewFullscreenButton" type="button" aria-label="全屏预览">⛶</button>
+          </div>
+          <div class="player-controls">
+            <button class="play-button" id="previewPlayButton" type="button" aria-label="播放或暂停">▶</button>
+            <span class="player-time" id="playerCurrentTime">00:00</span>
+            <label class="player-progress" for="previewProgress">
+              <input id="previewProgress" type="range" min="0" max="1000" value="0" aria-label="预览进度" />
+            </label>
+            <span class="player-time" id="playerDuration">00:15</span>
+            <button id="previewLoopButton" type="button" aria-label="循环播放">↻</button>
+            <button id="previewMuteButton" type="button" aria-label="静音">◕</button>
+          </div>
+        </aside>
+
+        <section class="segment-timeline">
+          <header class="timeline-heading">
+            <div class="timeline-modes">
+              <button id="multiSelectButton" type="button">▱ 多选</button>
+              <button id="smartPreviewButton" type="button">▰ 智能预演 <span>✦</span></button>
+            </div>
+            <div class="timeline-summary">
+              <span id="timelineSelection">10 个片段</span>
+              <button id="expandToCanvasButton" type="button">展开到画布</button>
+            </div>
+          </header>
+          <div class="segment-track" id="segmentTimeline" role="listbox" aria-label="本集片段时间线"></div>
+        </section>
+
+        <aside class="character-drawer" id="characterDrawer" hidden aria-label="人物卡详情">
+          <div class="drawer-backdrop" id="characterDrawerBackdrop"></div>
+          <section class="character-drawer-panel">
+            <header>
+              <div>
+                <span>CHARACTER CARD</span>
+                <h2 id="drawerCharacterName">人物</h2>
+              </div>
+              <button id="closeCharacterDrawerButton" type="button" aria-label="关闭人物卡">×</button>
+            </header>
+            <div class="drawer-character-hero">
+              <span class="drawer-character-portrait" id="drawerCharacterPortrait"></span>
+              <div>
+                <strong id="drawerCharacterRole">角色</strong>
+                <p id="drawerCharacterSummary"></p>
+                <div class="drawer-character-tags" id="drawerCharacterTags"></div>
+              </div>
+            </div>
+            <div class="drawer-character-grid">
+              <article><span>性格</span><p id="drawerPersonality"></p></article>
+              <article><span>声音</span><p id="drawerVoice"></p><button id="previewVoiceButton" type="button">⌁ 查看音频引用</button></article>
+              <article><span>连续性</span><p id="drawerContinuity"></p></article>
+              <article><span>本集引用</span><p id="drawerUsage"></p><button id="insertCharacterButton" type="button">插入当前片段</button></article>
+            </div>
+          </section>
+        </aside>
+      </main>
+
+      <main class="character-view" id="characterView" hidden>
+        <section class="character-portrait-panel">
+          <div class="character-portrait" id="characterPortrait">
+            <span id="characterInitials">人</span>
+            <div class="portrait-grid" aria-hidden="true"></div>
+            <div class="portrait-label">CHARACTER MASTER</div>
+          </div>
+          <div class="image-reference-strip" id="imageReferenceStrip"></div>
+        </section>
+        <section class="character-detail-panel">
+          <header class="character-heading">
+            <div>
+              <span class="eyebrow" id="characterRole">CHARACTER</span>
+              <h1 id="characterName">未命名人物</h1>
+              <p id="characterSummary"></p>
+            </div>
+            <div class="character-heading-actions">
+              <button id="backToStoryButton" type="button" hidden>返回故事</button>
+              <span class="continuity-lock">连续性已锁定</span>
+            </div>
+          </header>
+          <div class="character-tags" id="characterTags"></div>
+          <div class="character-detail-grid">
+            <article class="detail-card personality-card">
+              <span class="detail-kicker">PERSONALITY</span>
+              <h2>性格与戏剧引擎</h2>
+              <dl id="personalityDetails"></dl>
+            </article>
+            <article class="detail-card voice-card">
+              <span class="detail-kicker">VOICE & AUDIO</span>
+              <h2>声音基准</h2>
+              <div class="waveform" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <p id="voiceDescription"></p>
+              <div class="voice-chips" id="voiceChips"></div>
+            </article>
+            <article class="detail-card visual-card">
+              <span class="detail-kicker">VISUAL IDENTITY</span>
+              <h2>形象与表演约束</h2>
+              <dl id="visualDetails"></dl>
+            </article>
+            <article class="detail-card continuity-card">
+              <span class="detail-kicker">VIDEO CONTINUITY</span>
+              <h2>生视频连续性</h2>
+              <ul id="continuityDetails"></ul>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <section class="result-drawer" id="resultDrawer" hidden aria-live="polite">
+        <div>
+          <span class="result-icon" id="resultIcon">✦</span>
+          <span><strong id="resultTitle">Agent 正在工作</strong><small id="resultText"></small></span>
+        </div>
+        <button id="dismissResultButton" type="button" aria-label="关闭结果">×</button>
+      </section>
+    </div>
+    <script type="module" src="assets/app.js"></script>
+  </body>
+</html>

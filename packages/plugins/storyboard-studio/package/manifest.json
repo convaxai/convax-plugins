@@ -1,0 +1,43 @@
+{
+  "schema": "convax.plugin/6",
+  "id": "storyboard-studio",
+  "name": "故事板",
+  "description": "把一句话构思或直接连入的剧本交给 Agent，生成可追踪的分集、分镜和人物/场景资产，并以专用故事与人物卡片呈现。",
+  "version": "0.1.0",
+  "entry": "index.html",
+  "capabilities": [
+    "agent.prompt",
+    "canvas.document.read",
+    "canvas.connectedInputs.read",
+    "canvas.node.read",
+    "canvas.node.write",
+    "project.files.read",
+    "ui.fullscreen"
+  ],
+  "contributes": {
+    "canvas": {
+      "renderer": {
+        "create": true,
+        "extensions": [
+          ".storyboard.json",
+          ".character.card.json"
+        ],
+        "width": 760,
+        "height": 560
+      },
+      "toolbar": [
+        {
+          "id": "refresh",
+          "title": "刷新故事板",
+          "command": "storyboard.refresh"
+        }
+      ]
+    },
+    "skills": [
+      {
+        "name": "storyboard-studio",
+        "path": "skills/storyboard-studio"
+      }
+    ]
+  }
+}

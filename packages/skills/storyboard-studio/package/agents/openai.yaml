@@ -1,0 +1,4 @@
+interface:
+  display_name: "Storyboard Studio"
+  short_description: "Build traceable episodic storyboards and asset cards"
+  default_prompt: "Use $storyboard-studio to turn this premise, script, or connected Canvas material into a traceable episode-grouped storyboard package."

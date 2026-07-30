@@ -114,6 +114,7 @@ Pet 功能插件使用 `convax.plugin-capability/1` 兼容性组合，通过 `co
 
 - [`docs/plugin-authoring.md`](docs/plugin-authoring.md)：沙箱和宿主协议；
 - [`docs/panorama-viewer.md`](docs/panorama-viewer.md)：全景图预览的唯一源码归属与旧内置迁移边界；
+- [`docs/storyboard-studio.md`](docs/storyboard-studio.md)：分集故事文件、人物卡、Agent 自动打组流程与当前宿主能力边界；
 - [`docs/storyai-3d-director-desk.md`](docs/storyai-3d-director-desk.md)：3D 导演台的唯一源码归属、上游固定与旧内置迁移边界；
 - [`docs/skill-authoring.md`](docs/skill-authoring.md)：安全、可移植的技能规范；
 - [`docs/packaging.md`](docs/packaging.md)：ZIP 和发布规则；

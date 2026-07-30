@@ -81,6 +81,13 @@
       "name": "@microvoid/convax-plugin-storyai-3d-director-desk",
       "version": "0.1.0",
     },
+    "packages/plugins/storyboard-studio": {
+      "name": "@microvoid/convax-plugin-storyboard-studio",
+      "version": "0.1.0",
+      "dependencies": {
+        "@microvoid/convax-skill-storyboard-studio": "workspace:*",
+      },
+    },
     "packages/plugins/video-timeline": {
       "name": "@microvoid/convax-plugin-video-timeline",
       "version": "0.1.3",
@@ -140,6 +147,10 @@
     "packages/skills/skill-reviewer": {
       "name": "@microvoid/convax-skill-skill-reviewer",
       "version": "0.3.0",
+    },
+    "packages/skills/storyboard-studio": {
+      "name": "@microvoid/convax-skill-storyboard-studio",
+      "version": "0.1.0",
     },
     "packages/skills/video-prompting": {
       "name": "@microvoid/convax-skill-video-prompting",
@@ -246,6 +257,8 @@
 
     "@microvoid/convax-plugin-storyai-3d-director-desk": ["@microvoid/convax-plugin-storyai-3d-director-desk@workspace:packages/plugins/storyai-3d-director-desk"],
 
+    "@microvoid/convax-plugin-storyboard-studio": ["@microvoid/convax-plugin-storyboard-studio@workspace:packages/plugins/storyboard-studio"],
+
     "@microvoid/convax-plugin-video-timeline": ["@microvoid/convax-plugin-video-timeline@workspace:packages/plugins/video-timeline"],
 
 
@@ -276,6 +289,8 @@
     "@microvoid/convax-skill-skill-creator": ["@microvoid/convax-skill-skill-creator@workspace:packages/skills/skill-creator"],
 
     "@microvoid/convax-skill-skill-reviewer": ["@microvoid/convax-skill-skill-reviewer@workspace:packages/skills/skill-reviewer"],
+
+    "@microvoid/convax-skill-storyboard-studio": ["@microvoid/convax-skill-storyboard-studio@workspace:packages/skills/storyboard-studio"],
 
     "@microvoid/convax-skill-video-prompting": ["@microvoid/convax-skill-video-prompting@workspace:packages/skills/video-prompting"],
 

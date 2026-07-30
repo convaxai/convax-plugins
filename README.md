@@ -154,6 +154,7 @@ See the working example in
 
 - [`docs/plugin-authoring.md`](docs/plugin-authoring.md) for the sandbox and host protocol;
 - [`docs/panorama-viewer.md`](docs/panorama-viewer.md) for the Panorama Viewer source-ownership and clean-profile release boundary;
+- [`docs/storyboard-studio.md`](docs/storyboard-studio.md) for the episodic story files, character-card contract, Agent grouping workflow, and current host boundary;
 - [`docs/storyai-3d-director-desk.md`](docs/storyai-3d-director-desk.md) for the 3D Director Desk source-ownership, upstream, and clean-profile release boundary;
 - [`docs/skill-authoring.md`](docs/skill-authoring.md) for safe, portable Skills;
 - [`docs/packaging.md`](docs/packaging.md) for ZIP and release rules;

@@ -1,0 +1,14 @@
+{
+  "name": "@microvoid/convax-plugin-storyboard-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@microvoid/convax-skill-storyboard-studio": "workspace:*"
+  },
+  "scripts": {
+    "validate": "bun ../../../tooling/validate.mjs --kind plugin --id storyboard-studio",
+    "pack": "bun ../../../tooling/pack.mjs --kind plugin --id storyboard-studio",
+    "test": "bun test"
+  }
+}
