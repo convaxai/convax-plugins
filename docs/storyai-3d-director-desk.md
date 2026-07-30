@@ -25,7 +25,7 @@ Plugins:
 
 Desktop must not carry a second 3D Director Desk bundle, its Skill/showcase assets,
 or reserve `storyai-3d-director-desk` as a built-in id. The current authoring
-version is `0.1.3` and targets the `convax.package/2` and `convax.plugin/8`
+version is `0.2.0` and targets the `convax.package/2` and `convax.plugin/8`
 publication path.
 
 The manifest declares the independent Skill workspace through
@@ -50,6 +50,11 @@ The unreleased built-in manifest used a host-private `icon: "play"` hint on its
 toolbar item. Registry validation intentionally accepts only the public
 `id`/`title`/`command` contract, so the stable release keeps the same
 `scene.play` behavior and visible title without that private hint.
+
+Version `0.2.0` adds a package-owned visual layer that uses Convax's Midnight
+semantic color, typography, radius, shadow, focus, contrast, and reduced-motion
+tokens. The layer stays separate from the pinned upstream-generated stylesheet,
+and the trusted build maps the Three.js grid to the same semantic border role.
 
 ## Upstream and static-byte boundary
 

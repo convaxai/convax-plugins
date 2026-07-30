@@ -11,7 +11,7 @@ This is not the private MiniMax Hub `3d-director-stage` plugin. Convax uses the
 open-source project as an independent built-in Plugin and does not copy MiniMax
 Hub assets or code.
 
-The Convax build differs from upstream in eight deliberate ways:
+The Convax build differs from upstream in nine deliberate ways:
 
 1. it bundles `createPluginHostClient` from `@convax/plugin-sdk/client` and uses
    its `convax.plugin-host/8` MessageChannel instead of handwritten request,
@@ -35,6 +35,10 @@ The Convax build differs from upstream in eight deliberate ways:
 8. the Canvas-owned Play toolbar command captures exactly the current viewport,
    then requests one scoped, managed Canvas image connected from the owning Plugin
    node; concurrent clicks and invalid or stale host scope fail closed.
+9. a package-owned `assets/convax-theme.css` layer maps the generated UI onto the
+   Convax Midnight semantic tokens without editing the pinned upstream stylesheet;
+   the trusted bundle transform also resolves the Three.js grid from
+   `--ui-border-default` instead of retaining an unrelated fixed blue.
 
 The complete static Plugin package lives under
 `packages/plugins/storyai-3d-director-desk/package/` in the
@@ -50,15 +54,18 @@ surface. The repository build supplies that module from the pinned
 The upstream-generated JavaScript is preserved byte-for-byte as `vendor/app.js`.
 The trusted `scripts/build.ts` step builds the SDK client, replaces inert remote
 documentation literals, splits XML namespace identifiers, and replaces the four
-bundled generic `fetch` loaders with an explicit local rejection before publishing
-`package/assets/app.js`. Do not hand-edit generated files. The checked-in inputs
-and outputs are pinned by these SHA-256 hashes:
+bundled generic `fetch` loaders with an explicit local rejection, then maps the
+fixed grid color to the package-owned semantic theme before publishing
+`package/assets/app.js`. Do not hand-edit generated files or the
+upstream-generated stylesheet. The checked-in inputs and outputs are pinned by
+these SHA-256 hashes:
 
 - `vendor/app.js`: `ca87a7d8f2666eaf728dd5ea9ae7078821996d032140c4437ce5047e7bba65a1`
-- `package/assets/app.js`: `6e25840733a4f39fca753039f2e80ea59185e696b515fdaaf10d371f0ee97671`
-- `package/assets/plugin-host-client.js`: `4832ec6bcc4a9720dc8c27cd5a01d793026171d828370a7af4c2b0f8f4910316`
+- `package/assets/app.js`: `2fe096047aa10f51dbbf92ad2542b97ed4d73437bd281867f277e9027bd7b22f`
+- `package/assets/plugin-host-client.js`: `b7d26c08bafb0635a9eff4f146d08ffe2daa59ac536e17ba91b79374336be9dc`
+- `assets/convax-theme.css`: `a27a031b299856bd4bd6d31b7cbb54e9996e0679e13db14ae3945197b1de41af`
 - `assets/styles.css`: `6cce301d037ab3483cda7a5d1587fcd6258e59e7baee4ed6d8b17fc080ac8620`
-- `index.html`: `cca741699d677bb752288d02a61e11228cdcd810787bfb06f6d96e2deab9e646`
+- `index.html`: `9bdc8343951384b999fdcd86e489a5f52ad3eb1648d9362ee5e9246345a732b6`
 - `UPSTREAM.patch`: `e3d10db792f0dd5d020bad84a60cb5f393451a0cbdd8d598c84ee17be3cd07bd`
 
 To rebuild, check out the pinned commit and apply the consolidated

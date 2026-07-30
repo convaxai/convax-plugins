@@ -16,6 +16,7 @@ const expectedHostTokenCounts = new Map([
   ["callHostApi", 2],
   ["onCommand", 1],
 ])
+const expectedFixedGridColorCount = 1
 
 async function writeOrCheck(pathname: string, source: string, label: string) {
   if (check) {
@@ -60,7 +61,13 @@ if (
 }
 
 // The pinned vendor bundle consumes the repository-built SDK client. This build
-// step only removes upstream network surfaces forbidden in a Plugin iframe.
+// step removes upstream network surfaces forbidden in a Plugin iframe and maps
+// its fixed grid color onto Convax's semantic border token.
+const fixedGridColorCount = vendor.match(/sectionColor:"#2A4065"/gu)?.length ?? 0
+if (fixedGridColorCount !== expectedFixedGridColorCount) {
+  throw new Error(`3D Director Desk fixed grid color count changed: ${fixedGridColorCount}`)
+}
+
 let source = vendor
   // React/renderer diagnostics and license references are inert, but public
   // Plugin packages fail closed on every literal remote URL. Keep them local.
@@ -87,6 +94,12 @@ let source = vendor
   // hides the model-import surface. Replace every direct browser fetch with an
   // explicit local rejection so the released iframe has no network API.
   .replace(/\bfetch\(/gu, "convaxOfflineFetch(")
+  // Keep the Three.js grid on the same semantic border role as the surrounding
+  // Convax Midnight surface instead of retaining the upstream fixed blue.
+  .replace(
+    'sectionColor:"#2A4065"',
+    'sectionColor:pE("--ui-border-default","#34343a")',
+  )
 
 source =
   'const convaxOfflineFetch=()=>Promise.reject(new Error("Network requests are unavailable"));\n' +

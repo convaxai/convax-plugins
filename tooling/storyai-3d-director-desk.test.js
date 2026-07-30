@@ -52,7 +52,7 @@ describe("storyai-3d-director-desk package", () => {
       id: "storyai-3d-director-desk",
       name: "3D Director Desk",
       description: manifest.description,
-      version: "0.1.3",
+      version: "0.2.0",
       publication: {
         status: "ready",
         blockers: [],
@@ -141,6 +141,7 @@ describe("storyai-3d-director-desk package", () => {
       "UPSTREAM.md",
       "UPSTREAM.patch",
       "assets/app.js",
+      "assets/convax-theme.css",
       "assets/plugin-host-client.js",
       "assets/styles.css",
       "index.html",
@@ -151,16 +152,19 @@ describe("storyai-3d-director-desk package", () => {
       "ca87a7d8f2666eaf728dd5ea9ae7078821996d032140c4437ce5047e7bba65a1",
     )
     expect(await sha256("assets/app.js")).toBe(
-      "6e25840733a4f39fca753039f2e80ea59185e696b515fdaaf10d371f0ee97671",
+      "2fe096047aa10f51dbbf92ad2542b97ed4d73437bd281867f277e9027bd7b22f",
     )
     expect(await sha256("assets/plugin-host-client.js")).toBe(
-      "92a67e87e2b5ea331429afd17ca7c2459ecbd8dc58ec1198c7aeb6f30b3e4477",
+      "b7d26c08bafb0635a9eff4f146d08ffe2daa59ac536e17ba91b79374336be9dc",
+    )
+    expect(await sha256("assets/convax-theme.css")).toBe(
+      "a27a031b299856bd4bd6d31b7cbb54e9996e0679e13db14ae3945197b1de41af",
     )
     expect(await sha256("assets/styles.css")).toBe(
       "6cce301d037ab3483cda7a5d1587fcd6258e59e7baee4ed6d8b17fc080ac8620",
     )
     expect(await sha256("index.html")).toBe(
-      "cca741699d677bb752288d02a61e11228cdcd810787bfb06f6d96e2deab9e646",
+      "9bdc8343951384b999fdcd86e489a5f52ad3eb1648d9362ee5e9246345a732b6",
     )
     expect(await sha256("UPSTREAM.patch")).toBe(
       "e3d10db792f0dd5d020bad84a60cb5f393451a0cbdd8d598c84ee17be3cd07bd",
@@ -171,18 +175,25 @@ describe("storyai-3d-director-desk package", () => {
   })
 
   test("uses only the v8 sandboxed Plugin Host protocol", async () => {
-    const [entry, application, sdkClient, styles] = await Promise.all([
+    const [entry, application, sdkClient, styles, theme] = await Promise.all([
       read("index.html"),
       read("assets/app.js"),
       read("assets/plugin-host-client.js"),
       read("assets/styles.css"),
+      read("assets/convax-theme.css"),
     ])
 
     expect(entry).toContain('src="./assets/app.js"')
     expect(entry).toContain('href="./assets/styles.css"')
+    expect(entry).toContain('href="./assets/convax-theme.css"')
     expect(entry).not.toContain("<style")
     expect(entry).not.toMatch(/(?:src|href)=["'](?:https?:|\/\/|\/)/u)
     expect(styles).not.toContain("url(")
+    expect(theme).not.toContain("url(")
+    expect(theme).toContain("--ui-surface-canvas: #08090a")
+    expect(theme).toContain("--ui-brand: #929cff")
+    expect(theme).toContain("--ui-radius-md: 8px")
+    expect(application).toContain('sectionColor:pE("--ui-border-default","#34343a")')
     expect(application).toContain('from"./plugin-host-client.js"')
     expect(application).toContain("callHostApi")
     expect(application).toContain("onCommand")

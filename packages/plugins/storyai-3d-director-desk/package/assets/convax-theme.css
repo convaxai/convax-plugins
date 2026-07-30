@@ -1,0 +1,577 @@
+:root,
+:root[data-theme="dark"],
+:root.dark {
+  color-scheme: dark;
+
+  /* Convax Midnight semantic color roles. */
+  --ui-surface-canvas: #08090a;
+  --ui-surface-panel: #1c1c1f;
+  --ui-surface-raised: #232326;
+  --ui-surface-inset: #0e0f11;
+  --ui-text-primary: #f7f8f8;
+  --ui-text-secondary: #d0d6e0;
+  --ui-text-tertiary: #8f949d;
+  --ui-text-disabled: #62666d;
+  --ui-brand: #929cff;
+  --ui-on-brand: #0b0c12;
+  --ui-selection: #7f8cff;
+  --ui-on-selection: #08090a;
+  --ui-interactive-hover: color-mix(in oklab, var(--ui-brand) 8%, var(--ui-surface-raised));
+  --ui-interactive-selected: color-mix(in oklab, var(--ui-brand) 14%, var(--ui-surface-raised));
+  --ui-interactive-selected-border: color-mix(
+    in oklab,
+    var(--ui-brand) 56%,
+    var(--ui-border-default)
+  );
+  --ui-interactive-pressed: color-mix(in oklab, var(--ui-brand) 20%, var(--ui-surface-raised));
+  --ui-backdrop: rgb(0 0 0 / 62%);
+  --ui-focus-ring: #9aa7ff;
+  --ui-status-danger: #ff727d;
+  --ui-status-danger-surface: #38181e;
+  --ui-status-warning: #f0bf52;
+  --ui-status-warning-surface: #342816;
+  --ui-status-success: #4fca82;
+  --ui-status-success-surface: #142e20;
+  --ui-status-info: #68a9ff;
+  --ui-status-info-surface: #14263d;
+  --ui-border-subtle: #23252a;
+  --ui-border-default: #34343a;
+  --ui-border-strong: #4a4b53;
+  --ui-control-background: #202023;
+
+  /* Convax product geometry, depth, typography, and motion. */
+  --ui-font-sans:
+    "Inter Variable", Inter, "SF Pro Text", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --ui-font-weight-normal: 400;
+  --ui-font-weight-medium: 510;
+  --ui-font-weight-semibold: 590;
+  --ui-radius-xs: 4px;
+  --ui-radius-sm: 6px;
+  --ui-radius-md: 8px;
+  --ui-radius-lg: 12px;
+  --ui-radius-pill: 9999px;
+  --ui-shadow-low: 0 1px 0 rgb(255 255 255 / 4%), 0 8px 28px rgb(0 0 0 / 30%);
+  --ui-shadow-medium: 0 14px 42px rgb(0 0 0 / 46%);
+  --ui-shadow-high: 0 22px 72px rgb(0 0 0 / 62%);
+  --ui-motion-fast: 100ms;
+  --ui-motion-normal: 160ms;
+  --ui-ease-standard: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ui-focus-ring-width: 2px;
+
+  /* Compatibility roles shared with current Convax primitives. */
+  --background: var(--ui-surface-canvas);
+  --foreground: var(--ui-text-primary);
+  --card: var(--ui-surface-panel);
+  --card-foreground: var(--ui-text-primary);
+  --popover: var(--ui-surface-raised);
+  --popover-foreground: var(--ui-text-primary);
+  --primary: var(--ui-brand);
+  --primary-foreground: var(--ui-on-brand);
+  --secondary: var(--ui-surface-inset);
+  --secondary-foreground: var(--ui-text-primary);
+  --muted: var(--ui-surface-inset);
+  --muted-foreground: var(--ui-text-tertiary);
+  --accent: var(--ui-interactive-selected);
+  --accent-foreground: var(--ui-text-primary);
+  --destructive: var(--ui-status-danger);
+  --border: var(--ui-border-default);
+  --input: var(--ui-border-strong);
+  --ring: var(--ui-focus-ring);
+
+  /* Bridge the upstream component variables to the Convax semantic roles. */
+  --bg-rgb: from var(--ui-surface-canvas) r g b;
+  --surface-rgb: from var(--ui-surface-raised) r g b;
+  --surface-hover-rgb: from var(--ui-interactive-hover) r g b;
+  --panel-rgb: from var(--ui-surface-panel) r g b;
+  --field-rgb: from var(--ui-surface-inset) r g b;
+  --border-rgb: from var(--ui-border-default) r g b;
+  --text-rgb: from var(--ui-text-primary) r g b;
+  --text-muted-rgb: from var(--ui-text-tertiary) r g b;
+  --text-dim-rgb: from var(--ui-text-disabled) r g b;
+  --muted-rgb: from var(--ui-text-tertiary) r g b;
+  --accent-rgb: from var(--ui-brand) r g b;
+  --accent-hover-rgb: from var(--ui-focus-ring) r g b;
+  --overlay-rgb: 0 0 0;
+  --ui-shadow-panel: var(--ui-shadow-medium);
+
+  background: var(--ui-surface-canvas);
+  color: var(--ui-text-primary);
+  font-family: var(--ui-font-sans);
+  font-feature-settings: "cv01", "ss03";
+  font-variation-settings: "opsz" auto;
+}
+
+html,
+body,
+#root {
+  background: var(--ui-surface-canvas);
+}
+
+* {
+  scrollbar-color: color-mix(in oklab, var(--ui-text-primary) 24%, transparent)
+    transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--ui-text-primary) 24%, transparent);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--ui-text-primary) 42%, transparent);
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: var(--ui-font-sans);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: var(--ui-focus-ring-width) solid
+    color-mix(in oklab, var(--ui-focus-ring) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.top-bar {
+  min-height: 56px;
+  border: 0;
+  border-bottom: 1px solid var(--ui-border-subtle);
+  background: color-mix(in oklab, var(--ui-surface-panel) 92%, var(--ui-surface-canvas));
+  font-family: var(--ui-font-sans);
+}
+
+.top-bar-title {
+  font-size: 14px;
+  font-weight: var(--ui-font-weight-semibold);
+  letter-spacing: 0.01em;
+  line-height: 20px;
+}
+
+.mode-toggle {
+  width: 196px;
+  height: 34px;
+  gap: 2px;
+  padding: 3px;
+  border-color: var(--ui-border-subtle);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-inset);
+}
+
+.mode-toggle-button {
+  width: 94px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-text-tertiary);
+  font-size: 12px;
+  font-weight: var(--ui-font-weight-medium);
+  line-height: 16px;
+}
+
+.mode-toggle-button:hover {
+  color: var(--ui-text-secondary);
+  background: var(--ui-interactive-hover);
+}
+
+.mode-toggle-button[aria-pressed="true"] {
+  border-color: transparent;
+  color: var(--ui-text-primary);
+  background: var(--ui-interactive-selected);
+  box-shadow: inset 0 0 0 1px var(--ui-interactive-selected-border);
+}
+
+.director-shell-fullbleed,
+.viewport-column,
+.director-canvas {
+  background: var(--ui-surface-canvas);
+}
+
+.left-sidebar,
+.right-sidebar,
+.director-sidebar,
+.right-inspector,
+.right-sidebar .right-inspector {
+  background: var(--ui-surface-panel);
+}
+
+.left-sidebar {
+  border-right-color: var(--ui-border-subtle);
+}
+
+.right-sidebar {
+  border-left-color: var(--ui-border-subtle);
+}
+
+.director-sidebar .panel-card {
+  border-bottom-color: var(--ui-border-subtle);
+}
+
+.panel-card h2,
+.right-inspector-title {
+  font-weight: var(--ui-font-weight-semibold);
+}
+
+.panel-card h3,
+.panel-card h4,
+.inspector-field-label,
+.camera-capture-name {
+  font-weight: var(--ui-font-weight-medium);
+}
+
+.panel-card h4,
+.panel-card p,
+.panel-card label,
+.panel-card legend,
+.capture-status,
+.capture-list-placeholder,
+.inspector-field-label,
+.camera-capture-name {
+  color: var(--ui-text-tertiary);
+}
+
+.ui-panel,
+.panel-card {
+  border-color: var(--ui-border-subtle);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-panel);
+  box-shadow: none;
+}
+
+.ui-card,
+.sub-panel,
+.camera-preview-card,
+.object-row,
+.asset-import-item {
+  border-color: var(--ui-border-subtle);
+  border-radius: var(--ui-radius-md);
+  background: transparent;
+}
+
+.object-row:hover {
+  border-color: transparent;
+  background: var(--ui-interactive-hover);
+}
+
+.object-row.is-selected,
+.object-list-item[aria-selected="true"] .object-row {
+  border-color: var(--ui-interactive-selected-border);
+  background: var(--ui-interactive-selected);
+}
+
+.ui-field,
+.inspector-text-input,
+.inspector-axis-input,
+.panel-card:not(.right-inspector) input:not([type="range"]):not([type="checkbox"]):not([type="color"]),
+.panel-card:not(.right-inspector) select,
+.panel-card:not(.right-inspector) textarea {
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-text-primary);
+  background: var(--ui-control-background);
+  box-shadow: none;
+}
+
+.ui-field:hover,
+.inspector-text-input:hover,
+.inspector-axis-input:hover,
+.panel-card:not(.right-inspector) input:not([type="range"]):not([type="checkbox"]):not([type="color"]):hover,
+.panel-card:not(.right-inspector) select:hover,
+.panel-card:not(.right-inspector) textarea:hover {
+  border-color: var(--ui-border-default);
+}
+
+.ui-field:focus,
+.ui-field:focus-visible,
+.inspector-text-input:focus,
+.inspector-text-input:focus-visible,
+.inspector-axis-input:focus-within,
+.panel-card:not(.right-inspector) input:not([type="range"]):not([type="checkbox"]):not([type="color"]):focus,
+.panel-card:not(.right-inspector) select:focus,
+.panel-card:not(.right-inspector) textarea:focus {
+  border-color: var(--ui-focus-ring);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ui-focus-ring) 24%, transparent);
+}
+
+.ui-icon-button,
+.panel-card button,
+.capture-action,
+.object-select-button,
+.object-flag-button {
+  border-color: var(--ui-border-subtle);
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-text-secondary);
+  background: transparent;
+  box-shadow: none;
+  transition:
+    border-color var(--ui-motion-normal) var(--ui-ease-standard),
+    background-color var(--ui-motion-normal) var(--ui-ease-standard),
+    color var(--ui-motion-normal) var(--ui-ease-standard);
+}
+
+.ui-icon-button:hover,
+.panel-card button:hover,
+.capture-action:hover,
+.object-select-button:hover,
+.object-flag-button:hover {
+  border-color: var(--ui-border-default);
+  color: var(--ui-text-primary);
+  background: var(--ui-interactive-hover);
+}
+
+.ui-icon-button:active,
+.panel-card button:active,
+.capture-action:active,
+.object-select-button:active,
+.object-flag-button:active {
+  color: var(--ui-text-primary);
+  background: var(--ui-interactive-pressed);
+  transform: none;
+}
+
+.right-sidebar .right-inspector-tabs,
+.right-sidebar .tab-row,
+.camera-capture-overview-footer {
+  border-color: var(--ui-border-subtle);
+  background: var(--ui-surface-panel);
+}
+
+.right-sidebar .right-inspector-tabs button,
+.right-sidebar .tab-row button {
+  color: var(--ui-text-tertiary);
+  font-weight: var(--ui-font-weight-medium);
+}
+
+.right-sidebar .right-inspector-tabs button:hover,
+.right-sidebar .tab-row button:hover {
+  color: var(--ui-text-secondary);
+}
+
+.right-sidebar .right-inspector-tabs button[aria-pressed="true"],
+.right-sidebar .tab-row button[aria-pressed="true"] {
+  color: var(--ui-text-primary);
+}
+
+.right-sidebar .right-inspector-tabs button[aria-pressed="true"]::after,
+.right-sidebar .tab-row button[aria-pressed="true"]::after {
+  height: 2px;
+  background: var(--ui-brand);
+}
+
+.right-sidebar .right-inspector button.inspector-dropdown-trigger {
+  border-color: var(--ui-border-subtle);
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-text-secondary);
+  background: var(--ui-control-background);
+}
+
+.right-sidebar .right-inspector button.inspector-dropdown-trigger:hover {
+  border-color: var(--ui-border-default);
+  color: var(--ui-text-primary);
+  background: var(--ui-interactive-hover);
+}
+
+.inspector-axis-prefix,
+.inspector-dropdown-chevron {
+  color: var(--ui-text-disabled);
+}
+
+.inspector-range::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--ui-border-default);
+}
+
+.inspector-range::-webkit-slider-thumb {
+  margin-top: -5px;
+  background: var(--ui-brand);
+}
+
+.inspector-range::-moz-range-track {
+  height: 4px;
+  background: var(--ui-border-default);
+}
+
+.inspector-range::-moz-range-thumb {
+  background: var(--ui-brand);
+}
+
+.viewport-toolbar {
+  border-color: var(--ui-border-subtle);
+  border-radius: var(--ui-radius-lg);
+  background: color-mix(in oklab, var(--ui-surface-raised) 92%, transparent);
+  box-shadow: var(--ui-shadow-medium);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.viewport-toolbar .viewport-toolbar-button {
+  border-color: transparent;
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-text-tertiary);
+  background: transparent;
+}
+
+.viewport-toolbar .viewport-toolbar-button:hover {
+  border-color: transparent;
+  color: var(--ui-text-primary);
+  background: var(--ui-interactive-hover);
+}
+
+.viewport-toolbar .viewport-toolbar-button.is-active,
+.viewport-toolbar .viewport-toolbar-button[aria-pressed="true"] {
+  border-color: var(--ui-interactive-selected-border);
+  color: var(--ui-brand);
+  background: var(--ui-interactive-selected);
+}
+
+.viewport-toolbar-menu,
+.viewport-toolbar-submenu,
+.viewport-toolbar-crowd-panel,
+.viewport-aspect-panel,
+.model-library-panel,
+.inspector-dropdown-menu {
+  border-color: var(--ui-border-subtle);
+  border-radius: var(--ui-radius-lg);
+  color: var(--ui-text-primary);
+  background: color-mix(in oklab, var(--ui-surface-raised) 96%, transparent);
+  box-shadow: var(--ui-shadow-high);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+}
+
+.viewport-toolbar-menu button,
+.viewport-toolbar-submenu button,
+.inspector-dropdown-option,
+.right-sidebar .right-inspector button.inspector-dropdown-option {
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-text-secondary);
+}
+
+.viewport-toolbar-menu button:hover,
+.viewport-toolbar-submenu button:hover,
+.inspector-dropdown-option:hover,
+.right-sidebar .right-inspector button.inspector-dropdown-option:hover {
+  color: var(--ui-text-primary);
+  background: var(--ui-interactive-hover);
+}
+
+.inspector-dropdown-option.is-selected,
+.right-sidebar .right-inspector button.inspector-dropdown-option.is-selected {
+  color: var(--ui-brand);
+  background: var(--ui-interactive-selected);
+}
+
+.viewport-aspect-frame-shell {
+  border-color: color-mix(in oklab, var(--ui-text-primary) 20%, transparent);
+  border-radius: var(--ui-radius-md);
+}
+
+.viewport-aspect-guide-toggle,
+.model-library-thumb,
+.panorama-thumbnail-card,
+.panorama-thumbnail-card::after,
+.panorama-thumbnail-image,
+.capture-preview,
+.camera-capture-thumb-wrap {
+  border-radius: var(--ui-radius-md);
+}
+
+.viewport-aspect-guide-toggle {
+  color: var(--ui-text-tertiary);
+  background: color-mix(in oklab, var(--ui-surface-raised) 72%, transparent);
+}
+
+.viewport-aspect-guide-toggle:hover,
+.viewport-aspect-guide-toggle:focus-visible {
+  color: var(--ui-text-primary);
+  background: var(--ui-interactive-hover);
+}
+
+.model-library-thumb {
+  color: var(--ui-text-tertiary);
+  background: var(--ui-surface-inset);
+}
+
+.camera-preview-card {
+  background: var(--ui-surface-inset);
+}
+
+.capture-status {
+  border-color: var(--ui-interactive-selected-border);
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-brand);
+  background: var(--ui-interactive-selected);
+}
+
+.capture-list-placeholder {
+  border-color: var(--ui-border-default);
+  border-radius: var(--ui-radius-md);
+}
+
+.role-label {
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: var(--ui-radius-pill);
+  color: var(--ui-text-primary);
+  background: var(--ui-surface-raised);
+  box-shadow: var(--ui-shadow-low);
+}
+
+.viewport-error-card {
+  border-color: color-mix(in oklab, var(--ui-status-warning) 42%, transparent);
+  border-radius: var(--ui-radius-lg);
+  color: var(--ui-text-primary);
+  background: var(--ui-status-warning-surface);
+  box-shadow: var(--ui-shadow-medium);
+}
+
+.viewport-error-card strong {
+  color: var(--ui-status-warning);
+}
+
+.viewport-error-card span {
+  color: var(--ui-text-secondary);
+}
+
+.convax-state-notice {
+  border-color: color-mix(in oklab, var(--ui-status-danger) 55%, transparent);
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-status-danger);
+  background: var(--ui-status-danger-surface);
+  box-shadow: var(--ui-shadow-medium);
+}
+
+.convax-state-notice.is-warning {
+  border-color: color-mix(in oklab, var(--ui-status-warning) 55%, transparent);
+  color: var(--ui-status-warning);
+  background: var(--ui-status-warning-surface);
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --ui-text-tertiary: var(--ui-text-secondary);
+    --ui-text-disabled: var(--ui-text-tertiary);
+    --ui-border-subtle: var(--ui-border-default);
+    --ui-border-default: var(--ui-border-strong);
+    --ui-focus-ring-width: 3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ui-motion-fast: 0ms;
+    --ui-motion-normal: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0ms !important;
+  }
+}
