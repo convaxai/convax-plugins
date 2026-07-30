@@ -325,9 +325,10 @@ annotate exactly one required, top-level string property in that generation tool
 input schema with `"x-convax-role": "generation-model-id"`. The marked property
 must contain explicit bounded choices (for example, `oneOf` string constants), so
 the host can project those choices directly into its generation-model picker and
-bind the selected opaque value at execution time. Omit the annotation when the
-companion falls back to a free-text model field; the annotation never turns
-unbounded provider input into a trusted catalog.
+bind the selected opaque value at execution time. If a model-driven generation
+tool cannot provide that bounded catalog, omit the tool from `tools/list`; do not
+expose a provider model id as an ordinary free-text parameter. The annotation
+never turns unbounded provider input into a trusted catalog.
 
 Outputs are `text`, `image`, `video`, or `audio`. `acceptedInputs` may contain only
 `reference_image`, `reference_video`, `first_frame`, `last_frame`, `audio`, and

@@ -10,8 +10,10 @@ generation uses the already-metered Chat Completions path and returns only valid
 embedded image artifacts to the host. Nexus video endpoints remain unavailable
 until the service adds a dedicated video Usage Inspector and quota settlement model.
 When the live image catalog is bounded, the companion marks its model field so a
-compatible host can present each image model as a direct choice; its unbounded
-free-text fallback remains unmarked.
+compatible host can present each image model as a direct choice. If that catalog
+cannot be loaded, has no image models, or exceeds the bounded choice limit, the
+companion omits image generation from `tools/list` instead of exposing a free-text
+model field.
 
 Each image request sends the host operation id as `x-nexus-request-id` for safe
 diagnostic correlation. A rejected request exposes only its HTTP status, an

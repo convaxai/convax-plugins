@@ -35,24 +35,19 @@ const generationCallProperties = {
 } as const;
 
 export function imageGenerationTool(
-  models: readonly { id: string; name: string }[] = [],
+  models: readonly { id: string; name: string }[],
 ) {
-  const modelSchema =
-    models.length > 0 && models.length <= 64
-      ? {
-          oneOf: models.map(({ id, name }) => ({ const: id, title: name })),
-          title: "Model",
-          type: "string",
-          "x-convax-role": "generation-model-id",
-        }
-      : {
-          description:
-            "Enter an image-output model id from the connected Nexus OpenRouter catalog.",
-          maxLength: 191,
-          minLength: 1,
-          title: "Model",
-          type: "string",
-        };
+  if (models.length === 0 || models.length > 64) {
+    throw new Error(
+      "Nexus image model catalog is outside the bounded choice limit",
+    );
+  }
+  const modelSchema = {
+    oneOf: models.map(({ id, name }) => ({ const: id, title: name })),
+    title: "Model",
+    type: "string",
+    "x-convax-role": "generation-model-id",
+  } as const;
   return {
     description:
       "Generate an image through the connected Nexus OpenRouter Provider.",
@@ -152,9 +147,9 @@ const fixedTools = [
   },
 ] as const;
 
-export const tools = [imageGenerationTool(), ...fixedTools] as const;
+export const tools = fixedTools;
 
-const toolNames = new Set(tools.map(({ name }) => name));
+const toolNames = new Set(["image.generate", ...tools.map(({ name }) => name)]);
 const emptyTools = new Set([
   "service.status",
   "service.authorize",
@@ -310,7 +305,7 @@ export class NexusMcpServer {
       this.#sendResult(value.id, {
         capabilities: { tools: {} },
         protocolVersion,
-        serverInfo: { name: "convax-nexus-mcp", version: "0.3.8" },
+        serverInfo: { name: "convax-nexus-mcp", version: "0.3.10" },
       });
       return;
     }
