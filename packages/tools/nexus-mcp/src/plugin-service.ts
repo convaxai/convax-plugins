@@ -57,8 +57,8 @@ export class NexusPluginService {
           protocolProfile === "openai-compatible" &&
           name.toLocaleLowerCase("en-US").includes("openrouter"),
       );
-      const consumed = boundedMetric(quota.consumedUnits);
-      const remaining = boundedMetric(quota.availableUnits);
+      const consumed = quotaMetric(quota.consumedUsd, quota.consumedUnits);
+      const remaining = quotaMetric(quota.availableUsd, quota.availableUnits);
       return {
         account: {
           availability: "available",
@@ -100,7 +100,7 @@ export class NexusPluginService {
             : {
                 availability: "available",
                 remaining,
-                unit: "Nexus quota units",
+                unit: "USD",
               },
         schema: pluginServiceStatusSchema,
         plan: access.plan
@@ -126,7 +126,7 @@ export class NexusPluginService {
                     0,
                     120,
                   ),
-                unit: "Nexus quota units",
+                unit: "USD",
               },
       };
     } catch {
@@ -235,10 +235,20 @@ export class NexusPluginService {
   }
 }
 
-function boundedMetric(value: string): number | undefined {
-  if (!/^\d+$/u.test(value)) return undefined;
-  const metric = Number(value);
-  return Number.isSafeInteger(metric) && metric >= 0 && metric <= 1e15
+function quotaMetric(
+  usd: string | undefined,
+  legacyMicrousd: string,
+): number | undefined {
+  if (usd !== undefined) {
+    if (!/^(?:0|[1-9]\d*)\.\d{6}$/u.test(usd)) return undefined;
+    const metric = Number(usd);
+    return Number.isFinite(metric) && metric >= 0 && metric <= 1e15
+      ? metric
+      : undefined;
+  }
+  if (!/^\d+$/u.test(legacyMicrousd)) return undefined;
+  const metric = Number(legacyMicrousd) / 1_000_000;
+  return Number.isFinite(metric) && metric >= 0 && metric <= 1e15
     ? metric
     : undefined;
 }

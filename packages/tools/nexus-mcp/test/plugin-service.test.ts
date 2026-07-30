@@ -52,6 +52,10 @@ describe("NexusPluginService", () => {
             billingInterval: "MONTH",
           },
           quota: {
+            budgetUsd: "1.000000",
+            reservedUsd: "0.000000",
+            consumedUsd: "0.001200",
+            availableUsd: "0.998800",
             availableUnits: "998800",
             consumedUnits: "1200",
             periodEnd: "2026-08-26T08:00:00.000Z",
@@ -84,6 +88,10 @@ describe("NexusPluginService", () => {
       },
       async quota() {
         return {
+          budgetUsd: "1.000000",
+          reservedUsd: "0.000000",
+          consumedUsd: "0.001200",
+          availableUsd: "0.998800",
           availableUnits: "998800",
           consumedUnits: "1200",
           periodEnd: "2026-08-26T08:00:00.000Z",
@@ -131,6 +139,11 @@ describe("NexusPluginService", () => {
           plans: [{ billingInterval: "month", key: "pro", name: "Pro" }],
         },
       },
+      credits: {
+        availability: "available",
+        remaining: 0.9988,
+        unit: "USD",
+      },
       plan: {
         availability: "available",
         billingInterval: "month",
@@ -139,6 +152,11 @@ describe("NexusPluginService", () => {
       },
       schema: "convax.plugin-service-status/2",
       state: "connected",
+      usage: {
+        availability: "available",
+        consumed: 0.0012,
+        unit: "USD",
+      },
     });
     expect(await service.checkout("pro")).toEqual({
       checkout_id: "26010000-0000-4000-8000-000000000009",
@@ -218,8 +236,8 @@ describe("NexusPluginService", () => {
       credential: { configured: true, verification: "verified" },
       credits: {
         availability: "available",
-        remaining: 1000000,
-        unit: "Nexus quota units",
+        remaining: 1,
+        unit: "USD",
       },
       plan: { availability: "unavailable" },
       schema: "convax.plugin-service-status/2",
@@ -228,7 +246,7 @@ describe("NexusPluginService", () => {
         availability: "available",
         consumed: 0,
         period: "until 2026-08-26T08:00:00.000Z",
-        unit: "Nexus quota units",
+        unit: "USD",
       },
     });
     await expect(service.checkout("pro")).rejects.toThrow(

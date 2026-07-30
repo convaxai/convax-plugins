@@ -2,9 +2,9 @@
   "schema": "convax.package/1",
   "kind": "plugin",
   "id": "nexus-service",
-  "name": "Nexus · OpenRouter",
-  "description": "Connects Convax to the Convax Workspace in Nexus for OpenRouter chat and live image-model generation through short-lived Data Tokens.",
-  "version": "0.3.13",
+  "name": "Convax Account",
+  "description": "Connects Convax to your Convax Account for OpenRouter chat and live image-model generation through short-lived Data Tokens.",
+  "version": "0.3.14",
   "license": "MIT",
   "compatibility": {
     "pluginSchema": "convax.plugin/7",
@@ -13,7 +13,7 @@
   "companions": [
     {
       "command": "convax-nexus-mcp",
-      "version": "0.3.10",
+      "version": "0.3.11",
       "source": "packages/tools/nexus-mcp",
       "targets": [
         {

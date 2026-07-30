@@ -651,7 +651,28 @@ function parseHostedBilling(value: unknown): HostedAccess["billing"] {
 
 function parseHostedQuota(value: unknown, label: string): HostedQuota {
   const input = record(value, label);
+  const usdFields = [
+    input.budgetUsd,
+    input.reservedUsd,
+    input.consumedUsd,
+    input.availableUsd,
+  ];
+  const providedUsdFields = usdFields.filter((field) => field !== undefined);
+  if (
+    providedUsdFields.length !== 0 &&
+    providedUsdFields.length !== usdFields.length
+  ) {
+    throw new Error("Nexus quota USD response is incomplete");
+  }
   return {
+    ...(providedUsdFields.length === 0
+      ? {}
+      : {
+          budgetUsd: decimalUsd(input.budgetUsd, "Nexus quota budget"),
+          reservedUsd: decimalUsd(input.reservedUsd, "Nexus reserved budget"),
+          consumedUsd: decimalUsd(input.consumedUsd, "Nexus consumed budget"),
+          availableUsd: decimalUsd(input.availableUsd, "Nexus available budget"),
+        }),
     availableUnits: decimalUnits(input.availableUnits, "Nexus available quota"),
     consumedUnits: decimalUnits(input.consumedUnits, "Nexus consumed quota"),
     periodEnd: isoDate(input.periodEnd, "Nexus quota period end"),
@@ -722,6 +743,14 @@ function parseHostedCheckoutStatus(value: unknown): HostedCheckoutStatus {
 function decimalUnits(value: unknown, label: string): string {
   const text = boundedString(value, label, 32);
   if (!/^\d+$/u.test(text)) throw new Error(`${label} is invalid`);
+  return text;
+}
+
+function decimalUsd(value: unknown, label: string): string {
+  const text = boundedString(value, label, 32);
+  if (!/^(?:0|[1-9]\d*)\.\d{6}$/u.test(text)) {
+    throw new Error(`${label} is invalid`);
+  }
   return text;
 }
 

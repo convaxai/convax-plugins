@@ -70,6 +70,10 @@ describe("NexusClient", () => {
               billingInterval: "MONTH",
             },
             quota: {
+              budgetUsd: "1.000000",
+              reservedUsd: "0.000000",
+              consumedUsd: "0.001200",
+              availableUsd: "0.998800",
               availableUnits: "998800",
               consumedUnits: "1200",
               periodEnd: "2026-08-26T08:00:00.000Z",
@@ -105,6 +109,11 @@ describe("NexusClient", () => {
 
     const access = await client.access();
     expect(access.plan?.name).toBe("Free");
+    expect(access.quota).toMatchObject({
+      budgetUsd: "1.000000",
+      consumedUsd: "0.001200",
+      availableUsd: "0.998800",
+    });
     expect(access.billing?.availablePlans.map(({ key }) => key)).toEqual([
       "pro",
     ]);

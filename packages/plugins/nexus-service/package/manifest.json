@@ -1,9 +1,9 @@
 {
   "schema": "convax.plugin/7",
   "id": "nexus-service",
-  "name": "Nexus · OpenRouter",
-  "description": "Connects Convax to the Convax Workspace in Nexus for OpenRouter chat and live image-model generation through short-lived Data Tokens.",
-  "version": "0.3.13",
+  "name": "Convax Account",
+  "description": "Connects Convax to your Convax Account for OpenRouter chat and live image-model generation through short-lived Data Tokens.",
+  "version": "0.3.14",
   "contributes": {
     "generation": {
       "models": [

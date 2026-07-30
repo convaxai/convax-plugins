@@ -160,9 +160,13 @@ export interface HostedAccess {
 }
 
 export interface HostedQuota {
+  availableUsd?: string;
   availableUnits: string;
+  budgetUsd?: string;
+  consumedUsd?: string;
   consumedUnits: string;
   periodEnd: string;
+  reservedUsd?: string;
 }
 
 export interface HostedCheckout {

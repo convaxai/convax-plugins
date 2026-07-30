@@ -27,7 +27,9 @@ the Convax host. Provider credentials remain encrypted in Nexus.
 
 The Service projection uses `convax.plugin-service-status/2`. It reads the current
 Nexus Plan, quota, subscription state, and allowlisted Checkout Plans from the
-authorized User API. The fixed `service.checkout` tool accepts only one advertised
+authorized User API. AI budget balances are displayed in USD; during a rolling
+Nexus upgrade, legacy micro-USD quota fields are converted locally instead of being
+shown as raw quota units. The fixed `service.checkout` tool accepts only one advertised
 Plan key, reuses a private idempotency key for retries, and returns a Checkout URL
 only to Convax Main for strict HTTPS validation and system-browser navigation.
 Neither the retry record nor any Renderer-facing value contains a Nexus token,
