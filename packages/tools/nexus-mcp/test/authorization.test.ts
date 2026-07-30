@@ -35,9 +35,9 @@ describe("NexusAuthorization", () => {
     expect(response.status).toBe(200);
     const page = await response.text();
     expect(page).toContain("Connected to Nexus");
-    expect(page).toContain(
-      `convax://service-authorization/complete?authorization_id=${request.authorization_id}`,
-    );
+    expect(page).toContain("close this tab and continue in Convax");
+    expect(page).not.toContain("convax://");
+    expect(page).not.toContain('http-equiv="refresh"');
     await completing;
 
     expect(exchanges).toHaveLength(1);

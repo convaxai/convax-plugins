@@ -86,7 +86,7 @@ export class NexusAuthorization {
         }
         settle({ code });
         const succeeded = await completionPage;
-        return callbackPage(succeeded, succeeded ? authorizationId : undefined);
+        return callbackPage(succeeded);
       },
     });
     const redirectUri = `http://127.0.0.1:${server.port}/callback`;
@@ -208,27 +208,16 @@ function abortError() {
   return error;
 }
 
-function callbackPage(succeeded: boolean, authorizationId?: string): Response {
+function callbackPage(succeeded: boolean): Response {
   const title = succeeded ? "Connected to Nexus" : "Nexus connection failed";
   const detail = succeeded
-    ? "Returning to Convax. If it does not open automatically, use the button below."
+    ? "Authorization is complete. You can close this tab and continue in Convax."
     : "Return to Convax and start the connection again.";
-  const returnUrl =
-    succeeded && authorizationId
-      ? `convax://service-authorization/complete?authorization_id=${encodeURIComponent(authorizationId)}`
-      : undefined;
-  const automaticReturn = returnUrl
-    ? `<meta http-equiv="refresh" content="0;url=${returnUrl}">`
-    : "";
-  const returnAction = returnUrl
-    ? `<p><a href="${returnUrl}">Open Convax</a></p>`
-    : "";
   return new Response(
     `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>${title}</title>${automaticReturn}<style>body{font:16px system-ui;display:grid;place-items:center;min-height:100vh;margin:0;background:#f6f6f3;color:#20201e}
-main{max-width:420px;padding:32px;border:1px solid #ddd;border-radius:18px;background:white;text-align:center}h1{font-size:24px}p{color:#666}
-a{display:inline-block;padding:10px 16px;border-radius:10px;background:#5b4df5;color:white;text-decoration:none;font-weight:600}</style></head>
-<body><main><h1>${title}</h1><p>${detail}</p>${returnAction}</main></body></html>`,
+<title>${title}</title><style>body{font:16px system-ui;display:grid;place-items:center;min-height:100vh;margin:0;background:#f6f6f3;color:#20201e}
+main{max-width:420px;padding:32px;border:1px solid #ddd;border-radius:18px;background:white;text-align:center}h1{font-size:24px}p{color:#666}</style></head>
+<body><main><h1>${title}</h1><p>${detail}</p></main></body></html>`,
     {
       headers: {
         "Cache-Control": "no-store",
