@@ -1,15 +1,20 @@
 {
   "name": "@microvoid/convax-plugin-jianying-editor",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "private": true,
   "type": "module",
   "dependencies": {
     "@microvoid/convax-jianying-editor-mcp": "workspace:*",
     "@microvoid/convax-skill-jianying-editor": "workspace:*"
   },
+  "devDependencies": {
+    "@convax/plugin-sdk": "0.1.0"
+  },
   "scripts": {
+    "build": "bun scripts/build.ts",
+    "build:check": "bun scripts/build.ts --check",
     "validate": "bun ../../../tooling/validate.mjs --kind plugin --id jianying-editor",
-    "pack": "bun ../../../tooling/pack.mjs --kind plugin --id jianying-editor",
+    "pack": "bun ../../../tooling/pack.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-../../../node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" --kind plugin --id jianying-editor",
     "test": "bun test"
   }
 }

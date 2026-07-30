@@ -1,5 +1,6 @@
 ---
 name: short-drama-screenwriter
+version: 0.3.1
 description: Write or revise short-form episodic drama for vertical video, social series, or compact narrative episodes. Use when the user needs a premise, character engine, beat sheet, episode outline, production script, hooks, cliffhangers, or dialogue polish.
 ---
 

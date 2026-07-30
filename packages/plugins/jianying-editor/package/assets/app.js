@@ -1,9 +1,9 @@
+import { acceptPluginHostConnection } from "./plugin-host-client.js"
+
 (() => {
   "use strict"
 
-  const PROTOCOL = "convax.plugin-capability/1"
-  const PLUGIN_ID = "jianying-editor"
-  const pending = new Map()
+  const INPUTS_CHANGED_COMMAND = "canvas.inputs.changed"
   const elements = {
     connection: document.getElementById("connection"),
     count: document.getElementById("count"),
@@ -15,8 +15,7 @@
     scope: document.getElementById("scope"),
   }
   let inputs = []
-  let port = null
-  let sequence = 0
+  let hostClient = null
   let busy = false
 
   function object(value) {
@@ -24,44 +23,30 @@
   }
 
   function request(method, params) {
-    if (!port) return Promise.reject(new Error("Convax host is not connected"))
-    const id = `${PLUGIN_ID}-${++sequence}`
-    return new Promise((resolve, reject) => {
-      pending.set(id, { reject, resolve })
-      port.postMessage({
-        id,
-        method,
-        ...(params === undefined ? {} : { params }),
-        protocol: PROTOCOL,
-        type: "request",
-      })
-    })
+    if (!hostClient) return Promise.reject(new Error("Convax host is not connected"))
+    return hostClient.callHostApi(method, params)
   }
 
-  function receive(event) {
-    const message = event.data
-    if (!object(message) || message.protocol !== PROTOCOL) return
-    if (message.type === "event" && message.event === "canvas.connectedInputs.changed") {
+  function receiveCommand(message) {
+    if (message.command === INPUTS_CHANGED_COMMAND) {
       void loadInputs()
-      return
     }
-    if (message.type !== "response" || typeof message.id !== "string") return
-    const operation = pending.get(message.id)
-    if (!operation) return
-    pending.delete(message.id)
-    if (message.ok === true) operation.resolve(message.result)
-    else operation.reject(new Error(typeof message.error === "string" ? message.error : "Host request failed"))
   }
 
   function normalizeInput(value) {
     if (!object(value)) return null
-    const id = typeof value.id === "string" ? value.id : value.nodeId
+    const inputKey = value.inputKey
     const kind = typeof value.kind === "string" ? value.kind.toLowerCase() : ""
-    if (typeof id !== "string" || !["image", "video"].includes(kind)) return null
+    if (typeof inputKey !== "string" || !["image", "video"].includes(kind)) return null
     return {
-      id,
+      inputKey,
       kind,
-      name: typeof value.name === "string" ? value.name : typeof value.label === "string" ? value.label : id,
+      name:
+        typeof value.name === "string"
+          ? value.name
+          : typeof value.label === "string"
+            ? value.label
+            : inputKey,
       role: kind === "image" ? "reference_image" : "reference_video",
     }
   }
@@ -78,19 +63,19 @@
       item.append(name, kind)
       return item
     }))
-    elements.inspect.disabled = !port || busy
-    elements.export.disabled = !port || busy || inputs.length === 0
+    elements.inspect.disabled = !hostClient || busy
+    elements.export.disabled = !hostClient || busy || inputs.length === 0
   }
 
   async function loadInputs() {
-    const result = await request("canvas.connectedInputs.list")
+    const result = await request("canvas.inputs.list")
     const values = object(result) && Array.isArray(result.inputs) ? result.inputs : Array.isArray(result) ? result : []
     inputs = values.map(normalizeInput).filter(Boolean)
     render()
   }
 
   async function execute(toolId, references = []) {
-    const result = await request("generation.canvas.execute", {
+    const result = await request("generation.execute", {
       output: "text",
       prompt: toolId === "draft.status" ? "Inspect JianYing draft state" : "Import connected Canvas media into JianYing",
       references,
@@ -110,7 +95,7 @@
     try {
       elements.result.textContent = action === "inspect"
         ? await execute("draft.status")
-        : await execute("media.export", inputs.map((input) => ({ nodeId: input.id, role: input.role })))
+        : await execute("media.export", inputs.map((input) => ({ nodeId: input.inputKey, role: input.role })))
     } catch (error) {
       elements.result.textContent = error instanceof Error ? error.message : String(error)
     } finally {
@@ -132,14 +117,27 @@
   elements.inspect.addEventListener("click", () => void run("inspect"))
   elements.export.addEventListener("click", () => void run("export"))
   window.addEventListener("message", (event) => {
-    if (event.source !== window.parent || event.ports.length !== 1 || port) return
-    port = event.ports[0]
-    port.addEventListener("message", receive)
-    port.start()
+    if (hostClient) return
+    const client = acceptPluginHostConnection(event, {
+      onFatalError: (error) => {
+        hostClient = null
+        elements.connection.textContent = "连接失败"
+        elements.result.textContent = error.message
+        render()
+      },
+      requestIdPrefix: "jianying-editor",
+    })
+    if (!client) return
+    hostClient = client
+    hostClient.onCommand(receiveCommand)
     void initialize().catch((error) => {
       elements.connection.textContent = "连接失败"
       elements.result.textContent = error instanceof Error ? error.message : String(error)
       render()
     })
   })
+  window.addEventListener("pagehide", () => {
+    hostClient?.close()
+    hostClient = null
+  }, { once: true })
 })()

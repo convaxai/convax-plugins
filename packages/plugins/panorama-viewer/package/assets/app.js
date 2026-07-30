@@ -2,14 +2,13 @@ import {
   ACCEPTED_IMAGE_TYPES,
   MAX_IMAGE_FILE_BYTES,
   decodePanoramaImage,
-  inspectDataUrlImage,
+  decodePanoramaUrl,
   inspectImageBytes,
 } from "./panorama-image.js"
 import { createPanoramaRenderer } from "./panorama-renderer.js"
+import { acceptPluginHostConnection } from "./plugin-host-client.js"
 
-const HOST_PROTOCOL = "convax.plugin-host/1"
-const PLUGIN_ID = "panorama-viewer"
-const CONNECTIONS_CHANGED_COMMAND = "canvas.connectedImages.changed"
+const CONNECTIONS_CHANGED_COMMAND = "canvas.inputs.changed"
 const MIN_FOV = 30
 const MAX_FOV = 100
 const MAX_PITCH = 89
@@ -51,16 +50,14 @@ const elements = {
   viewer: document.getElementById("viewer"),
 }
 
-let hostPort = null
-let requestSequence = 0
-let pendingRequests = new Map()
+let hostClient = null
 let connectedImages = []
 let refreshPromise = null
 let refreshQueued = false
 let refreshAfterPendingLoad = false
 let refreshAfterPendingLoadForce = false
 let currentSource = { kind: "none" }
-let selectedSourceNodeId = null
+let selectedSourceInputKey = null
 let currentLocalFile = null
 let pendingSourceIntent = null
 let pendingSourceRequest = null
@@ -177,27 +174,26 @@ function updateSourceSelect() {
   elements.sourceSelect.replaceChildren()
   connectedImages.forEach(function (image) {
     const option = document.createElement("option")
-    option.value = image.id
+    option.value = image.inputKey
     option.textContent = image.name + (image.readable ? "" : "（不可读取）")
     option.disabled = !image.readable
     elements.sourceSelect.append(option)
   })
   setHidden(elements.sourceSelectShell, connectedImages.length === 0)
-  const requested = currentSource.kind === "canvas" ? currentSource.nodeId : selectedSourceNodeId
+  const requested = currentSource.kind === "canvas" ? currentSource.inputKey : selectedSourceInputKey
   const selected = connectedImages.find(function (image) {
-    return image.id === requested && image.readable
+    return image.inputKey === requested && image.readable
   })
   const fallback = connectedImages.find(function (image) {
-    return image.id === previous && image.readable
+    return image.inputKey === previous && image.readable
   })
-  if (selected) elements.sourceSelect.value = selected.id
-  else if (fallback) elements.sourceSelect.value = fallback.id
+  if (selected) elements.sourceSelect.value = selected.inputKey
+  else if (fallback) elements.sourceSelect.value = fallback.inputKey
 }
 
 function snapshotState() {
   return {
-    schemaVersion: 1,
-    selectedSourceNodeId: currentSource.kind === "canvas" ? currentSource.nodeId : selectedSourceNodeId,
+    schemaVersion: 2,
     view: {
       autoRotate: viewState.autoRotate,
       fovDeg: Math.round(viewState.fovDeg * 100) / 100,
@@ -208,7 +204,8 @@ function snapshotState() {
 }
 
 function hydrateState(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value) || value.schemaVersion !== 1) return
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || (value.schemaVersion !== 1 && value.schemaVersion !== 2)) return
   const view = value.view
   if (view && typeof view === "object" && !Array.isArray(view)) {
     viewState.yawDeg = normalizeYaw(finiteNumber(view.yawDeg, viewState.yawDeg))
@@ -216,32 +213,29 @@ function hydrateState(value) {
     viewState.fovDeg = clamp(finiteNumber(view.fovDeg, viewState.fovDeg), MIN_FOV, MAX_FOV)
     viewState.autoRotate = view.autoRotate === true
   }
-  if (typeof value.selectedSourceNodeId === "string" && value.selectedSourceNodeId.length <= 2048) {
-    selectedSourceNodeId = value.selectedSourceNodeId
-  }
   updateViewControls()
   scheduleRender()
 }
 
 function queueStateSave() {
   stateSaveDirty = true
-  if (!hostPort || !hostHydrated || stateSaveTimer || stateSaveInFlight) return
+  if (!hostClient || !hostHydrated || stateSaveTimer || stateSaveInFlight) return
   stateSaveTimer = window.setTimeout(flushStateSave, STATE_SAVE_DELAY)
 }
 
 async function flushStateSave() {
   if (stateSaveTimer) window.clearTimeout(stateSaveTimer)
   stateSaveTimer = 0
-  if (!hostPort || !hostHydrated || stateSaveInFlight || !stateSaveDirty) return false
+  if (!hostClient || !hostHydrated || stateSaveInFlight || !stateSaveDirty) return false
   stateSaveDirty = false
   stateSaveInFlight = true
   try {
-    await hostRequest("canvas.node.updateState", { state: snapshotState() })
+    await hostRequest("canvas.node.state.replace", { state: snapshotState() })
     stateSaveFailures = 0
     return true
   } catch (error) {
     stateSaveFailures += 1
-    if (stateSaveFailures < STATE_SAVE_MAX_ATTEMPTS && hostPort) {
+    if (stateSaveFailures < STATE_SAVE_MAX_ATTEMPTS && hostClient) {
       stateSaveDirty = true
       stateSaveTimer = window.setTimeout(
         flushStateSave,
@@ -253,7 +247,7 @@ async function flushStateSave() {
     return false
   } finally {
     stateSaveInFlight = false
-    if (stateSaveDirty && hostPort && !stateSaveTimer) {
+    if (stateSaveDirty && hostClient && !stateSaveTimer) {
       stateSaveTimer = window.setTimeout(flushStateSave, STATE_SAVE_DELAY)
     }
   }
@@ -264,99 +258,55 @@ function markUserInteraction() {
 }
 
 function postStateSnapshotBestEffort() {
-  if (!hostPort || !hostHydrated || !stateSaveDirty) return
+  if (!hostClient || !hostHydrated || !stateSaveDirty) return
   stateSaveDirty = false
-  try {
-    hostPort.postMessage({
-      id: "panorama-unload-" + String(++requestSequence),
-      method: "canvas.node.updateState",
-      params: { state: snapshotState() },
-      protocol: HOST_PROTOCOL,
-      type: "request",
-    })
-  } catch {
+  void hostClient.callHostApi("canvas.node.state.replace", {
+    state: snapshotState(),
+  }).catch(() => {
     // The frame is already closing; no recovery path remains.
-  }
+  })
 }
 
 function errorMessage(error, fallback) {
   return error instanceof Error && error.message ? error.message : fallback
 }
 
-function hostRequest(method, params) {
-  if (!hostPort) return Promise.reject(new Error("插件尚未连接到 Convax 宿主"))
-  const id = "panorama-" + String(++requestSequence)
-  return new Promise(function (resolve, reject) {
-    const timeout = window.setTimeout(function () {
-      pendingRequests.delete(id)
-      reject(new Error("宿主请求超时，请重试"))
-    }, REQUEST_TIMEOUT)
-    pendingRequests.set(id, {
-      reject: reject,
-      resolve: resolve,
-      timeout: timeout,
-    })
-    try {
-      const message = {
-        id: id,
-        method: method,
-        protocol: HOST_PROTOCOL,
-        type: "request",
-      }
-      if (params !== undefined) message.params = params
-      hostPort.postMessage(message)
-    } catch (error) {
-      window.clearTimeout(timeout)
-      pendingRequests.delete(id)
-      reject(error)
-    }
-  })
+async function hostRequest(method, params) {
+  if (!hostClient) throw new Error("插件尚未连接到 Convax 宿主")
+  const controller = new AbortController()
+  const timeout = window.setTimeout(
+    () => controller.abort(new Error("宿主请求超时，请重试")),
+    REQUEST_TIMEOUT,
+  )
+  try {
+    return await hostClient.callHostApi(method, params, { signal: controller.signal })
+  } finally {
+    window.clearTimeout(timeout)
+  }
 }
 
-function handleHostPortMessage(event) {
-  const message = event.data
-  if (!message || typeof message !== "object" || message.protocol !== HOST_PROTOCOL) return
-  if (message.type === "response" && typeof message.id === "string") {
-    const pending = pendingRequests.get(message.id)
-    if (!pending) return
-    pendingRequests.delete(message.id)
-    window.clearTimeout(pending.timeout)
-    if (message.ok === true) pending.resolve(message.result)
-    else pending.reject(new Error(typeof message.error === "string" ? message.error : "宿主请求失败"))
-    return
-  }
-  if (message.type !== "command" || typeof message.command !== "string") return
-  if (message.command === CONNECTIONS_CHANGED_COMMAND || message.command === "panorama.refresh-connections") {
+function handleHostCommand(message) {
+  if (message.command === CONNECTIONS_CHANGED_COMMAND || message.command === "renderer.panorama.refresh-connections") {
     void refreshConnectedImages(true)
   }
-  if (message.command === "panorama.reset") resetView()
-  if (message.command === "panorama.toggle-auto-rotate") toggleAutoRotate()
-  if (message.command === "panorama.capture-viewport") void captureViewport()
-}
-
-function rejectPendingRequests(reason) {
-  pendingRequests.forEach(function (pending) {
-    window.clearTimeout(pending.timeout)
-    pending.reject(reason)
-  })
-  pendingRequests.clear()
+  if (message.command === "renderer.panorama.reset") resetView()
+  if (message.command === "renderer.panorama.toggle-auto-rotate") toggleAutoRotate()
+  if (message.command === "renderer.panorama.capture-viewport") void captureViewport()
 }
 
 function handleWindowMessage(event) {
-  const message = event.data
-  if (
-    hostPort
-    || event.source !== window.parent
-    || !message
-    || typeof message !== "object"
-    || message.protocol !== HOST_PROTOCOL
-    || message.type !== "connect"
-    || message.pluginId !== PLUGIN_ID
-    || event.ports.length !== 1
-  ) return
-  hostPort = event.ports[0]
-  hostPort.onmessage = handleHostPortMessage
-  hostPort.start()
+  if (hostClient) return
+  const client = acceptPluginHostConnection(event, {
+    onFatalError: () => {
+      hostClient = null
+      setConnectionState(false)
+      showToast("插件宿主连接已中断", "error")
+    },
+    requestIdPrefix: "panorama",
+  })
+  if (!client) return
+  hostClient = client
+  hostClient.onCommand(handleHostCommand)
   window.removeEventListener("message", handleWindowMessage)
   setConnectionState(true)
   void initializeHostContext()
@@ -383,34 +333,35 @@ async function initializeHostContext() {
 }
 
 function normalizeConnectedImages(result) {
-  if (!result || !Array.isArray(result.images)) return []
-  return result.images.filter(function (image) {
-    return image
-      && typeof image === "object"
-      && typeof image.id === "string"
-      && typeof image.name === "string"
-      && typeof image.readable === "boolean"
-  }).map(function (image) {
+  if (!result || !Array.isArray(result.inputs)) return []
+  return result.inputs.filter(function (input) {
+    return input
+      && typeof input === "object"
+      && typeof input.inputKey === "string"
+      && input.kind === "image"
+      && (typeof input.name === "string" || typeof input.label === "string")
+  }).map(function (input) {
+    const mimeType = typeof input.mimeType === "string" ? input.mimeType.toLowerCase() : undefined
     return {
-      height: typeof image.height === "number" ? image.height : undefined,
-      id: image.id,
-      mimeType: typeof image.mimeType === "string" ? image.mimeType : undefined,
-      name: image.name,
-      readable: image.readable,
-      width: typeof image.width === "number" ? image.width : undefined,
+      height: typeof input.height === "number" ? input.height : undefined,
+      inputKey: input.inputKey,
+      mimeType: mimeType,
+      name: typeof input.name === "string" ? input.name : input.label,
+      readable: mimeType === undefined || ACCEPTED_IMAGE_TYPES.has(mimeType),
+      width: typeof input.width === "number" ? input.width : undefined,
     }
   })
 }
 
 async function refreshConnectedImages(forceReload) {
-  if (!hostPort) return
+  if (!hostClient) return
   if (refreshPromise) {
     refreshQueued = refreshQueued || forceReload
     return refreshPromise
   }
   refreshPromise = (async function () {
     try {
-      const result = await hostRequest("canvas.connectedImages.list")
+      const result = await hostRequest("canvas.inputs.list")
       connectedImages = normalizeConnectedImages(result)
       updateSourceSelect()
 
@@ -422,10 +373,10 @@ async function refreshConnectedImages(forceReload) {
       }
 
       const currentConnected = currentSource.kind === "canvas"
-        ? connectedImages.find(function (image) { return image.id === currentSource.nodeId && image.readable })
+        ? connectedImages.find(function (image) { return image.inputKey === currentSource.inputKey && image.readable })
         : null
       const preferred = connectedImages.find(function (image) {
-        return image.id === selectedSourceNodeId && image.readable
+        return image.inputKey === selectedSourceInputKey && image.readable
       })
       const readable = connectedImages.filter(function (image) { return image.readable })
       const fallback = readable.length ? readable[readable.length - 1] : null
@@ -441,7 +392,7 @@ async function refreshConnectedImages(forceReload) {
       }
 
       const target = currentConnected || preferred || fallback
-      if (target && (forceReload || currentSource.kind !== "canvas" || currentSource.nodeId !== target.id)) {
+      if (target && (forceReload || currentSource.kind !== "canvas" || currentSource.inputKey !== target.inputKey)) {
         await loadConnectedImage(target)
       } else if (!target && currentSource.kind === "none") {
         setSourceStatus(connectedImages.length ? "连接图片暂不可读取" : "尚未载入")
@@ -522,9 +473,9 @@ async function loadConnectedImage(image, options) {
     return false
   }
   const source = {
+    inputKey: image.inputKey,
     kind: "canvas",
     name: image.name,
-    nodeId: image.id,
   }
   const sequence = beginSourceLoad(source, {
     image: image,
@@ -532,23 +483,33 @@ async function loadConnectedImage(image, options) {
     userInitiated: Boolean(options && options.userInitiated),
   })
   setLoading(true, "正在读取画布图片…")
+  let opened
   try {
-    const result = await hostRequest("canvas.connectedImage.read", { nodeId: image.id })
+    opened = await hostRequest("canvas.inputs.open", { inputKey: image.inputKey })
     if (sequence !== loadSequence) return false
-    if (!result || typeof result.dataUrl !== "string" || typeof result.mimeType !== "string") {
+    if (!opened
+      || typeof opened.sessionId !== "string"
+      || typeof opened.url !== "string"
+      || !opened.url.startsWith("convax-connected-media://")
+      || !opened.probe
+      || typeof opened.probe !== "object"
+      || opened.probe.kind !== "image") {
       throw new Error("宿主没有返回可用图片")
     }
-    const inspected = inspectDataUrlImage(result.dataUrl, result.mimeType, result.size)
-    source.name = typeof result.name === "string" ? result.name : image.name
-    await loadPanoramaSource(
-      new Blob([inspected.bytes], { type: inspected.mimeType }),
-      source,
-      sequence,
-      inspected.dimensions,
+    const decoded = await decodePanoramaUrl(
+      opened.url,
+      {
+        height: opened.probe.height,
+        mimeType: opened.probe.mimeType,
+        size: opened.probe.size,
+        width: opened.probe.width,
+      },
+      renderer.gl,
     )
+    await commitPanoramaDecode(decoded, source, sequence)
     if (sequence !== loadSequence) return false
     currentLocalFile = null
-    selectedSourceNodeId = image.id
+    selectedSourceInputKey = image.inputKey
     updateSourceSelect()
     queueStateSave()
     return true
@@ -564,6 +525,9 @@ async function loadConnectedImage(image, options) {
     if (options && options.rethrow) throw error
     return false
   } finally {
+    if (opened && typeof opened.sessionId === "string") {
+      await hostRequest("canvas.inputs.close", { sessionId: opened.sessionId }).catch(function () {})
+    }
     finishSourceLoad(sequence)
   }
 }
@@ -619,6 +583,10 @@ async function loadLocalFile(file, options) {
 
 async function loadPanoramaSource(blob, source, sequence, dimensions) {
   const decoded = await decodePanoramaImage(blob, dimensions, renderer.gl)
+  await commitPanoramaDecode(decoded, source, sequence)
+}
+
+async function commitPanoramaDecode(decoded, source, sequence) {
   if (sequence !== loadSequence) {
     decoded.bitmap.close()
     return
@@ -633,17 +601,17 @@ async function loadPanoramaSource(blob, source, sequence, dimensions) {
   currentSource = source
   updateCurrentSourceStatus()
   setEmptyMessage("连接或选择一张全景图", "将画布中的图片连到此节点，或从本地选择 2:1 等距柱状投影图片。")
-  updateImageMeta(dimensions.width, dimensions.height)
+  updateImageMeta(decoded.dimensions.width, decoded.dimensions.height)
   elements.viewer.classList.add("has-image")
   setHidden(elements.interactionHint, false)
   window.clearTimeout(lastInteractionHintTimer)
   lastInteractionHintTimer = window.setTimeout(function () {
     setHidden(elements.interactionHint, true)
   }, 3200)
-  if (decoded.target.width !== dimensions.width || decoded.target.height !== dimensions.height) {
+  if (decoded.target.width !== decoded.dimensions.width || decoded.target.height !== decoded.dimensions.height) {
     showToast("图片已按 GPU 预算缩放到 " + String(decoded.target.width) + " × " + String(decoded.target.height) + "。", "warning")
-  } else if (Math.abs(dimensions.ratio - 2) > 0.04) {
-    showToast("图片比例为 " + dimensions.ratio.toFixed(2) + ":1，预览可能出现轻微拉伸。", "warning")
+  } else if (Math.abs(decoded.dimensions.ratio - 2) > 0.04) {
+    showToast("图片比例为 " + decoded.dimensions.ratio.toFixed(2) + ":1，预览可能出现轻微拉伸。", "warning")
   }
   scheduleRender()
 }
@@ -693,7 +661,7 @@ async function captureViewport() {
   try {
     const blob = await renderer.capture(viewState)
     const dataUrl = await blobDataUrl(blob)
-    await hostRequest("canvas.image.create", {
+    await hostRequest("canvas.resource.image.create", {
       dataUrl: dataUrl,
       name: "全景视口截图.png",
     })
@@ -872,7 +840,7 @@ async function restoreRenderer() {
       })
     } else if (currentSource.kind === "canvas") {
       const image = connectedImages.find(function (candidate) {
-        return candidate.id === currentSource.nodeId && candidate.readable
+        return candidate.inputKey === currentSource.inputKey && candidate.readable
       })
       if (!image) throw new Error("原画布图片已断开，无法恢复预览")
       await loadConnectedImage(image, { rethrow: true })
@@ -903,12 +871,8 @@ function bindEvents() {
     window.clearTimeout(toastTimer)
     window.clearTimeout(lastInteractionHintTimer)
     if (animationFrame) window.cancelAnimationFrame(animationFrame)
-    rejectPendingRequests(new Error("插件页面已关闭"))
-    if (hostPort) {
-      hostPort.onmessage = null
-      hostPort.close()
-      hostPort = null
-    }
+    hostClient?.close()
+    hostClient = null
     renderer.clearTexture()
   })
   document.addEventListener("fullscreenchange", updateFullscreenControls)

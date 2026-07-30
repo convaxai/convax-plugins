@@ -1,0 +1,10 @@
+{
+  "name": "@microvoid/convax-skill-storyai-3d-director-desk",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "bun ../../../tooling/validate.mjs --kind skill --id storyai-3d-director-desk",
+    "pack": "bun ../../../tooling/pack.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-../../../node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" --kind skill --id storyai-3d-director-desk"
+  }
+}

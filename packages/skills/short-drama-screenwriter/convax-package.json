@@ -1,14 +1,10 @@
 {
-  "schema": "convax.package/1",
+  "schema": "convax.package/2",
   "kind": "skill",
   "id": "short-drama-screenwriter",
   "name": "Short Drama Screenwriter",
   "description": "Develop short-form episodic drama into a structured beat plan, production script, and continuity package.",
-  "version": "0.3.0",
-  "license": "MIT",
-  "compatibility": {
-    "skillSchema": "opencode.skill/1"
-  },
+  "version": "0.3.1",
   "showcase": {
     "poster": {
       "path": "showcase/poster.png",

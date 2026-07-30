@@ -40,7 +40,7 @@ catalog or from the Canvas insertion menu. The node provides:
 
 Adding, removing, or reordering incoming edges only refreshes the pending-media
 list. It never uploads automatically. Clicking **Import connected media** submits
-the current Plugin node id, ordered input node ids, and media roles through the
+the current Plugin node id, ordered opaque input keys, and media roles through the
 narrow `agent.prompt` host capability. The Agent first resolves the ChatCut
 project and timeline, then
 creates a short-lived import session through the remote MCP, invokes the installed

@@ -8,6 +8,6 @@
   },
   "scripts": {
     "validate": "bun ../../../tooling/validate.mjs --kind plugin --id nexus-service",
-    "pack": "bun ../../../tooling/pack.mjs --kind plugin --id nexus-service"
+    "pack": "bun ../../../tooling/pack.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-../../../node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" --kind plugin --id nexus-service"
   }
 }

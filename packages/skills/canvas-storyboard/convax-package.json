@@ -1,14 +1,10 @@
 {
-  "schema": "convax.package/1",
+  "schema": "convax.package/2",
   "kind": "skill",
   "id": "canvas-storyboard",
   "name": "Storyboard Builder",
   "description": "Convert a script or brief into ordered, reviewable shot cards on the active Canvas.",
-  "version": "0.1.0",
-  "license": "MIT",
-  "compatibility": {
-    "skillSchema": "opencode.skill/1"
-  },
+  "version": "0.1.1",
   "showcase": {
     "poster": {
       "path": "showcase/poster.png",

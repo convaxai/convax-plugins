@@ -1,0 +1,12 @@
+# Human ownership must be backed by a repository ruleset that requires this
+# code-owner review, dismisses stale approvals, and does not accept bot approval.
+* @fearclear @smackgg @youking-lib @JPJeePee
+
+/registry/host-capability-policy.json @fearclear @smackgg @youking-lib @JPJeePee
+/docs/host-capability-requests/ @fearclear @smackgg @youking-lib @JPJeePee
+/packages/skills/convax-plugin-authoring/ @fearclear @smackgg @youking-lib @JPJeePee
+/tooling/host-capability-history.mjs @fearclear @smackgg @youking-lib @JPJeePee
+/tooling/host-capability-request.mjs @fearclear @smackgg @youking-lib @JPJeePee
+/tooling/publication-eligibility.mjs @fearclear @smackgg @youking-lib @JPJeePee
+/.github/CODEOWNERS @fearclear @smackgg @youking-lib @JPJeePee
+/.github/workflows/ @fearclear @smackgg @youking-lib @JPJeePee

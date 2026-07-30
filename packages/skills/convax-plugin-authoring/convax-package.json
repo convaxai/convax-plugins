@@ -1,0 +1,9 @@
+{
+  "schema": "convax.package/2",
+  "kind": "skill",
+  "id": "convax-plugin-authoring",
+  "name": "Convax Plugin Authoring",
+  "description": "Create, modify, and debug Convax Plugins against the SDK-owned Host API catalog and capability references without inventing APIs or crossing into Host implementation.",
+  "version": "0.1.1",
+  "yanked": false
+}

@@ -1,14 +1,10 @@
 {
-  "schema": "convax.package/1",
+  "schema": "convax.package/2",
   "kind": "skill",
   "id": "storyboard-studio",
   "name": "Storyboard Studio",
   "description": "Turn a one-line premise, full script, or directly connected Canvas inputs into a traceable episodic storyboard package with character, location, prop, and shot assets, then build an idempotently grouped Canvas graph when public host tools are available.",
-  "version": "0.1.0",
-  "license": "MIT",
-  "compatibility": {
-    "skillSchema": "opencode.skill/1"
-  },
+  "version": "0.1.1",
   "yanked": false,
   "ownerPluginId": "storyboard-studio"
 }

@@ -21,28 +21,28 @@ index b287f31..9b719f7 100644
    <body>
      <div id="root"></div>
 diff --git a/src/App.tsx b/src/App.tsx
-index fa4b915..23b2ace 100644
+index fa4b915..6799bea 100644
 --- a/src/App.tsx
 +++ b/src/App.tsx
-@@ -1,9 +1,8 @@
+@@ -1,9 +1,7 @@
  import "./styles/index.css";
  import { useEffect } from "react";
 -import { X } from "lucide-react";
  import { DirectorDeskShell } from "./app/layout/DirectorDeskShell";
  import { DirectorCanvas } from "./editor/canvas/DirectorCanvas";
 -import { initDirectorDeskHostBridge } from "./editor/io/hostBridge";
-+import { clearDirectorDeskHostBridge, initDirectorDeskHostBridge } from "./editor/io/hostBridge";
  import { useDirectorStore } from "./editor/store/directorStore";
  
  function isEditableShortcutTarget(target: EventTarget | null) {
-@@ -18,13 +17,9 @@ export default function App() {
+@@ -16,15 +14,6 @@ export default function App() {
+   const viewMode = useDirectorStore((state) => state.viewMode);
+   const setViewMode = useDirectorStore((state) => state.setViewMode);
  
-   useEffect(() => {
-     initDirectorDeskHostBridge();
+-  useEffect(() => {
+-    initDirectorDeskHostBridge();
 -    window.parent?.postMessage({ type: "storyai:director-desk-ready" }, window.location.origin);
-+    return clearDirectorDeskHostBridge;
-   }, []);
- 
+-  }, []);
+-
 -  function handleClose() {
 -    window.parent?.postMessage({ type: "storyai:director-desk-close" }, window.location.origin);
 -  }
@@ -50,7 +50,7 @@ index fa4b915..23b2ace 100644
    useEffect(() => {
      function handleKeyDown(event: KeyboardEvent) {
        if (event.defaultPrevented || isEditableShortcutTarget(event.target)) return;
-@@ -82,17 +77,7 @@ export default function App() {
+@@ -82,17 +71,7 @@ export default function App() {
              </button>
            </div>
          </div>
@@ -70,10 +70,16 @@ index fa4b915..23b2ace 100644
        <DirectorDeskShell>
          <DirectorCanvas />
 diff --git a/src/editor/canvas/DirectorCanvas.tsx b/src/editor/canvas/DirectorCanvas.tsx
-index f103cbc..eaab260 100644
+index f103cbc..6b215bf 100644
 --- a/src/editor/canvas/DirectorCanvas.tsx
 +++ b/src/editor/canvas/DirectorCanvas.tsx
-@@ -19,7 +19,6 @@ import { useDirectorStore, type CameraShotSnapshot } from "../store/directorStor
+@@ -14,12 +14,12 @@ import { Euler, Matrix4, PerspectiveCamera as ThreePerspectiveCamera, Quaternion
+ import type { Object3D } from "three";
+ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
+ import { clearViewportCaptureHandler, setViewportCaptureHandler } from "../io/captureBridge";
++import { flushDirectorDeskHostState } from "../io/hostBridge";
+ import { buildScreenshotMeta, type ScreenshotResult } from "../io/screenshotExport";
+ import { useDirectorStore, type CameraShotSnapshot } from "../store/directorStore";
  import { DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT, getCameraViewSnapshotFromShot } from "../schema/cameraGeometry";
  import type { DirectorObject, DirectorTransform, SceneSettings } from "../schema/directorProject";
  import { getGroundedLabelY } from "../runtime/mannequin/bodyTypes";
@@ -81,7 +87,7 @@ index f103cbc..eaab260 100644
  import { SceneRoot } from "./SceneRoot";
  import { ViewportAspectOverlay } from "./ViewportAspectOverlay";
  import { ViewportBackground } from "./ViewportBackground";
-@@ -161,9 +160,7 @@ function createSceneMatrix(scene: SceneSettings) {
+@@ -161,9 +161,7 @@ function createSceneMatrix(scene: SceneSettings) {
  }
  
  function getCharacterCaptureLabelY(item: DirectorObject) {
@@ -92,19 +98,142 @@ index f103cbc..eaab260 100644
  }
  
  function getViewportCaptureLabels() {
+@@ -591,10 +589,11 @@ export function DirectorCanvas() {
+   const activeCamera = useDirectorStore((state) =>
+     state.project.cameras.find((item) => item.id === state.project.activeCameraId)
+   );
++  const directorViewSnapshot = useDirectorStore((state) => state.directorViewSnapshot);
++  const setDirectorViewSnapshot = useDirectorStore((state) => state.setDirectorViewSnapshot);
+   const controlsRef = useRef<OrbitControlsImpl | null>(null);
+   const toolbarRef = useRef<HTMLDivElement | null>(null);
+-  const viewportCameraSnapshotRef = useRef<CameraShotSnapshot>(DEFAULT_DIRECTOR_VIEW_SNAPSHOT);
+-  const [directorViewSnapshot, setDirectorViewSnapshot] = useState(DEFAULT_DIRECTOR_VIEW_SNAPSHOT);
++  const viewportCameraSnapshotRef = useRef<CameraShotSnapshot>(directorViewSnapshot);
+   const [toolbarHeight, setToolbarHeight] = useState(DEFAULT_VIEWPORT_TOOLBAR_HEIGHT);
+   const hasPanorama = Boolean(panoramaAssetId);
+   const panoramaAsset = assets.find((item) => item.id === panoramaAssetId);
+@@ -612,6 +611,10 @@ export function DirectorCanvas() {
+     : { left: LEFT_PANEL_WIDTH, right: RIGHT_PANEL_WIDTH, top: 0, bottom: 0 };
+   const gizmoRightOffset = viewportPanelsCollapsed ? GIZMO_EDGE_PADDING : RIGHT_PANEL_WIDTH + GIZMO_EDGE_PADDING;
+ 
++  useEffect(() => {
++    viewportCameraSnapshotRef.current = directorViewSnapshot;
++  }, [directorViewSnapshot]);
++
+   useLayoutEffect(() => {
+     const element = toolbarRef.current;
+     if (!element) return;
+@@ -646,9 +649,9 @@ export function DirectorCanvas() {
+ 
+   function updateDirectorViewSnapshot(snapshot: CameraShotSnapshot) {
+     viewportCameraSnapshotRef.current = snapshot;
+-    setDirectorViewSnapshot((currentSnapshot) =>
+-      areCameraSnapshotsClose(currentSnapshot, snapshot) ? currentSnapshot : snapshot
+-    );
++    if (!areCameraSnapshotsClose(directorViewSnapshot, snapshot)) {
++      setDirectorViewSnapshot(snapshot);
++    }
+   }
+ 
+   function updateViewportGizmoSnapshot(snapshot: CameraShotSnapshot) {
+@@ -656,6 +659,7 @@ export function DirectorCanvas() {
+       setViewMode("director");
+     }
+     updateDirectorViewSnapshot(snapshot);
++    flushDirectorDeskHostState();
+   }
+ 
+   const aspectOverlayBottomPadding =
+@@ -665,18 +669,17 @@ export function DirectorCanvas() {
+     <div className="canvas-frame">
+       <div className="director-canvas" data-testid="director-canvas">
+         <Canvas
+-          camera={{ position: DEFAULT_DIRECTOR_VIEW_SNAPSHOT.position, fov: DEFAULT_DIRECTOR_VIEW_SNAPSHOT.fov }}
++          camera={{ position: directorViewSnapshot.position, fov: directorViewSnapshot.fov }}
+           gl={{ antialias: true, preserveDrawingBuffer: true }}
+           onPointerMissed={openSceneInspector}
+           onCreated={({ camera }) => {
+             const perspectiveCamera = camera as ThreePerspectiveCamera;
+-            perspectiveCamera.lookAt(...DEFAULT_DIRECTOR_VIEW_SNAPSHOT.target);
++            perspectiveCamera.lookAt(...directorViewSnapshot.target);
+             viewportCameraSnapshotRef.current = {
+               fov: perspectiveCamera.fov,
+               position: [perspectiveCamera.position.x, perspectiveCamera.position.y, perspectiveCamera.position.z],
+-              target: DEFAULT_DIRECTOR_VIEW_SNAPSHOT.target,
++              target: directorViewSnapshot.target,
+             };
+-            setDirectorViewSnapshot(viewportCameraSnapshotRef.current);
+           }}
+         >
+           <ViewportBackground
+@@ -703,7 +706,7 @@ export function DirectorCanvas() {
+               enableDamping
+               enabled
+               makeDefault
+-              target={DEFAULT_DIRECTOR_VIEW_SNAPSHOT.target}
++              target={directorViewSnapshot.target}
+               onChange={(event) => {
+                 const perspectiveCamera = event?.target?.object as ThreePerspectiveCamera | undefined;
+                 const target = event?.target?.target as Vector3 | undefined;
+@@ -714,6 +717,7 @@ export function DirectorCanvas() {
+                   target: [target.x, target.y, target.z],
+                 });
+               }}
++              onEnd={flushDirectorDeskHostState}
+             />
+           ) : null}
+           <DirectorViewCameraSync controlsRef={controlsRef} snapshot={directorViewSnapshot} viewMode={viewMode} />
 diff --git a/src/editor/canvas/SceneRoot.tsx b/src/editor/canvas/SceneRoot.tsx
-index 0e69e4c..502f73b 100644
+index 0e69e4c..d212527 100644
 --- a/src/editor/canvas/SceneRoot.tsx
 +++ b/src/editor/canvas/SceneRoot.tsx
-@@ -22,7 +22,6 @@ import type { TransformMode } from "../store/directorStore";
+@@ -22,9 +22,9 @@ import type { TransformMode } from "../store/directorStore";
  import { useDirectorStore } from "../store/directorStore";
  import { CharacterModel } from "../runtime/CharacterModel";
  import { getGroundedLabelY } from "../runtime/mannequin/bodyTypes";
 -import { getUE4GroundedLabelY } from "../runtime/ue4Mannequin/ue4MannequinRig";
  import { getEffectiveGroundOpacity } from "./panoramaMath";
  import { getCrowdAnchorTransform } from "../store/directorStore";
++import { flushDirectorDeskHostState } from "../io/hostBridge";
  
-@@ -463,38 +462,9 @@ function ObjectSceneNode({
+ export { getEffectiveGroundOpacity, getPanoramaRotationRadians } from "./panoramaMath";
+ 
+@@ -82,11 +82,13 @@ function ViewportTransformControls({
+   mode,
+   object,
+   onObjectChange,
++  onTransformEnd,
+   translationSnap,
+ }: {
+   mode: TransformMode;
+   object: TransformControlsProps["object"];
+   onObjectChange: TransformControlsProps["onObjectChange"];
++  onTransformEnd: () => void;
+   translationSnap?: number | null;
+ }) {
+   const controlsRef = useRef<TransformControlsImpl | null>(null);
+@@ -99,13 +101,19 @@ function ViewportTransformControls({
+   const beginUndoBatch = useDirectorStore((state) => state.beginUndoBatch);
+   const endUndoBatch = useDirectorStore((state) => state.endUndoBatch);
+ 
++  function finishTransformGesture() {
++    onTransformEnd();
++    endUndoBatch();
++    flushDirectorDeskHostState();
++  }
++
+   return (
+     <TransformControls
+       ref={setControlsRef}
+       mode={mode}
+       object={object}
+       onMouseDown={beginUndoBatch}
+-      onMouseUp={endUndoBatch}
++      onMouseUp={finishTransformGesture}
+       onObjectChange={onObjectChange}
+       translationSnap={translationSnap ?? undefined}
+       userData={{ [HIDE_FROM_VIEWPORT_CAPTURE_KEY]: true }}
+@@ -463,38 +471,9 @@ function ObjectSceneNode({
    onSelect?: (item: DirectorObject) => void;
  }) {
    const groupRef = useRef<Group>(null!);
@@ -144,7 +273,7 @@ index 0e69e4c..502f73b 100644
  
    function commitTransformFromViewport() {
      const group = groupRef.current;
-@@ -528,7 +498,6 @@ function ObjectSceneNode({
+@@ -528,7 +507,6 @@ function ObjectSceneNode({
              <CharacterModel
                bodyType={item.bodyType}
                color={item.color}
@@ -152,6 +281,30 @@ index 0e69e4c..502f73b 100644
                rigState={item.characterRig}
              />
            </Suspense>
+@@ -551,6 +529,7 @@ function ObjectSceneNode({
+         mode={transformMode}
+         object={groupRef}
+         onObjectChange={commitTransformFromViewport}
++        onTransformEnd={commitTransformFromViewport}
+         translationSnap={transformMode === "translate" ? translationSnap : null}
+       />
+     </>
+@@ -601,6 +580,7 @@ function CrowdTransformRig({
+         mode={transformMode}
+         object={groupRef}
+         onObjectChange={commitCrowdTransformFromViewport}
++        onTransformEnd={commitCrowdTransformFromViewport}
+         translationSnap={transformMode === "translate" ? translationSnap : null}
+       />
+     </>
+@@ -742,6 +722,7 @@ function ViewportCameraRig({
+         mode={transformMode}
+         object={groupRef}
+         onObjectChange={commitCameraTransformFromViewport}
++        onTransformEnd={commitCameraTransformFromViewport}
+         translationSnap={transformMode === "translate" ? translationSnap : null}
+       />
+     </>
 diff --git a/src/editor/canvas/ViewportToolbar.tsx b/src/editor/canvas/ViewportToolbar.tsx
 index 537f896..b246673 100644
 --- a/src/editor/canvas/ViewportToolbar.tsx
@@ -253,107 +406,318 @@ index 537f896..b246673 100644
      </>
    );
  }
+diff --git a/src/editor/io/hostBridge.convax.test.ts b/src/editor/io/hostBridge.convax.test.ts
+new file mode 100644
+index 0000000..d4210fc
+--- /dev/null
++++ b/src/editor/io/hostBridge.convax.test.ts
+@@ -0,0 +1,150 @@
++import { afterEach, beforeEach, expect, it, vi } from "vitest";
++import { DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT } from "../schema/cameraGeometry";
++import { createInitialDirectorState, useDirectorStore } from "../store/directorStore";
++import { requestViewportCapture } from "./captureBridge";
++import {
++  clearDirectorDeskHostBridge,
++  flushDirectorDeskHostState,
++  initDirectorDeskHostBridge,
++} from "./hostBridge";
++
++vi.mock("./captureBridge", () => ({
++  requestViewportCapture: vi.fn(),
++}));
++
++type HostMethod =
++  | "canvas.node.state.replace"
++  | "canvas.resource.image.create"
++  | "host.context.get";
++
++interface HostRequest {
++  method: HostMethod;
++  params?: {
++    dataUrl?: string;
++    name?: string;
++    state?: {
++      presentation?: {
++        viewport?: {
++          directorView?: {
++            fov: number;
++            position: [number, number, number];
++            target: [number, number, number];
++          };
++        };
++      };
++    };
++  };
++}
++
++class FakePluginHostClient {
++  readonly requests: HostRequest[] = [];
++  holdStateResponses = false;
++  commandListener: ((command: { command: string }) => void) | null = null;
++
++  async callHostApi(method: HostMethod, params?: HostRequest["params"]) {
++    this.requests.push({ method, params });
++    if (method === "canvas.node.state.replace" && this.holdStateResponses) {
++      return new Promise<never>(() => undefined);
++    }
++    return method === "host.context.get"
++      ? { node: { data: { metadata: {} } } }
++      : { updated: true };
++  }
++
++  close() {}
++
++  emitCommand(command: string) {
++    this.commandListener?.({ command });
++  }
++
++  onCommand(listener: (command: { command: string }) => void) {
++    this.commandListener = listener;
++    return () => {
++      this.commandListener = null;
++    };
++  }
++}
++
++let nextClient: FakePluginHostClient;
++
++vi.mock("./plugin-host-client.js", () => ({
++  acceptPluginHostConnection: () => nextClient,
++}));
++
++async function connectHost(client: FakePluginHostClient) {
++  nextClient = client;
++  initDirectorDeskHostBridge();
++  window.dispatchEvent(new MessageEvent("message"));
++  await vi.waitFor(() => {
++    expect(client.requests.some((request) => request.method === "canvas.node.state.replace")).toBe(true);
++  });
++  await Promise.resolve();
++}
++
++beforeEach(() => {
++  vi.mocked(requestViewportCapture).mockResolvedValue([{
++    dataUrl: "data:image/png;base64,eA==",
++    label: "当前视角",
++    meta: {
++      cameraId: null,
++      fov: 50,
++      mode: "director",
++      position: [5, 4, 7],
++      target: [0, 1, 0],
++    },
++  }]);
++  useDirectorStore.setState({
++    ...useDirectorStore.getState(),
++    ...createInitialDirectorState(),
++  });
++});
++
++afterEach(() => {
++  clearDirectorDeskHostBridge();
++  vi.restoreAllMocks();
++});
++
++it("turns the scoped play toolbar command into one current-frame Canvas image request", async () => {
++  const client = new FakePluginHostClient();
++  await connectHost(client);
++  client.requests.length = 0;
++
++  client.emitCommand("renderer.scene.play");
++
++  await vi.waitFor(() => {
++    expect(client.requests.filter((request) => request.method === "canvas.resource.image.create")).toHaveLength(1);
++  });
++  expect(requestViewportCapture).toHaveBeenCalledWith({ preset: "current", source: "capture-panel" });
++  expect(client.requests.find((request) => request.method === "canvas.resource.image.create")?.params).toEqual({
++    dataUrl: "data:image/png;base64,eA==",
++    name: "storyai-director-desk-director-当前视角-1.png",
++  });
++});
++
++it("queues the final director view immediately while an intermediate save is in flight", async () => {
++  const client = new FakePluginHostClient();
++  await connectHost(client);
++
++  client.requests.length = 0;
++  client.holdStateResponses = true;
++  const intermediate = {
++    ...DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT,
++    position: [2, 2, 5] as [number, number, number],
++  };
++  useDirectorStore.getState().setDirectorViewSnapshot(intermediate);
++  flushDirectorDeskHostState();
++  await vi.waitFor(() => {
++    expect(client.requests.filter((request) => request.method === "canvas.node.state.replace")).toHaveLength(1);
++  });
++
++  const final = {
++    ...DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT,
++    position: [6, 2, 0] as [number, number, number],
++  };
++  useDirectorStore.getState().setDirectorViewSnapshot(final);
++  flushDirectorDeskHostState();
++
++  const writes = client.requests.filter((request) => request.method === "canvas.node.state.replace");
++  expect(writes).toHaveLength(2);
++  expect(writes[1]?.params?.state?.presentation?.viewport?.directorView).toEqual(final);
++});
 diff --git a/src/editor/io/hostBridge.ts b/src/editor/io/hostBridge.ts
-index bb143e5..ba9a097 100644
+index bb143e5..2e1a7c2 100644
 --- a/src/editor/io/hostBridge.ts
 +++ b/src/editor/io/hostBridge.ts
-@@ -1,200 +1,212 @@
-+import type { DirectorAssetRef, DirectorProject } from "../schema/directorProject";
- import { useDirectorStore } from "../store/directorStore";
- 
+@@ -1,200 +1,570 @@
+-import { useDirectorStore } from "../store/directorStore";
+-
 -interface HostPanoramaPayload {
 -  edgeId?: unknown;
 -  sourceNodeId?: unknown;
 -  imageUrl?: unknown;
 -  fileName?: unknown;
--}
-+const HOST_PROTOCOL = "convax.plugin-host/1";
-+const PLUGIN_ID = "storyai-3d-director-desk";
-+const HOST_STATE_SCHEMA_VERSION = 1;
++import type { DirectorAssetRef, DirectorProject } from "../schema/directorProject";
++import { DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT } from "../schema/cameraGeometry";
++import { useDirectorStore, type CameraShotSnapshot } from "../store/directorStore";
++import { requestViewportCapture } from "./captureBridge";
++import { buildCaptureFileName } from "./screenshotExport";
++import {
++  acceptPluginHostConnection,
++  type DirectorPluginHostClient,
++} from "./plugin-host-client.js";
++
++const HOST_STATE_SCHEMA_VERSION = 2;
++const LEGACY_HOST_STATE_SCHEMA_VERSION = 1;
 +const HOST_STATE_BYTE_LIMIT = 240 * 1024;
-+const SAVE_DEBOUNCE_MS = 250;
++const SAVE_INTERVAL_MS = 250;
++const SAVE_RETRY_LIMIT = 3;
++const CONTEXT_RETRY_LIMIT = 3;
++const REQUEST_TIMEOUT_MS = 15_000;
++const STATE_NOTICE_ID = "convax-director-state-notice";
++const PLAY_COMMAND = "renderer.scene.play";
++
++type HostMethod = "host.context.get" | "canvas.node.state.replace" | "canvas.resource.image.create";
++
++interface DirectorHostState {
++  directorProject: DirectorProject;
++  presentation: {
++    viewport: {
++      directorView: CameraShotSnapshot;
++    };
++  };
++  schemaVersion: typeof HOST_STATE_SCHEMA_VERSION;
+ }
  
 -interface HostSessionPayload {
 -  instanceId?: unknown;
 -  theme?: unknown;
--}
-+type HostMethod = "host.context.get" | "canvas.node.updateState";
++interface DirectorHostSnapshot {
++  directorViewSnapshot: CameraShotSnapshot;
++  project: DirectorProject;
+ }
  
 -export interface HostCaptureItemPayload {
 -  dataUrl?: unknown;
 -  fileName?: unknown;
-+interface HostResponse {
-+  error?: string;
-+  id: string;
-+  ok: boolean;
-+  protocol: typeof HOST_PROTOCOL;
-+  result?: unknown;
-+  type: "response";
++type HostStateRead =
++  | { kind: "absent" }
++  | { kind: "invalid"; message: string }
++  | {
++      kind: "ready";
++      persistedSerialized: string;
++      projectSanitized: boolean;
++      serialized: string;
++      snapshot: DirectorHostSnapshot;
++    };
++
++let initialized = false;
++let hostClient: DirectorPluginHostClient | null = null;
++let unsubscribeCommands: (() => void) | null = null;
++let saveTimer: number | null = null;
++let saveInFlight = false;
++let saveDirty = false;
++let saveFailures = 0;
++let failedStateSerialized = "";
++let blockedStateSerialized = "";
++let lastSaveStartedAt = 0;
++let unsubscribe: (() => void) | null = null;
++let previousProject: DirectorProject | null = null;
++let previousDirectorViewSnapshot: CameraShotSnapshot | null = null;
++let queuedSnapshot: DirectorHostSnapshot | null = null;
++let queuedStateSerialized = "";
++let lastSavedState = "";
++let stateGeneration = 0;
++let applyingHydration = false;
++let hostHydrated = false;
++let writesEnabled = true;
++let sessionEpoch = 0;
++let persistenceError = "";
++let frameError = "";
++let portabilityWarning = "";
++let frameWriteInFlight = false;
++
++function cloneJsonValue<T>(value: T): T {
++  return JSON.parse(JSON.stringify(value)) as T;
  }
  
 -export interface HostCaptureBatchPayload {
 -  captures?: HostCaptureItemPayload[];
-+interface PendingRequest {
-+  reject(error: Error): void;
-+  resolve(result: unknown): void;
++function isPlainRecord(value: unknown): value is Record<string, unknown> {
++  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
  }
  
 -interface HostConnectedPanorama {
 -  edgeId: string;
 -  sourceNodeId: string;
-+interface DirectorHostState {
-+  directorProject: DirectorProject;
-+  schemaVersion: typeof HOST_STATE_SCHEMA_VERSION;
- }
- 
- let initialized = false;
--let hostConnectedPanorama: HostConnectedPanorama | null = null;
--let removeUnsubscribe: (() => void) | null = null;
--let suppressNextPanoramaRemovalNotice = false;
--
--function normalizeString(value: unknown) {
--  return typeof value === "string" ? value.trim() : "";
--}
--
--function getHostOrigin() {
--  return window.location.origin;
--}
--
--function normalizeTheme(value: unknown): "dark" | "light" | null {
--  return value === "light" || value === "dark" ? value : null;
-+let port: MessagePort | null = null;
-+let requestSequence = 0;
-+let saveTimer: number | null = null;
-+let unsubscribe: (() => void) | null = null;
-+let previousProject: DirectorProject | null = null;
-+let lastSavedProject = "";
-+const pending = new Map<string, PendingRequest>();
-+
-+function cloneJsonValue<T>(value: T): T {
-+  return JSON.parse(JSON.stringify(value)) as T;
-+}
-+
-+function isPlainRecord(value: unknown): value is Record<string, unknown> {
-+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-+}
-+
 +function isDirectorProject(value: unknown): value is DirectorProject {
 +  if (!isPlainRecord(value) || value.version !== 1) return false;
 +  return Array.isArray(value.assets)
++    && value.assets.every((asset) => isPlainRecord(asset)
++      && typeof asset.id === "string"
++      && typeof asset.url === "string")
 +    && Array.isArray(value.objects)
++    && value.objects.every((object) => isPlainRecord(object)
++      && typeof object.id === "string"
++      && typeof object.kind === "string")
 +    && Array.isArray(value.cameras)
++    && value.cameras.every((camera) => isPlainRecord(camera)
++      && typeof camera.id === "string")
 +    && isPlainRecord(value.scene)
 +    && typeof value.scene.backgroundColor === "string";
+ }
+ 
+-let initialized = false;
+-let hostConnectedPanorama: HostConnectedPanorama | null = null;
+-let removeUnsubscribe: (() => void) | null = null;
+-let suppressNextPanoramaRemovalNotice = false;
++function isFiniteVectorTuple(value: unknown): value is [number, number, number] {
++  return Array.isArray(value)
++    && value.length === 3
++    && value.every((item) => typeof item === "number" && Number.isFinite(item));
 +}
-+
+ 
+-function normalizeString(value: unknown) {
+-  return typeof value === "string" ? value.trim() : "";
++function isCameraShotSnapshot(value: unknown): value is CameraShotSnapshot {
++  return isPlainRecord(value)
++    && typeof value.fov === "number"
++    && Number.isFinite(value.fov)
++    && value.fov > 0
++    && value.fov < 180
++    && isFiniteVectorTuple(value.position)
++    && isFiniteVectorTuple(value.target);
+ }
+ 
+-function getHostOrigin() {
+-  return window.location.origin;
 +function isEphemeralAsset(asset: DirectorAssetRef) {
 +  return asset.url.startsWith("blob:") || asset.url.startsWith("data:");
-+}
-+
+ }
+ 
+-function normalizeTheme(value: unknown): "dark" | "light" | null {
+-  return value === "light" || value === "dark" ? value : null;
 +/**
-+ * Canvas node state is intentionally scene-only. Generated captures and browser
-+ * object URLs are session data; persisting them would be invalid after reload
-+ * and can exceed the host's bounded node-state contract.
++ * The portable domain scene excludes generated captures and browser object URLs.
++ * Those session values would be invalid after reload and can exceed the host's
++ * bounded node-state contract; presentation state is stored separately.
 + */
 +function createHostProject(project: DirectorProject): DirectorProject {
 +  const excludedAssetIds = new Set(project.assets.filter(isEphemeralAsset).map((asset) => asset.id));
@@ -378,96 +742,160 @@ index bb143e5..ba9a097 100644
 -function applyDirectorDeskTheme(theme: "dark" | "light") {
 -  document.documentElement.dataset.theme = theme;
 -  document.documentElement.classList.toggle("dark", theme === "dark");
-+function readHostProject(context: unknown): DirectorProject | null {
-+  if (!isPlainRecord(context) || !isPlainRecord(context.node)) return null;
-+  const data = context.node.data;
-+  if (!isPlainRecord(data) || !isPlainRecord(data.metadata)) return null;
-+  const state = data.metadata.convaxPluginState;
-+  if (!isPlainRecord(state) || state.schemaVersion !== HOST_STATE_SCHEMA_VERSION) return null;
-+  return isDirectorProject(state.directorProject) ? createHostProject(state.directorProject) : null;
-+}
-+
-+function call(method: HostMethod, params?: unknown) {
-+  if (!port) return Promise.reject(new Error("Convax Plugin host is not connected"));
-+  const id = `director-${++requestSequence}`;
-+  port.postMessage({ id, method, ...(params === undefined ? {} : { params }), protocol: HOST_PROTOCOL, type: "request" });
-+  return new Promise<unknown>((resolve, reject) => pending.set(id, { reject, resolve }));
-+}
-+
-+function isHostResponse(value: unknown): value is HostResponse {
-+  return isPlainRecord(value)
-+    && value.protocol === HOST_PROTOCOL
-+    && value.type === "response"
-+    && typeof value.id === "string"
-+    && typeof value.ok === "boolean";
-+}
-+
-+function handlePortMessage(event: MessageEvent) {
-+  if (!isHostResponse(event.data)) return;
-+  const operation = pending.get(event.data.id);
-+  if (!operation) return;
-+  pending.delete(event.data.id);
-+  if (event.data.ok) operation.resolve(event.data.result);
-+  else operation.reject(new Error(event.data.error || "Convax Plugin request failed"));
-+}
-+
-+function queueProjectSave(project: DirectorProject) {
-+  const hostProject = createHostProject(project);
-+  const serializedProject = JSON.stringify(hostProject);
-+  if (serializedProject === lastSavedProject) return;
-+
-+  if (saveTimer !== null) window.clearTimeout(saveTimer);
-+  saveTimer = window.setTimeout(() => {
-+    saveTimer = null;
-+    const state: DirectorHostState = {
-+      directorProject: hostProject,
-+      schemaVersion: HOST_STATE_SCHEMA_VERSION,
-+    };
-+    if (new TextEncoder().encode(JSON.stringify(state)).byteLength > HOST_STATE_BYTE_LIMIT) {
-+      console.warn("Director scene was not saved because it exceeds the Convax node-state limit");
-+      return;
-+    }
-+    void call("canvas.node.updateState", { state }).then(() => {
-+      lastSavedProject = serializedProject;
-+    }).catch((error) => {
-+      console.error("Failed to save Director scene through Convax", error);
-+    });
-+  }, SAVE_DEBOUNCE_MS);
++function stateForSnapshot(snapshot: DirectorHostSnapshot): DirectorHostState {
++  return {
++    directorProject: snapshot.project,
++    presentation: {
++      viewport: {
++        directorView: snapshot.directorViewSnapshot,
++      },
++    },
++    schemaVersion: HOST_STATE_SCHEMA_VERSION,
++  };
  }
  
 -function getInitialHostTheme() {
-+async function hydrateAndSubscribe() {
-   try {
+-  try {
 -    return normalizeTheme(new URLSearchParams(window.location.search).get("theme"));
 -  } catch {
 -    return null;
--  }
--}
--
++function readHostState(context: unknown): HostStateRead {
++  if (!isPlainRecord(context) || !isPlainRecord(context.node)) {
++    return { kind: "invalid", message: "画布没有返回可恢复的 3D 节点上下文。" };
++  }
++  const data = context.node.data;
++  if (!isPlainRecord(data)) {
++    return { kind: "invalid", message: "3D 节点数据已损坏；原数据已保留且不会被覆盖。" };
++  }
++  if (data.metadata === undefined) return { kind: "absent" };
++  if (!isPlainRecord(data.metadata)) {
++    return { kind: "invalid", message: "3D 节点元数据已损坏；原数据已保留且不会被覆盖。" };
+   }
++  const state = data.metadata.convaxPluginState;
++  if (state === undefined || (isPlainRecord(state) && Object.keys(state).length === 0)) return { kind: "absent" };
++  if (!isPlainRecord(state)) {
++    return { kind: "invalid", message: "3D 节点状态格式无效；原数据已保留且不会被覆盖。" };
++  }
++  if (
++    state.schemaVersion !== LEGACY_HOST_STATE_SCHEMA_VERSION
++    && state.schemaVersion !== HOST_STATE_SCHEMA_VERSION
++  ) {
++    return { kind: "invalid", message: "此 3D 节点来自不兼容的状态版本；请升级插件后再打开。" };
++  }
++  if (!isDirectorProject(state.directorProject)) {
++    return { kind: "invalid", message: "3D 场景状态不完整；原数据已保留且不会被覆盖。" };
++  }
++  let directorViewSnapshot = cloneJsonValue(DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT);
++  if (state.schemaVersion === HOST_STATE_SCHEMA_VERSION) {
++    if (
++      !isPlainRecord(state.presentation)
++      || !isPlainRecord(state.presentation.viewport)
++      || !isCameraShotSnapshot(state.presentation.viewport.directorView)
++    ) {
++      return { kind: "invalid", message: "3D 视口状态不完整；原数据已保留且不会被覆盖。" };
++    }
++    directorViewSnapshot = cloneJsonValue(state.presentation.viewport.directorView);
++  }
++  const snapshot = {
++    directorViewSnapshot,
++    project: createHostProject(state.directorProject),
++  };
++  return {
++    kind: "ready",
++    persistedSerialized: JSON.stringify(state),
++    projectSanitized: JSON.stringify(state.directorProject) !== JSON.stringify(snapshot.project),
++    serialized: JSON.stringify(stateForSnapshot(snapshot)),
++    snapshot,
++  };
+ }
+ 
 -function notifyPanoramaRemoved() {
 -  if (!hostConnectedPanorama) {
--    return;
--  }
--
++function renderPersistenceNotice() {
++  const message = persistenceError || frameError || portabilityWarning;
++  const existing = document.getElementById(STATE_NOTICE_ID);
++  if (!message) {
++    existing?.remove();
+     return;
+   }
++  const notice = existing ?? document.createElement("div");
++  notice.id = STATE_NOTICE_ID;
++  notice.className = `convax-state-notice${persistenceError || frameError ? "" : " is-warning"}`;
++  notice.setAttribute("role", "alert");
++  notice.textContent = message;
++  if (!existing) document.body.append(notice);
++}
+ 
 -  window.parent?.postMessage(
 -    {
 -      type: "storyai:director-desk-panorama-removed",
 -      payload: hostConnectedPanorama,
 -    },
 -    getHostOrigin()
--  );
++function setPersistenceError(message: string | null) {
++  persistenceError = message ?? "";
++  renderPersistenceNotice();
++}
++
++function setFrameError(message: string | null) {
++  frameError = message ?? "";
++  renderPersistenceNotice();
++}
++
++function updatePortabilityWarning(project: DirectorProject) {
++  const hasTemporaryAssets = project.assets.some(isEphemeralAsset);
++  const hasTemporaryCaptures = project.cameras.some((camera) =>
++    Boolean(camera.captures?.length) || Boolean(camera.lastCaptureUrl));
++  portabilityWarning = hasTemporaryAssets || hasTemporaryCaptures
++    ? "本地导入的媒体和机位截图仅在当前会话可用；其余 3D 场景会随画布节点保存。"
++    : "";
++  renderPersistenceNotice();
++}
++
++async function call(method: HostMethod, params?: unknown) {
++  if (!hostClient) throw new Error("Convax Plugin host is not connected");
++  const controller = new AbortController();
++  const timeout = window.setTimeout(
++    () => controller.abort(new Error("Convax Plugin host request timed out")),
++    REQUEST_TIMEOUT_MS,
+   );
 -  hostConnectedPanorama = null;
--}
--
++  try {
++    return await hostClient.callHostApi(method, params, { signal: controller.signal });
++  } finally {
++    window.clearTimeout(timeout);
++  }
+ }
+ 
 -function subscribeToPanoramaRemoval() {
 -  if (removeUnsubscribe) {
 -    return;
--  }
--
++async function createCurrentFrame() {
++  if (frameWriteInFlight) return;
++  frameWriteInFlight = true;
++  setFrameError(null);
++  try {
++    const captures = await requestViewportCapture({ preset: "current", source: "capture-panel" });
++    const capture = captures[0];
++    if (!capture || captures.length !== 1) throw new Error("当前视口没有返回唯一画面");
++    await call("canvas.resource.image.create", {
++      dataUrl: capture.dataUrl,
++      name: buildCaptureFileName(capture),
++    });
++  } catch (error) {
++    setFrameError(`当前帧关联失败：${error instanceof Error ? error.message : String(error)}`);
++  } finally {
++    frameWriteInFlight = false;
+   }
++}
+ 
 -  let previousPanoramaAssetId = useDirectorStore.getState().project.panoramaAssetId;
 -  removeUnsubscribe = useDirectorStore.subscribe((state) => {
 -    const nextPanoramaAssetId = state.project.panoramaAssetId;
--
++function handleHostCommand(command: { command: string }) {
++  if (command.command === PLAY_COMMAND) void createCurrentFrame();
++}
+ 
 -    if (previousPanoramaAssetId && !nextPanoramaAssetId) {
 -      if (suppressNextPanoramaRemovalNotice) {
 -        suppressNextPanoramaRemovalNotice = false;
@@ -475,35 +903,122 @@ index bb143e5..ba9a097 100644
 -      } else {
 -        notifyPanoramaRemoved();
 -      }
-+    const context = await call("host.context.get");
-+    const hostProject = readHostProject(context);
-+    if (hostProject) {
-+      useDirectorStore.setState({
-+        directorInspectorMode: "auto",
-+        project: hostProject,
-+        selectedCrowdId: null,
-+        selectedObjectId: null,
-+        selectedObjectIds: [],
-+      });
-+      lastSavedProject = JSON.stringify(hostProject);
-     }
--
+-    }
++function scheduleStateSave(delay = SAVE_INTERVAL_MS) {
++  if (saveTimer !== null || !hostClient || !hostHydrated || !writesEnabled || !saveDirty) return;
++  saveTimer = window.setTimeout(() => {
++    saveTimer = null;
++    void flushStateSave();
++  }, delay);
++}
+ 
 -    previousPanoramaAssetId = nextPanoramaAssetId;
 -  });
--}
--
++async function flushStateSave() {
++  if (saveTimer !== null) window.clearTimeout(saveTimer);
++  saveTimer = null;
++  if (!hostClient || !hostHydrated || !writesEnabled || saveInFlight || !saveDirty || !queuedSnapshot) return false;
++  if (queuedStateSerialized === lastSavedState) {
++    saveDirty = false;
++    return true;
++  }
++
++  const serializedState = queuedStateSerialized;
++  const state = stateForSnapshot(queuedSnapshot);
++  if (new TextEncoder().encode(JSON.stringify(state)).byteLength > HOST_STATE_BYTE_LIMIT) {
++    blockedStateSerialized = serializedState;
++    saveDirty = false;
++    setPersistenceError("3D 场景超过 240 KiB 节点状态上限，尚未保存；请减少场景内容。");
++    return false;
++  }
++
++  saveDirty = false;
++  saveInFlight = true;
++  lastSaveStartedAt = performance.now();
++  const epoch = sessionEpoch;
++  try {
++    await call("canvas.node.state.replace", { state });
++    if (epoch !== sessionEpoch) return false;
++    lastSavedState = serializedState;
++    if (blockedStateSerialized === serializedState) blockedStateSerialized = "";
++    failedStateSerialized = "";
++    saveFailures = 0;
++    setPersistenceError(null);
++    return true;
++  } catch (error) {
++    if (epoch !== sessionEpoch) return false;
++    if (failedStateSerialized === serializedState) saveFailures += 1;
++    else {
++      failedStateSerialized = serializedState;
++      saveFailures = 1;
++    }
++    saveDirty = queuedStateSerialized !== lastSavedState
++      && queuedStateSerialized !== blockedStateSerialized;
++    if (saveFailures < SAVE_RETRY_LIMIT && hostClient && saveDirty) {
++      scheduleStateSave(SAVE_INTERVAL_MS * (2 ** saveFailures));
++    } else {
++      blockedStateSerialized = serializedState;
++      setPersistenceError(`3D 场景保存失败：${error instanceof Error ? error.message : String(error)}`);
++    }
++    return false;
++  } finally {
++    if (epoch === sessionEpoch) {
++      saveInFlight = false;
++      saveDirty = queuedStateSerialized !== lastSavedState
++        && queuedStateSerialized !== blockedStateSerialized;
++      if (saveDirty && !saveTimer) scheduleStateSave();
++    }
++  }
+ }
+ 
 -function importHostPanorama(payload: HostPanoramaPayload) {
 -  const imageUrl = normalizeString(payload.imageUrl);
 -  if (!imageUrl) {
--    return;
-+  } catch (error) {
-+    console.error("Failed to hydrate Director scene through Convax", error);
++function queueStateSave(snapshot: DirectorHostSnapshot, immediate = false) {
++  updatePortabilityWarning(snapshot.project);
++  if (!writesEnabled) return;
++  queuedSnapshot = {
++    directorViewSnapshot: cloneJsonValue(snapshot.directorViewSnapshot),
++    project: createHostProject(snapshot.project),
++  };
++  queuedStateSerialized = JSON.stringify(stateForSnapshot(queuedSnapshot));
++  if (blockedStateSerialized && queuedStateSerialized !== blockedStateSerialized) {
++    blockedStateSerialized = "";
++  }
++  saveDirty = queuedStateSerialized !== lastSavedState
++    && queuedStateSerialized !== blockedStateSerialized;
++  if (!saveDirty || !hostHydrated || !hostClient) return;
++  // A final pointer/Orbit/transform event can arrive while an intermediate
++  // snapshot is awaiting its host acknowledgement. Do not put that final
++  // snapshot back behind the normal debounce: Duplicate and page reload may
++  // happen on the very next user gesture.
++  if (immediate && saveInFlight) {
++    postStateSnapshotBestEffort();
+     return;
    }
++  const elapsed = performance.now() - lastSaveStartedAt;
++  if (immediate || elapsed >= SAVE_INTERVAL_MS) {
++    void flushStateSave();
++    return;
++  }
++  scheduleStateSave(Math.max(0, SAVE_INTERVAL_MS - elapsed));
++}
  
 -  const fileName = normalizeString(payload.fileName) || "画布全景图.png";
 -  const edgeId = normalizeString(payload.edgeId);
 -  const sourceNodeId = normalizeString(payload.sourceNodeId);
--
++function getCurrentHostSnapshot(): DirectorHostSnapshot {
++  const state = useDirectorStore.getState();
++  return {
++    directorViewSnapshot: state.directorViewSnapshot,
++    project: state.project,
++  };
++}
++
++function queueCurrentStateSave(immediate = false) {
++  queueStateSave(getCurrentHostSnapshot(), immediate);
++}
+ 
 -  hostConnectedPanorama = edgeId && sourceNodeId ? { edgeId, sourceNodeId } : null;
 -  useDirectorStore.getState().addImportedAsset({
 -    kind: "panorama",
@@ -511,13 +1026,19 @@ index bb143e5..ba9a097 100644
 -    fileName,
 -    url: imageUrl,
 -    projectionMode: "backdrop",
-+  previousProject = useDirectorStore.getState().project;
-+  unsubscribe = useDirectorStore.subscribe((state) => {
-+    if (state.project === previousProject) return;
-+    previousProject = state.project;
-+    queueProjectSave(state.project);
++function postStateSnapshotBestEffort() {
++  if (!hostClient || !hostHydrated || !writesEnabled) return;
++  const snapshot = getCurrentHostSnapshot();
++  const state = stateForSnapshot({
++    directorViewSnapshot: cloneJsonValue(snapshot.directorViewSnapshot),
++    project: createHostProject(snapshot.project),
++  });
++  const serializedState = JSON.stringify(state);
++  if (serializedState === lastSavedState) return;
++  if (new TextEncoder().encode(JSON.stringify(state)).byteLength > HOST_STATE_BYTE_LIMIT) return;
++  void hostClient.callHostApi("canvas.node.state.replace", { state }).catch(() => {
++    // The frame is already closing; the most recent acknowledged snapshot remains canonical.
    });
-+  queueProjectSave(useDirectorStore.getState().project);
  }
  
 -function openHostSession(payload: HostSessionPayload) {
@@ -544,65 +1065,155 @@ index bb143e5..ba9a097 100644
 -      if (!dataUrl) {
 -        return null;
 -      }
--
++function subscribeToState() {
++  const initialState = useDirectorStore.getState();
++  previousProject = initialState.project;
++  previousDirectorViewSnapshot = initialState.directorViewSnapshot;
++  unsubscribe = useDirectorStore.subscribe((state) => {
++    if (
++      state.project === previousProject
++      && state.directorViewSnapshot === previousDirectorViewSnapshot
++    ) return;
++    previousProject = state.project;
++    previousDirectorViewSnapshot = state.directorViewSnapshot;
++    if (applyingHydration) return;
++    stateGeneration += 1;
++    queueStateSave({ directorViewSnapshot: state.directorViewSnapshot, project: state.project });
++  });
++}
+ 
 -      return {
 -        dataUrl,
 -        fileName: normalizeString(capture.fileName) || `director-desk-capture-${index + 1}.png`,
 -      };
 -    })
 -    .filter((capture): capture is { dataUrl: string; fileName: string } => Boolean(capture));
--
++function waitForContextRetry(delay: number) {
++  return new Promise<void>((resolve) => window.setTimeout(resolve, delay));
++}
+ 
 -  if (normalizedCaptures.length === 0) {
 -    return;
--  }
--
++async function hydrateState(epoch: number) {
++  const hydrationGeneration = stateGeneration;
++  let lastError: unknown;
++  for (let attempt = 0; attempt < CONTEXT_RETRY_LIMIT; attempt += 1) {
++    try {
++      const context = await call("host.context.get");
++      if (epoch !== sessionEpoch) return;
++      const result = readHostState(context);
++      if (result.kind === "invalid") {
++        writesEnabled = false;
++        hostHydrated = true;
++        setPersistenceError(result.message);
++        return;
++      }
++      if (result.kind === "ready") {
++        lastSavedState = result.persistedSerialized;
++        if (stateGeneration === hydrationGeneration) {
++          applyingHydration = true;
++          try {
++            useDirectorStore.setState({
++              directorViewSnapshot: result.snapshot.directorViewSnapshot,
++              directorInspectorMode: "auto",
++              project: result.snapshot.project,
++              selectedCrowdId: null,
++              selectedObjectId: null,
++              selectedObjectIds: [],
++            });
++            previousProject = result.snapshot.project;
++            previousDirectorViewSnapshot = result.snapshot.directorViewSnapshot;
++          } finally {
++            applyingHydration = false;
++          }
++        }
++      }
++      hostHydrated = true;
++      queueCurrentStateSave(true);
++      if (result.kind === "ready" && result.projectSanitized) {
++        portabilityWarning = "已忽略无法跨会话恢复的本地媒体或截图；其余 3D 场景已恢复。";
++        renderPersistenceNotice();
++      }
++      return;
++    } catch (error) {
++      if (epoch !== sessionEpoch) return;
++      lastError = error;
++      if (attempt + 1 < CONTEXT_RETRY_LIMIT) {
++        await waitForContextRetry(SAVE_INTERVAL_MS * (2 ** attempt));
++        if (epoch !== sessionEpoch) return;
++      }
++    }
+   }
++  writesEnabled = false;
++  hostHydrated = true;
++  setPersistenceError(`无法读取 3D 场景：${lastError instanceof Error ? lastError.message : String(lastError)}`);
++}
+ 
 -  window.parent?.postMessage(
 -    {
 -      type: "storyai:director-desk-captures-sent",
 -      payload: {
 -        captures: normalizedCaptures,
 -      },
--    },
++function connect(nextClient: DirectorPluginHostClient) {
++  if (hostClient) return;
++  const epoch = ++sessionEpoch;
++  hostClient = nextClient;
++  unsubscribeCommands = hostClient.onCommand(handleHostCommand);
++  subscribeToState();
++  void hydrateState(epoch);
++}
++
++function handleConnect(event: MessageEvent) {
++  if (hostClient) return;
++  const client = acceptPluginHostConnection(event, {
++    onFatalError(error) {
++      hostClient = null;
++      writesEnabled = false;
++      hostHydrated = true;
++      setPersistenceError(error.message);
+     },
 -    getHostOrigin()
 -  );
-+function connect(nextPort: MessagePort) {
-+  if (port) return;
-+  port = nextPort;
-+  port.onmessage = handlePortMessage;
-+  port.start();
-+  void hydrateAndSubscribe();
++    requestIdPrefix: "director",
++  });
++  if (!client) return;
++  window.removeEventListener("message", handleConnect);
++  connect(client);
  }
  
 -function handleHostMessage(event: MessageEvent) {
 -  if (event.origin !== getHostOrigin()) {
 -    return;
 -  }
--
++function flushAfterInteraction() {
++  window.queueMicrotask(() => queueCurrentStateSave(true));
++}
+ 
 -  if (event.data?.type === "storyai:director-desk-session") {
 -    openHostSession((event.data.payload || {}) as HostSessionPayload);
 -    return;
 -  }
--
++function handleVisibilityChange() {
++  if (document.visibilityState === "hidden") queueCurrentStateSave(true);
++}
+ 
 -  if (event.data?.type === "storyai:director-desk-panorama") {
 -    importHostPanorama((event.data.payload || {}) as HostPanoramaPayload);
 -  }
-+function handleConnect(event: MessageEvent) {
-+  if (
-+    event.source !== window.parent
-+    || event.data?.protocol !== HOST_PROTOCOL
-+    || event.data?.type !== "connect"
-+    || event.data?.pluginId !== PLUGIN_ID
-+    || event.ports.length !== 1
-+  ) return;
-+  window.removeEventListener("message", handleConnect);
-+  connect(event.ports[0]);
++function handlePageHide() {
++  postStateSnapshotBestEffort();
  }
  
- export function initDirectorDeskHostBridge() {
+-export function initDirectorDeskHostBridge() {
 -  if (initialized) {
 -    return;
 -  }
--
++export function flushDirectorDeskHostState() {
++  queueCurrentStateSave(true);
++}
+ 
++export function initDirectorDeskHostBridge() {
 +  if (initialized) return;
    initialized = true;
 -  applyDirectorDeskTheme(getInitialHostTheme() ?? "dark");
@@ -611,6 +1222,11 @@ index bb143e5..ba9a097 100644
 +  document.documentElement.dataset.theme = "dark";
 +  document.documentElement.classList.add("dark");
 +  window.addEventListener("message", handleConnect);
++  window.addEventListener("pagehide", handlePageHide);
++  window.addEventListener("pointerup", flushAfterInteraction);
++  window.addEventListener("keyup", flushAfterInteraction);
++  window.addEventListener("change", flushAfterInteraction);
++  document.addEventListener("visibilitychange", handleVisibilityChange);
  }
  
  export function clearDirectorDeskHostBridge() {
@@ -619,6 +1235,8 @@ index bb143e5..ba9a097 100644
 -  }
 -
 +  if (!initialized) return;
++  sessionEpoch += 1;
++  postStateSnapshotBestEffort();
    initialized = false;
 -  hostConnectedPanorama = null;
 -  suppressNextPanoramaRemovalNotice = false;
@@ -626,17 +1244,79 @@ index bb143e5..ba9a097 100644
 -  removeUnsubscribe?.();
 -  removeUnsubscribe = null;
 +  window.removeEventListener("message", handleConnect);
++  window.removeEventListener("pagehide", handlePageHide);
++  window.removeEventListener("pointerup", flushAfterInteraction);
++  window.removeEventListener("keyup", flushAfterInteraction);
++  window.removeEventListener("change", flushAfterInteraction);
++  document.removeEventListener("visibilitychange", handleVisibilityChange);
 +  unsubscribe?.();
 +  unsubscribe = null;
 +  if (saveTimer !== null) window.clearTimeout(saveTimer);
 +  saveTimer = null;
-+  pending.forEach(({ reject }) => reject(new Error("Convax Plugin host disconnected")));
-+  pending.clear();
-+  port?.close();
-+  port = null;
++  unsubscribeCommands?.();
++  unsubscribeCommands = null;
++  hostClient?.close();
++  hostClient = null;
 +  previousProject = null;
-+  lastSavedProject = "";
++  previousDirectorViewSnapshot = null;
++  queuedSnapshot = null;
++  queuedStateSerialized = "";
++  lastSavedState = "";
++  saveInFlight = false;
++  saveDirty = false;
++  saveFailures = 0;
++  failedStateSerialized = "";
++  blockedStateSerialized = "";
++  lastSaveStartedAt = 0;
++  stateGeneration = 0;
++  applyingHydration = false;
++  hostHydrated = false;
++  writesEnabled = true;
++  persistenceError = "";
++  frameError = "";
++  portabilityWarning = "";
++  frameWriteInFlight = false;
++  renderPersistenceNotice();
  }
+diff --git a/src/editor/io/plugin-host-client.d.ts b/src/editor/io/plugin-host-client.d.ts
+new file mode 100644
+index 0000000..fe5ae9a
+--- /dev/null
++++ b/src/editor/io/plugin-host-client.d.ts
+@@ -0,0 +1,22 @@
++export interface DirectorPluginHostCommand {
++  readonly command: string;
++  readonly params?: unknown;
++}
++
++export interface DirectorPluginHostClient {
++  callHostApi(
++    method: "host.context.get" | "canvas.node.state.replace" | "canvas.resource.image.create",
++    params?: unknown,
++    options?: { readonly signal?: AbortSignal },
++  ): Promise<unknown>;
++  close(): void;
++  onCommand(listener: (command: DirectorPluginHostCommand) => void): () => void;
++}
++
++export function acceptPluginHostConnection(
++  event: MessageEvent,
++  options?: {
++    readonly onFatalError?: (error: Error) => void;
++    readonly requestIdPrefix?: string;
++  },
++): DirectorPluginHostClient | null;
+diff --git a/src/editor/io/plugin-host-client.js b/src/editor/io/plugin-host-client.js
+new file mode 100644
+index 0000000..2a9acad
+--- /dev/null
++++ b/src/editor/io/plugin-host-client.js
+@@ -0,0 +1,5 @@
++// The Convax package build supplies the generated @convax/plugin-sdk/client
++// module at this external path. The standalone upstream demo has no Plugin Host.
++export function acceptPluginHostConnection() {
++  return null;
++}
 diff --git a/src/editor/modelLibrary/modelLibraryCatalog.ts b/src/editor/modelLibrary/modelLibraryCatalog.ts
 index dadcac5..5d66091 100644
 --- a/src/editor/modelLibrary/modelLibraryCatalog.ts
@@ -832,10 +1512,34 @@ index fedfb44..26b915d 100644
  
    if (object.geometryType) {
 diff --git a/src/editor/store/directorStore.ts b/src/editor/store/directorStore.ts
-index 81f867e..7d33804 100644
+index 81f867e..f9edc06 100644
 --- a/src/editor/store/directorStore.ts
 +++ b/src/editor/store/directorStore.ts
-@@ -255,10 +255,9 @@ function isLocalModelLibraryAsset(asset: DirectorAssetRef) {
+@@ -58,6 +58,7 @@ export interface DirectorStateOptions {
+ 
+ export interface DirectorUiState {
+   viewMode: ViewMode;
++  directorViewSnapshot: CameraShotSnapshot;
+   selectedObjectId: string | null;
+   selectedObjectIds: string[];
+   selectedCrowdId: string | null;
+@@ -88,6 +89,7 @@ interface DirectorInternalState {
+ 
+ export interface DirectorActions {
+   setViewMode: (mode: ViewMode) => void;
++  setDirectorViewSnapshot: (snapshot: CameraShotSnapshot) => void;
+   setTransformMode: (mode: TransformMode) => void;
+   setViewportAspectRatio: (ratio: ViewportAspectRatio) => void;
+   setViewportRuleOfThirdsEnabled: (enabled: boolean) => void;
+@@ -179,6 +181,7 @@ const DIRECTOR_SCENE_STORAGE_KEY = "storyai-3d-director-desk-demo";
+ const DIRECTOR_SCENE_STORAGE_KEY_PREFIX = `${DIRECTOR_SCENE_STORAGE_KEY}:`;
+ const DEFAULT_UI_STATE: DirectorUiState = {
+   viewMode: "director",
++  directorViewSnapshot: DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT,
+   selectedObjectId: null,
+   selectedObjectIds: [],
+   selectedCrowdId: null,
+@@ -255,10 +258,9 @@ function isLocalModelLibraryAsset(asset: DirectorAssetRef) {
    return asset.sourceType === "model" && asset.kind !== "panorama" && asset.assetSource === "local";
  }
  
@@ -849,7 +1553,36 @@ index 81f867e..7d33804 100644
  }
  
  function cloneJsonValue<T>(value: T): T {
-@@ -346,12 +345,12 @@ function migrateDirectorProject(project: DirectorProject): DirectorProject {
+@@ -325,6 +327,28 @@ function isDirectorProjectShape(value: unknown): value is DirectorProject {
+   );
+ }
+ 
++function isFiniteVectorTuple(value: unknown): value is [number, number, number] {
++  return Array.isArray(value)
++    && value.length === 3
++    && value.every((item) => typeof item === "number" && Number.isFinite(item));
++}
++
++function isCameraShotSnapshot(value: unknown): value is CameraShotSnapshot {
++  if (!value || typeof value !== "object") return false;
++
++  const snapshot = value as Partial<CameraShotSnapshot>;
++  return typeof snapshot.fov === "number"
++    && Number.isFinite(snapshot.fov)
++    && isFiniteVectorTuple(snapshot.position)
++    && isFiniteVectorTuple(snapshot.target);
++}
++
++function isSameCameraShotSnapshot(a: CameraShotSnapshot, b: CameraShotSnapshot) {
++  return a.fov === b.fov
++    && a.position.every((value, index) => value === b.position[index])
++    && a.target.every((value, index) => value === b.target[index]);
++}
++
+ function withPersistedLocalAssets(project: DirectorProject, includePersistedLocalAssets = false): DirectorProject {
+   if (!includePersistedLocalAssets) return project;
+ 
+@@ -346,12 +370,12 @@ function migrateDirectorProject(project: DirectorProject): DirectorProject {
        if (object.kind !== "character") return object;
  
        const rig = object.characterRig;
@@ -864,7 +1597,33 @@ index 81f867e..7d33804 100644
            posePresetId: rig?.posePresetId ?? "stand",
            controls: rig?.controls ?? {},
          },
-@@ -479,7 +478,7 @@ export function createDefaultDirectorProject({
+@@ -363,6 +387,7 @@ function migrateDirectorProject(project: DirectorProject): DirectorProject {
+ function extractPersistedDirectorState(state: DirectorRuntimeState): DirectorState {
+   return cloneJsonValue({
+     viewMode: state.viewMode,
++    directorViewSnapshot: state.directorViewSnapshot,
+     selectedObjectId: state.selectedObjectId,
+     selectedObjectIds: state.selectedObjectIds,
+     selectedCrowdId: state.selectedCrowdId,
+@@ -389,6 +414,7 @@ function writePersistedDirectorState(state: DirectorState) {
+ function createStateFromPersistedProject(project: DirectorProject, options: DirectorStateOptions = {}): DirectorState {
+   return {
+     ...DEFAULT_UI_STATE,
++    directorViewSnapshot: cloneJsonValue(DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT),
+     project: withPersistedLocalAssets(migrateDirectorProject(cloneJsonValue(project)), options.includePersistedLocalAssets),
+   };
+ }
+@@ -414,6 +440,9 @@ function readPersistedDirectorState(options: DirectorStateOptions = {}): Directo
+ 
+     return {
+       viewMode: state.viewMode === "camera" ? "camera" : "director",
++      directorViewSnapshot: isCameraShotSnapshot(state.directorViewSnapshot)
++        ? cloneJsonValue(state.directorViewSnapshot)
++        : cloneJsonValue(DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT),
+       selectedObjectId: typeof state.selectedObjectId === "string" ? state.selectedObjectId : null,
+       selectedObjectIds: Array.isArray(state.selectedObjectIds)
+         ? state.selectedObjectIds.filter((item): item is string => typeof item === "string")
+@@ -479,7 +508,7 @@ export function createDefaultDirectorProject({
      color: "#4F8EF7",
      transform: createTransform([0, 0, 0]),
      characterRig: {
@@ -873,7 +1632,15 @@ index 81f867e..7d33804 100644
        posePresetId: "stand",
        controls: {},
      },
-@@ -613,7 +612,7 @@ function buildPresetCharacterObject(
+@@ -515,6 +544,7 @@ export function createInitialDirectorState(options: DirectorStateOptions = {}):
+ 
+   return {
+     ...DEFAULT_UI_STATE,
++    directorViewSnapshot: cloneJsonValue(DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT),
+     project: createDefaultDirectorProject({ includePersistedLocalAssets: options.includePersistedLocalAssets }),
+   };
+ }
+@@ -613,7 +643,7 @@ function buildPresetCharacterObject(
      crowdLabel: crowdMetadata?.crowdLabel,
      transform: createTransform(position),
      characterRig: {
@@ -882,11 +1649,75 @@ index 81f867e..7d33804 100644
        posePresetId: "stand",
        controls: {},
      },
+@@ -1134,6 +1164,15 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
+         ...state,
+         transformMode: mode,
+       })),
++    setDirectorViewSnapshot: (snapshot) =>
++      commitUiMutation((state) =>
++        isSameCameraShotSnapshot(state.directorViewSnapshot, snapshot)
++          ? state
++          : {
++              ...state,
++              directorViewSnapshot: cloneJsonValue(snapshot),
++            }
++      ),
+     setViewportAspectRatio: (ratio) =>
+       commitUiMutation((state) => ({
+         ...state,
+diff --git a/src/main.tsx b/src/main.tsx
+index f46c379..7091014 100644
+--- a/src/main.tsx
++++ b/src/main.tsx
+@@ -1,6 +1,12 @@
+ import React from "react";
+ import ReactDOM from "react-dom/client";
+ import App from "./App";
++import { clearDirectorDeskHostBridge, initDirectorDeskHostBridge } from "./editor/io/hostBridge";
++
++// Register before React renders so the host's load-time MessagePort transfer
++// cannot race a passive effect during initial load or refresh.
++initDirectorDeskHostBridge();
++if (import.meta.hot) import.meta.hot.dispose(clearDirectorDeskHostBridge);
+ 
+ ReactDOM.createRoot(document.getElementById("root")!).render(
+   <React.StrictMode>
+diff --git a/src/styles/index.css b/src/styles/index.css
+index acdf5df..968990f 100644
+--- a/src/styles/index.css
++++ b/src/styles/index.css
+@@ -3249,3 +3249,26 @@ textarea:focus-visible {
+     max-width: calc(100% - 32px);
+   }
+ }
++
++.convax-state-notice {
++  position: fixed;
++  z-index: 1000;
++  top: 56px;
++  left: 50%;
++  max-width: min(560px, calc(100vw - 32px));
++  padding: 9px 12px;
++  border: 1px solid rgb(248 113 113 / 55%);
++  border-radius: 8px;
++  background: rgb(69 10 10 / 94%);
++  color: rgb(254 226 226);
++  font-size: 12px;
++  line-height: 1.45;
++  box-shadow: var(--ui-shadow-panel);
++  transform: translateX(-50%);
++}
++
++.convax-state-notice.is-warning {
++  border-color: rgb(251 191 36 / 55%);
++  background: rgb(69 26 3 / 94%);
++  color: rgb(254 243 199);
++}
 diff --git a/vite.config.ts b/vite.config.ts
-index 6fe5d02..65acfd1 100644
+index 6fe5d02..dc43466 100644
 --- a/vite.config.ts
 +++ b/vite.config.ts
-@@ -2,9 +2,18 @@ import { defineConfig } from "vitest/config";
+@@ -2,9 +2,24 @@ import { defineConfig } from "vitest/config";
  import react from "@vitejs/plugin-react";
  
  export default defineConfig({
@@ -896,10 +1727,16 @@ index 6fe5d02..65acfd1 100644
    plugins: [react()],
 +  build: {
 +    rollupOptions: {
++      external: ["./plugin-host-client.js"],
 +      output: {
 +        assetFileNames: "assets/styles.css",
 +        chunkFileNames: "assets/chunk-[hash].js",
 +        entryFileNames: "assets/app.js",
++        paths(id) {
++          return /\/src\/editor\/io\/plugin-host-client\.js$/.test(id)
++            ? "./assets/plugin-host-client.js"
++            : id;
++        },
 +      },
 +    },
 +  },

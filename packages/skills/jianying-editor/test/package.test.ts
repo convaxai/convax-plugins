@@ -13,7 +13,7 @@ describe("JianYing Skill package", () => {
     expect(metadata).toMatchObject({
       id: "jianying-editor",
       ownerPluginId: "jianying-editor",
-      version: "2.0.0",
+      version: "2.0.1",
     })
     expect(skill).toContain("direct incoming")
     expect(skill).toContain("draft.status")

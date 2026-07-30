@@ -20,84 +20,47 @@ monotonic, and reusing one `{kind,id,version}` for changed metadata or artifact
 bytes is invalid. Source history and installed immutable bytes, not a range
 resolver, retain old versions.
 
-## Strict Official v1 projection
+## Source admission versus historical consumption
 
-The Official builder also emits the existing strict `convax.registry/1`
-projection for older clients. Its schema, top-level fields, Plugin/Skill enum, and
-entry fields remain compatible with `schemas/convax-registry-v1.schema.json`: it
-does not gain `marketplaceId` or MCP Server entries. The projection is generated
-from v2-capable source packages; it is not independently authored.
+Source admission and Registry consumption are deliberately different contracts.
+Every new Plugin or Skill Release candidate is admitted from
+`convax.package/2`. New Plugin candidates additionally require
+`convax.plugin/8`. Source metadata contains neither publication policy nor
+`compatibility`. `registry/host-capability-policy.json` reverse-binds pending Host
+capability requests to exact package versions, and tooling merges that policy
+before validation, packing, Marketplace builds, or release selection.
 
-The Registry is metadata, not an execution endpoint. Convax fetches it from the
-fixed Microvoid Pages URL, selects a compatible item, downloads the fixed HTTPS
-Release URL, checks byte size and SHA-256, then revalidates the unpacked package with
-its existing local installer.
+The builder derives, rather than accepts, the Registry compatibility envelope:
 
-Top-level fields are exactly `schema`, `sequence`, `revision`, and `packages`.
-`sequence` is a monotonically increasing positive integer used to reject rollback.
-`registry/config.json` provides its source-controlled minimum floor. The production
-Pages builder compares that floor with the currently deployed Registry and advances
-the value for every deployment, so independently published packages from one source
-revision never reuse a sequence. `revision` is the lowercase, full 40-character Git
-commit SHA used to build the catalog.
+- a current Plugin becomes `convax.plugin/8` +
+  `convax.plugin-host/8`;
+- a current Skill becomes `opencode.skill/1`.
 
-Every item contains `kind`, `id`, `name`, `description`, `version`,
-`compatibility`, `artifact`, and `yanked`, plus a complete `manifest` for Plugin items.
-A `convax.plugin/2` through `/7` item with a local external runtime may additionally
-contain `companions`; no other item may contain it.
-The duplicated Plugin identity fields must equal the manifest so the management UI
-can render and filter without downloading ZIPs. Skill items have no `manifest`.
-
-```json
-{
-  "schema": "convax.registry/1",
-  "sequence": 1,
-  "revision": "0123456789abcdef0123456789abcdef01234567",
-  "packages": [{
-    "kind": "plugin",
-    "id": "hello-convax",
-    "name": "Hello Convax",
-    "description": "Checks the scoped Convax Plugin host connection.",
-    "version": "0.1.0",
-    "compatibility": {
-      "pluginSchema": "convax.plugin/1",
-      "pluginHost": "convax.plugin-host/1"
-    },
-    "artifact": {
-      "url": "https://github.com/microvoid/convax-plugins/releases/download/plugin-hello-convax-v0.1.0/convax-plugin-hello-convax-0.1.0.zip",
-      "size": 1234,
-      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    },
-    "yanked": false,
-    "manifest": { "schema": "convax.plugin/1", "id": "hello-convax" }
-  }]
-}
-```
+Older schemas are rejected by this authoring repository. Historical consumption
+belongs to the Host packages and is not reimplemented here. The Official builder
+emits only Registry v2 and Showcase v2 through `@convax/marketplace-kit`.
 
 The abbreviated manifest above is explanatory only; production entries contain the
-complete validated manifest. Plugin compatibility accepts exactly these pairs:
-`convax.plugin/1` + `convax.plugin-host/1`,
-`convax.plugin/2` + `convax.plugin-host/2`,
-`convax.plugin/3` + `convax.plugin-host/3`,
-`convax.plugin/4` + `convax.plugin-host/4`,
-`convax.plugin/5` + `convax.plugin-capability/1`,
-`convax.plugin/6` + `convax.plugin-capability/1`, or
-`convax.plugin/7` + `convax.plugin-capability/2`. The embedded manifest schema must
-match that pair. Crossed pairs and a v1 compatibility envelope around a v2 manifest
-are rejected. Skill compatibility is exactly `{"skillSchema":"opencode.skill/1"}`.
+complete validated manifest. Historical pre-v8 compatibility tuples may remain in
+immutable Registry data, but only
+`convax.plugin/8` + `convax.plugin-host/8` may be emitted for a newly admitted
+Plugin candidate. The embedded manifest schema must match that pair. Crossed pairs
+and an older compatibility envelope around a newer manifest are rejected. Skill
+compatibility is exactly
+`{"skillSchema":"opencode.skill/1"}`.
 Artifact objects contain only `url`, `size`, and lowercase hex `sha256`; URLs always
 target `microvoid/convax-plugins` Release assets.
 
 ## Pet feature Plugins
 
-One Pet feature Plugin is a `convax.plugin/5` capability published through the
+One Pet feature Plugin is a `convax.plugin/8` capability published through the
 normal Plugin Registry item. Its complete embedded manifest contains
 `contributes.pet` with package-relative `library`, `overlay`, and `settings` paths
 plus `protocol: "convax.pet-host/1"`. It requests exactly `pet.activity.read`,
 `pet.activity.open`, and `pet.preferences.write`, may additionally request the
 exact `pet.custom.manage` grant, and has no runtime or companion executable.
-Convax Pet 0.2.2 requests all four. The `convax.plugin-capability/1`
-compatibility label remains the transport-neutral admission contract.
+Convax Pet 0.2.3 requests all four. Pet surfaces use their separately scoped
+`convax.pet-host/1` protocol rather than the top-level Web Plugin ABI.
 
 Clients validate both static surface entries, the strict `convax.pet-library/1`
 document, and every referenced atlas before activation. Installation does not
@@ -109,9 +72,9 @@ bounded persistence.
 
 A Skill item may additionally contain `ownerPluginId`. This is lifecycle metadata
 for Convax, not an Agent Skills field. The id must resolve to a Plugin item whose
-`convax.plugin/4`, `/5`, `/6`, or `/7` manifest contains a matching
-`contributes.skills` item. The
-Registry is rejected if either side is missing.
+current `convax.plugin/8` manifest contains a matching `contributes.skills` item.
+Historical Registry consumption retains the equivalent relationship for immutable
+v4 through v7 entries. The Registry is rejected if either side is missing.
 
 Convax may show an owned Skill as a normal Skill detail with a “Provided by”
 relationship, but install, update, and removal actions target the owner Plugin.
@@ -132,10 +95,47 @@ new group becomes eligible only after all of its current source tags have Releas
 }
 ```
 
+Each v8 owned-Skill contribution may declare:
+
+```json
+"uses": {
+  "requiredHostApis": [],
+  "optionalHostApis": [],
+  "pluginTools": ["run_video"]
+}
+```
+
+`uses` and each child list are optional. A Skill Host API must be a subset of the
+owner manifest's top-level `hostApi` declaration and must have
+`agent-skill` in its audience in the catalog exported by `@convax/plugin-api`.
+Unknown APIs fail closed; Web-only Host APIs are never copied into an Agent Skill.
+`pluginTools` must name lower_snake_case Agent aliases from
+`contributes.agent.tools`; the SDK renderer resolves each alias to its underlying
+generation tool while runtime `tools/list` remains authoritative for live
+availability.
+
+Before packing or publication, the authoring check renders both references in
+memory and rejects missing stable links or authored reserved paths.
+`@convax/marketplace-kit` injects `references/convax-capabilities.md` from
+`@convax/plugin-api` and `references/plugin-capabilities.md` from
+`@convax/plugin-sdk`. The first contains only the declared `agent-skill` API
+subset, records catalog version, `since` and availability guidance, and describes
+declared Plugin tools. The second records cross-Plugin imports, compatible version
+intervals, exports, provider operations, and closed schemas. When no Agent-facing
+Host API exists, the Host page still states that runtime Plugin tool discovery is
+authoritative and does not invent Web API access. The Skill's `SKILL.md` contains
+stable links to both references.
+
+The generated bytes participate in both the standalone Skill artifact and the
+owner Plugin's injected Skill snapshot and digest. Injection occurs during
+Kit build/publication; a Host upgrade never rewrites an already installed Skill
+in place.
+
 ## Verified companion executables
 
-An external v2 through v7 runtime is distributed beside, never inside, its static Plugin ZIP.
-Its Plugin item has the following optional strict field:
+A current v8 external runtime is distributed beside, never inside, its static
+Plugin ZIP. Immutable historical v2 through v7 entries remain consumable with the
+same rule. Its Plugin item has the following optional strict field:
 
 ```json
 "companions": [{
@@ -161,15 +161,17 @@ is not arbitrary: it must exactly equal the package's immutable Release tag plus
 Windows). Clients select only their exact target, then verify byte count and SHA-256
 before admitting the executable to host-owned storage. An absent target is an
 unsupported platform, never permission to search `PATH` or download another URL.
+Likewise, a candidate whose companion resolves `ffmpeg`, `ffprobe`, or another
+runtime dependency from ambient `PATH` has an incomplete immutable closure and
+remains publication-blocked until that dependency is host-verified.
 An admitted asset beginning exactly with `#!/usr/bin/env convax-bun` is a bundled
 Bun program for a compatible host's app-owned shared runtime; every other asset is
-executed natively. This byte-level convention adds no Registry v1 field, so older
-clients still parse the catalog and fail closed at execution if the host runner is
-unavailable.
+executed natively. This byte-level convention adds no alternate Registry shape;
+Hosts that do not support the runner fail closed at execution.
 
 ## Remote Agent MCP
 
-A `convax.plugin/6` manifest may contain `contributes.agent.mcp` without
+A current `convax.plugin/8` manifest may contain `contributes.agent.mcp` without
 `companions` or a local `runtime`. The declaration is limited to one absolute HTTPS
 URL, `oauth: "auto" | "none"`, and at most 16 literal non-credential headers; it
 cannot carry secrets, local commands, or executable fallback metadata. Convax
@@ -177,11 +179,9 @@ delegates the connection and standard OAuth flow to OpenCode/the native MCP host
 The concrete manifest and any owned Skill source remain in this repository; the
 Registry does not turn them into Convax-specific runtime code.
 
-`opencode.skill/1` is the retained Registry v1 compatibility label used by current
-Convax clients; it is not the bundle format. Published Skill ZIPs follow the open
-Agent Skills `SKILL.md` layout and may include client-specific metadata such as
-`agents/openai.yaml`. Renaming this strict field requires a future Registry
-version so older clients do not reject an otherwise valid catalog.
+`opencode.skill/1` is a Registry compatibility label, not the bundle format.
+Published Skill ZIPs follow the open Agent Skills `SKILL.md` layout and may
+include client-specific metadata such as `agents/openai.yaml`.
 
 The production builder reads historical Release entries but emits only the highest
 stable SemVer for each kind/id; prereleases never replace a stable catalog item.
@@ -189,13 +189,14 @@ Packages are sorted by kind then id for deterministic output. Unknown fields are
 rejected. Clients must ignore yanked items for new installs while still
 allowing inventory/diagnostics for already-installed versions.
 
-## Showcase sidecar (`convax.showcase/1`)
+## Showcase sidecars
+
+The current Marketplace descriptor exposes `convax.showcase/2` at
+`https://microvoid.github.io/convax-plugins/showcase/v2/index.json`.
 
 Presentation media is published separately at
-`https://microvoid.github.io/convax-plugins/showcase/v1/index.json`. It never adds
-fields to strict Registry v1 items and never enters a package ZIP. The top-level
-`sequence` and `revision` must exactly match the Registry fetched by the client;
-otherwise the whole sidecar is ignored.
+that v2 URL. It never enters a package ZIP. Its revision must exactly match the
+Registry fetched by the client; otherwise the whole sidecar is ignored.
 
 Each sidecar item identifies the same `kind`, `id`, and `version` as a current
 Registry package and contains a required `poster` plus an optional `animation`.

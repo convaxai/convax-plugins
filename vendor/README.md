@@ -1,0 +1,14 @@
+# Host authoring package candidates
+
+The workspaces under `host-packages/` are temporary CI inputs for the coordinated
+Plugin v8 cutover. Their compiled public files are extracted from real npm tarballs
+built by `microvoid/convax`; this repository does not own or modify their source.
+Only their internal `@convax/*` dependency protocols are changed to `workspace:*`
+so a clean checkout can install the coordinated candidates without a private
+repository token or unpublished npm packages. Source-only scripts and development
+dependencies are removed so these workspaces behave like installed release
+artifacts rather than importing the Host repository's toolchain.
+
+Plugin validation binds the generated Host API Catalog by version and digest.
+Replace these candidate workspaces with the same published npm versions after the
+Host packages are released.

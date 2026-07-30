@@ -1,14 +1,9 @@
 {
-  "schema": "convax.package/1",
+  "schema": "convax.package/2",
   "kind": "plugin",
   "id": "hello-convax",
   "name": "Hello Convax",
   "description": "Checks the scoped Convax Plugin host connection and shows its active context.",
-  "version": "0.1.0",
-  "license": "MIT",
-  "compatibility": {
-    "pluginSchema": "convax.plugin/1",
-    "pluginHost": "convax.plugin-host/1"
-  },
+  "version": "0.1.3",
   "yanked": false
 }

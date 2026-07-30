@@ -26,6 +26,7 @@ describe("ChatCut Plugin package", () => {
       "README.md",
       "UPSTREAM.md",
       "assets/app.js",
+      "assets/plugin-host-client.js",
       "assets/styles.css",
       "index.html",
       "manifest.json",
@@ -33,6 +34,7 @@ describe("ChatCut Plugin package", () => {
 
     const entry = await read("index.html")
     const application = await read("assets/app.js")
+    const sdkClient = await read("assets/plugin-host-client.js")
     const styles = await read("assets/styles.css")
 
     expect(entry).toContain('src="assets/app.js"')
@@ -45,18 +47,36 @@ describe("ChatCut Plugin package", () => {
     expect(styles).not.toContain("@import")
     expect(styles).not.toContain("url(")
 
-    expect(application).toContain('PROTOCOL = "convax.plugin-capability/1"')
-    expect(application).toContain('PLUGIN_ID = "chatcut"')
-    expect(application).toContain('SKILL_NAME = "chatcut"')
-    expect(application).toContain('request("host.context.get")')
-    expect(application).toContain('request("canvas.connectedInputs.list")')
-    expect(application).toContain('request("agent.prompt"')
-    expect(application).toContain('"canvas.connectedInputs.changed"')
-    expect(application).toMatch(
-      /message\.type === "event" && message\.event === CONNECTED_INPUTS_EVENT[\s\S]+?void loadConnectedInputs\(\)[\s\S]+?return/u,
+    expect(entry).toContain('type="module"')
+    expect(application).toContain(
+      'import { acceptPluginHostConnection } from "./plugin-host-client.js"',
     )
+    expect(sdkClient).toContain(
+      "@convax/plugin-sdk/client:createPluginHostClient",
+    )
+    expect(sdkClient).toContain("convax.plugin-host/8")
+    expect(sdkClient).toContain("chatcut")
+    expect(application).toContain('SKILL_NAME = "chatcut"')
+    expect([
+      ...new Set([...application.matchAll(/request\("([^"]+)"/gu)].map((match) => match[1])),
+    ]).toEqual(["host.context.get", "canvas.inputs.list", "agent.prompt"])
+    expect(application).toContain('"canvas.inputs.changed"')
+    expect(application).toMatch(
+      /function receiveCommand\(message\)[\s\S]+?message\.command === INPUTS_CHANGED_COMMAND[\s\S]+?void loadConnectedInputs\(\)/u,
+    )
+    expect(application).toContain("hostClient.onCommand(receiveCommand)")
+    expect(application).toContain("hostClient.callHostApi(method, params)")
     expect(application.match(/request\("agent\.prompt"/gu)).toHaveLength(1)
-    expect(application).not.toContain('request("generation.canvas.execute"')
+    expect(application).toContain("value.inputKey")
+    for (const legacyWireValue of [
+      "convax.plugin-capability/1",
+      "convax.plugin-capability/3",
+      "canvas.connectedInputs.changed",
+      "canvas.connectedInputs.list",
+      "generation.canvas.execute",
+    ]) {
+      expect(application).not.toContain(legacyWireValue)
+    }
     expect(application).toContain("convax_plugin_chatcut_import_connected_media")
     expect(application).toContain("Do not call import_media action=create_session a second time")
     expect(application).toContain("ownerNodeId")
@@ -67,9 +87,11 @@ describe("ChatCut Plugin package", () => {
     expect(application).toContain("batches of at most four")
     expect(application).toContain("The host attached the Plugin-owned Skill named")
     expect(application).toContain("Use only the ChatCut MCP tools actually advertised")
-    expect(application).toContain("event.source !== window.parent")
-    expect(application).toContain("event.ports.length !== 1")
+    expect(sdkClient).toContain("window.parent")
+    expect(sdkClient).toContain("ports.length")
     expect(application).not.toContain("window.parent.postMessage")
+    expect(application).not.toContain('type: "request"')
+    expect(application).not.toContain("new Map")
     expect(application).not.toContain("localStorage")
     expect(application).not.toContain("sessionStorage")
     expect(application).not.toContain("indexedDB")
@@ -81,7 +103,6 @@ describe("ChatCut Plugin package", () => {
     expect(application).not.toMatch(/\bfetch\s*\(/u)
     expect(application).not.toMatch(/https?:\/\//u)
 
-    expect(() => new Function(application)).not.toThrow()
   })
 
   test("declares connected-input UI, a return-only local import operation, and remote ChatCut MCP", async () => {
@@ -119,9 +140,14 @@ describe("ChatCut Plugin package", () => {
         skills: [{ name: "chatcut", path: "skills/chatcut" }],
       },
       entry: "index.html",
+      hostApi: {
+        major: 1,
+        optional: [],
+        required: ["agent.prompt", "canvas.inputs.list", "host.context.get"],
+      },
       id: "chatcut",
-      schema: "convax.plugin/6",
-      version: "0.3.1",
+      schema: "convax.plugin/8",
+      version: "0.3.2",
       runtime: {
         command: "convax-chatcut-media-import-mcp",
         type: "mcp-stdio",
@@ -142,7 +168,8 @@ describe("ChatCut Plugin package", () => {
     expect(readme).toMatch(/iframe does not connect to\s+ChatCut/u)
     expect(readme).toContain("never displayed by the")
     expect(provenance).toContain("independently authored for Convax")
-    expect(provenance).toContain("convax.plugin-capability/1")
+    expect(provenance).toContain("convax.plugin/8")
+    expect(provenance).toContain("convax.plugin-host/8")
     expect(provenance).toContain("asset-import/scripts/upload-media.mjs")
     expect(provenance).toContain("does not")
     expect(provenance).toContain("receive media bytes")

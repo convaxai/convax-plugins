@@ -25,9 +25,10 @@ packages/plugins/storyboard-studio/
 packages/skills/storyboard-studio/
 ```
 
-The Plugin uses `convax.plugin/6` with `convax.plugin-capability/1`. It contributes
-the owned Skill and a Canvas renderer for created cards, `*.storyboard.json`, and
-`*.character.card.json`. The packer injects the Skill into the Plugin ZIP.
+The Plugin uses `convax.plugin/8` and the SDK-owned `convax.plugin-host/8`
+Web client. It contributes the owned Skill and a Canvas renderer for created
+cards, `*.storyboard.json`, and `*.character.card.json`. The packer injects the
+Skill and generated capability references into the Plugin ZIP.
 
 The Web surface is an original implementation whose information hierarchy is
 informed by established dense video-storyboard editor patterns: an asset library,
@@ -250,7 +251,7 @@ The current ABI has no generic declaration for:
 - a Project-scoped Plugin document surface outside a Canvas renderer;
 - dropping one story and atomically materializing a full card/group graph.
 
-Release `0.1.0` therefore uses honest equivalents:
+Release `0.1.1` therefore uses honest equivalents:
 
 - `Storyboards/` is a top-level user-visible Project directory;
 - the complete story/episode/segment tree appears in the Plugin workbench and its

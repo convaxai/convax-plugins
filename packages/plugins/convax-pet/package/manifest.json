@@ -1,10 +1,15 @@
 {
-  "schema": "convax.plugin/5",
+  "schema": "convax.plugin/8",
   "id": "convax-pet",
   "name": "Convax Pet",
   "description": "A local desktop companion and pet library for Convax activity.",
-  "version": "0.2.2",
-  "capabilities": ["pet.activity.read", "pet.activity.open", "pet.preferences.write", "pet.custom.manage"],
+  "version": "0.2.3",
+  "capabilities": [
+    "pet.activity.read",
+    "pet.activity.open",
+    "pet.preferences.write",
+    "pet.custom.manage"
+  ],
   "contributes": {
     "pet": {
       "library": "pet-library.json",
@@ -12,5 +17,10 @@
       "settings": "settings/index.html",
       "protocol": "convax.pet-host/1"
     }
+  },
+  "hostApi": {
+    "major": 1,
+    "required": [],
+    "optional": []
   }
 }

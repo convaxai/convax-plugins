@@ -1,0 +1,10 @@
+{
+  "schema": "convax.package/2",
+  "kind": "skill",
+  "id": "relight-studio",
+  "name": "重打光",
+  "description": "Guide a user through generating relit variations with the owned Relight Studio Plugin surface.",
+  "version": "0.1.0",
+  "yanked": false,
+  "ownerPluginId": "relight-studio"
+}

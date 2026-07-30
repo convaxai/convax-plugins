@@ -1,11 +1,16 @@
 # Convax Pet Feature Plugin Design
 
 **Date:** 2026-07-22
-**Status:** Approved
+**Status:** Historical design record; not Plugin-task authority
 **Plugin owner:** `packages/plugins/convax-pet` in `convax-plugins`
 **Host owners:** generic pet platform support in `@convax/agent-runtime` and
 `@convax/desktop` in `/path/to/convax`
 **External tools:** None
+
+This document records ownership and acceptance criteria only. It does not
+authorize a `convax-plugins` task or Agent to modify the Host repository. Any
+missing public capability requires a structured request in this repository,
+explicit human approval, and a separate Host-owned task.
 
 ## 1. Summary
 
@@ -140,7 +145,7 @@ packages/plugins/convax-pet
   static overlay + settings bundles
   Violet atlas + pet library + activity presentation logic
                   |
-                  | convax.plugin/5 contributes.pet
+                  | convax.plugin/8 contributes.pet
                   | convax.pet-host/1 scoped ports
                   v
 Convax Desktop pet platform
@@ -195,20 +200,21 @@ the Pet settings section.
 
 ### 7.1 Manifest
 
-The revised `convax.plugin/5` contribution declares feature entry points, not one
+The `convax.plugin/8` contribution declares feature entry points, not one
 pet asset:
 
 ```json
 {
-  "schema": "convax.plugin/5",
+  "schema": "convax.plugin/8",
   "id": "convax-pet",
   "name": "Convax Pet",
   "description": "A local desktop companion and pet library for Convax activity.",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "capabilities": [
     "pet.activity.read",
     "pet.activity.open",
-    "pet.preferences.write"
+    "pet.preferences.write",
+    "pet.custom.manage"
   ],
   "contributes": {
     "pet": {
@@ -217,6 +223,11 @@ pet asset:
       "settings": "settings/index.html",
       "protocol": "convax.pet-host/1"
     }
+  },
+  "hostApi": {
+    "major": 1,
+    "required": [],
+    "optional": []
   }
 }
 ```
@@ -226,9 +237,8 @@ that must resolve to regular files. Unknown fields and capabilities are rejected
 A Pet feature package remains static Web content; it may contain bundled JavaScript
 but no native runtime.
 
-The current `name`, `description`, `spritesheet`, `spriteVersion`, and `alt` form is
-removed before publication. Existing unrelated `convax.plugin/5` contributions
-remain valid.
+The old `name`, `description`, `spritesheet`, `spriteVersion`, and `alt` form is
+removed before publication. Other validated v8 contributions remain valid.
 
 ### 7.2 Pet host protocol
 
@@ -447,7 +457,7 @@ Schema, validator, packer, and Registry tests cover:
   symlink, remote resource, invalid atlas, executable, companion, and install hook
   rejection;
 - duplicate library IDs and missing assets;
-- retention of unrelated `convax.plugin/5` contributions;
+- retention of unrelated v8 contributions;
 - deterministic ZIP layout and Registry metadata;
 - package SemVer and Registry sequence requirements.
 
@@ -504,16 +514,13 @@ before release rather than supporting two public models.
 - Update schema, authoring, packaging, Registry documentation, tests, version, and
   Registry sequence.
 
-### `/path/to/convax`
+### Host dependencies
 
-- Keep and generalize the secure window, activity projection, navigation,
-  persistence, asset inspection, and lifecycle foundations.
-- Replace host-owned pet React UI and product controller logic with provider
-  activation, surface mounting, scoped protocol ports, and bounded preferences.
-- Remove raw spritesheet import and the assumption that installed Plugins each
-  contribute one selectable pet.
-- Preserve the already-tested fairness, stale-result handling, multi-display
-  recovery, isolated session, and sandboxed preload behavior.
+The secure window, activity projection, navigation, persistence, asset inspection,
+lifecycle, provider activation, scoped protocol, and bounded preference contracts
+belong to the separate Host owner. This design records those generic requirements
+but is not authority to implement them from this repository. Missing published
+support keeps the Plugin blocked behind a human-reviewed capability request.
 
 No unrelated application or Plugin architecture is refactored.
 
@@ -530,16 +537,13 @@ bun run workspaces:test
 bun run build:companions
 bun test
 bun run pack
-bun run build:index
+bun run skill-api:check
+bun run marketplace:check
 ```
 
-In `/path/to/convax`:
-
-- run affected package typechecks and focused tests;
-- run the complete root `bun run check`;
-- run the built Electron open-project and Plugin smoke path;
-- manually verify native multi-display drag/restore and reduced motion where
-  automated Electron coverage cannot prove OS behavior.
+Any approved Host work owns its verification in a separate Host task after human
+review. This Plugin task resumes only after the contract is released through the
+generated Catalog and SDK.
 
 ## 16. Acceptance Criteria
 

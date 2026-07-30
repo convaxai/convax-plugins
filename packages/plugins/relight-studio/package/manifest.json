@@ -1,12 +1,13 @@
 {
-  "schema": "convax.plugin/3",
+  "schema": "convax.plugin/8",
   "id": "relight-studio",
   "name": "重打光",
   "description": "连接一张 Canvas 图片，通过宿主统一的 AI 生图能力生成不同主光方向、色温与电影氛围的重打光结果。",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "entry": "index.html",
   "capabilities": [
-    "canvas.connectedImages.read",
+    "canvas.connectedInputs.read",
+    "canvas.connectedMedia.stream",
     "canvas.node.write",
     "generation.execute",
     "ui.fullscreen"
@@ -18,7 +19,25 @@
         "width": 1080,
         "height": 720
       }
-    }
+    },
+    "skills": [
+      {
+        "name": "relight-studio",
+        "path": "skills/relight-studio"
+      }
+    ]
   },
-  "skill": "SKILL.md"
+  "hostApi": {
+    "major": 1,
+    "required": [
+      "canvas.inputs.close",
+      "canvas.inputs.list",
+      "canvas.inputs.open",
+      "canvas.node.state.replace",
+      "generation.execute",
+      "generation.tools.list",
+      "host.context.get"
+    ],
+    "optional": []
+  }
 }

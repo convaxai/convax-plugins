@@ -1,5 +1,6 @@
 ---
 name: video-prompting
+version: 0.3.1
 description: Write or improve prompts for text-to-video, image-to-video, reference-video, first-frame, last-frame, or multi-reference generation. Use when the user needs a model-aware video prompt, motion plan, negative constraints, or prompt diagnosis.
 ---
 

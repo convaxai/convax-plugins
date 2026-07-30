@@ -1,14 +1,9 @@
 {
-  "schema": "convax.package/1",
+  "schema": "convax.package/2",
   "kind": "plugin",
   "id": "storyboard-studio",
   "name": "故事板",
   "description": "把一句话构思或直接连入的剧本交给 Agent，生成可追踪的分集、分镜和人物/场景资产，并以专用故事与人物卡片呈现。",
-  "version": "0.1.0",
-  "license": "MIT",
-  "compatibility": {
-    "pluginSchema": "convax.plugin/6",
-    "pluginHost": "convax.plugin-capability/1"
-  },
+  "version": "0.1.1",
   "yanked": false
 }

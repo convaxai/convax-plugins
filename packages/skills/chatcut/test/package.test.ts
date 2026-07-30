@@ -23,6 +23,10 @@ describe("ChatCut Skill package", () => {
     expect(skill).toContain("convax_plugin_chatcut_import_connected_media")
     expect(skill).toContain("exactly once")
     expect(skill).toContain("ownerNodeId")
+    expect(skill).toContain("host-provided opaque `inputKey`")
+    expect(skill).toContain("`references[].nodeId`")
+    expect(skill).toContain("copy each host-provided `inputKey`")
+    expect(skill).toContain("do not interpret it as a")
     expect(skill).toContain("references that are still")
     expect(skill).toContain('action: "create_session"')
     expect(skill).toContain("remote `token`")
@@ -36,8 +40,8 @@ describe("ChatCut Skill package", () => {
     expect(metadata).toMatchObject({
       id: "chatcut",
       ownerPluginId: "chatcut",
-      version: "0.3.1",
+      version: "0.3.2",
     })
-    expect(packageJson.version).toBe("0.3.1")
+    expect(packageJson.version).toBe("0.3.2")
   })
 })

@@ -1,0 +1,89 @@
+function packageIdentity(kind, id) {
+  return `${kind}/${id}`
+}
+
+export function effectivePackagePublications(packages) {
+  const byIdentity = new Map(
+    packages.map((pkg) => [
+      packageIdentity(pkg.metadata.kind, pkg.metadata.id),
+      pkg,
+    ]),
+  )
+  const adjacent = new Map(
+    [...byIdentity.keys()].map((identity) => [identity, new Set()]),
+  )
+  for (const plugin of packages.filter(
+    (pkg) => pkg.metadata.kind === "plugin",
+  )) {
+    const ownerIdentity = packageIdentity("plugin", plugin.metadata.id)
+    for (const contribution of plugin.manifest.contributes.skills ?? []) {
+      const skillIdentity = packageIdentity("skill", contribution.name)
+      if (!byIdentity.has(skillIdentity)) continue
+      adjacent.get(ownerIdentity).add(skillIdentity)
+      adjacent.get(skillIdentity).add(ownerIdentity)
+    }
+  }
+
+  const directlyBlocked = packages
+    .filter((pkg) => pkg.metadata.publication.status === "blocked")
+    .map((pkg) => packageIdentity(pkg.metadata.kind, pkg.metadata.id))
+  const blockedBy = new Map(
+    directlyBlocked.map((identity) => [identity, new Set([identity])]),
+  )
+  const pending = [...directlyBlocked]
+  while (pending.length > 0) {
+    const identity = pending.shift()
+    for (const dependency of adjacent.get(identity) ?? []) {
+      const next = blockedBy.get(dependency) ?? new Set()
+      const before = next.size
+      for (const blocker of blockedBy.get(identity)) next.add(blocker)
+      blockedBy.set(dependency, next)
+      if (next.size !== before) pending.push(dependency)
+    }
+  }
+
+  return new Map(
+    packages.map((pkg) => {
+      const identity = packageIdentity(pkg.metadata.kind, pkg.metadata.id)
+      const causes = [...(blockedBy.get(identity) ?? [])].sort()
+      if (causes.length === 0) {
+        return [identity, {
+          blockers: [],
+          blockedBy: [],
+          status: "ready",
+        }]
+      }
+      const blockersByCode = new Map()
+      for (const cause of causes) {
+        const source = byIdentity.get(cause)
+        for (const blocker of source.metadata.publication.blockers) {
+          if (!blockersByCode.has(blocker.code)) {
+            blockersByCode.set(blocker.code, blocker)
+          }
+        }
+      }
+      return [identity, {
+        blockers: [...blockersByCode.values()],
+        blockedBy: causes,
+        status: "blocked",
+      }]
+    }),
+  )
+}
+
+export function effectivePublicationOmissions(packages) {
+  const effective = effectivePackagePublications(packages)
+  return packages.flatMap((pkg) => {
+    const publication = effective.get(
+      packageIdentity(pkg.metadata.kind, pkg.metadata.id),
+    )
+    return publication.status === "blocked"
+      ? [{
+          kind: pkg.metadata.kind,
+          id: pkg.metadata.id,
+          version: pkg.metadata.version,
+          publication,
+        }]
+      : []
+  })
+}

@@ -1,10 +1,10 @@
 import { RelightRenderer } from "./relight-renderer.js"
 import { buildRelightGenerationRequest, normalizeGenerationTools } from "./generation.js"
+import { normalizeImageInputs, parseOpenedImageStream } from "./image-inputs.js"
 import { mountRadixControls } from "./radix-controls.js"
+import { acceptPluginHostConnection } from "./plugin-host-client.js"
 
-const HOST_PROTOCOL = "convax.plugin-host/3"
-const PLUGIN_ID = "relight-studio"
-const CONNECTED_IMAGES_CHANGED = "canvas.connectedImages.changed"
+const CONNECTED_IMAGES_CHANGED = "canvas.inputs.changed"
 const MAX_IMAGE_FILE_BYTES = 16 * 1024 * 1024
 const MAX_IMAGE_PIXELS = 40 * 1024 * 1024
 const STATE_SAVE_DELAY = 300
@@ -226,10 +226,9 @@ let connectedImages = []
 let generationTools = []
 let currentSource = { kind: "none" }
 let currentBitmap = null
-let hostPort = null
+let hostClient = null
 let hostReady = false
 let generationInFlight = false
-let requestSequence = 0
 let loadSequence = 0
 let refreshPromise = null
 let refreshQueued = false
@@ -244,7 +243,6 @@ let toastTimer = 0
 let dragDepth = 0
 let lightPointerId = null
 let radixControls = null
-const pendingRequests = new Map()
 
 function copyPreset(preset) {
   return {
@@ -466,7 +464,7 @@ async function flushStateSave(options) {
   if (saveAttempts >= STATE_SAVE_MAX_ATTEMPTS) return
   const targetRevision = saveRevision
   saveAttempts += 1
-  saveInFlight = hostRequest("canvas.node.updateState", { state: snapshotState() })
+  saveInFlight = hostRequest("canvas.node.state.replace", { state: snapshotState() })
     .then(function () {
       savedRevision = Math.max(savedRevision, targetRevision)
       saveAttempts = 0
@@ -503,58 +501,27 @@ async function drainStateSave() {
 }
 
 function postStateSnapshotBestEffort() {
-  if (!hostPort || !hostReady || generationInFlight || savedRevision >= saveRevision) return
-  try {
-    hostPort.postMessage({
-      id: PLUGIN_ID + ":close:" + String(++requestSequence),
-      method: "canvas.node.updateState",
-      params: { state: snapshotState() },
-      protocol: HOST_PROTOCOL,
-      type: "request",
-    })
-  } catch {
+  if (!hostClient || !hostReady || generationInFlight || savedRevision >= saveRevision) return
+  void hostClient.callHostApi("canvas.node.state.replace", {
+    state: snapshotState(),
+  }).catch(() => {
     // The owning frame may already be gone.
+  })
+}
+
+async function hostRequest(method, params, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
+  if (!hostClient) throw new Error("插件尚未连接宿主")
+  if (timeoutMs === null) return hostClient.callHostApi(method, params)
+  const controller = new AbortController()
+  const timeout = window.setTimeout(
+    () => controller.abort(new Error("宿主请求超时")),
+    timeoutMs,
+  )
+  try {
+    return await hostClient.callHostApi(method, params, { signal: controller.signal })
+  } finally {
+    window.clearTimeout(timeout)
   }
-}
-
-function hostRequest(method, params, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
-  if (!hostPort) return Promise.reject(new Error("插件尚未连接宿主"))
-  const id = PLUGIN_ID + ":" + String(++requestSequence)
-  return new Promise(function (resolve, reject) {
-    const timeout = timeoutMs === null
-      ? null
-      : window.setTimeout(function () {
-          pendingRequests.delete(id)
-          reject(new Error("宿主请求超时"))
-        }, timeoutMs)
-    pendingRequests.set(id, { reject, resolve, timeout })
-    try {
-      hostPort.postMessage({ id, method, ...(params === undefined ? {} : { params }), protocol: HOST_PROTOCOL, type: "request" })
-    } catch (error) {
-      if (timeout !== null) window.clearTimeout(timeout)
-      pendingRequests.delete(id)
-      reject(error)
-    }
-  })
-}
-
-function rejectPendingRequests(error) {
-  pendingRequests.forEach(function (pending) {
-    if (pending.timeout !== null) window.clearTimeout(pending.timeout)
-    pending.reject(error)
-  })
-  pendingRequests.clear()
-}
-
-function normalizeConnectedImages(result) {
-  if (!isRecord(result) || !Array.isArray(result.images)) return []
-  return result.images
-    .filter(function (image) {
-      return isRecord(image) && typeof image.id === "string" && typeof image.name === "string" && typeof image.readable === "boolean"
-    })
-    .map(function (image) {
-      return { id: image.id, name: image.name, readable: image.readable, mimeType: image.mimeType }
-    })
 }
 
 function updateSourceSelect() {
@@ -630,7 +597,7 @@ async function refreshConnectedImages(forceReload) {
   }
   refreshPromise = (async function () {
     try {
-      connectedImages = normalizeConnectedImages(await hostRequest("canvas.connectedImages.list"))
+      connectedImages = normalizeImageInputs(await hostRequest("canvas.inputs.list"))
       updateSourceSelect()
       if (currentSource.kind === "local") {
         setSourceStatus("本地临时图片 · " + currentSource.name + " · 仅预览")
@@ -683,23 +650,25 @@ async function refreshGenerationTools() {
   }
 }
 
-function dataUrlBlob(dataUrl, expectedMimeType) {
-  const match = /^data:([^;,]+);base64,([A-Za-z0-9+/]*={0,2})$/i.exec(dataUrl)
-  if (!match || match[1].toLowerCase() !== expectedMimeType.toLowerCase()) throw new Error("宿主返回了无效图片")
-  const decoded = window.atob(match[2])
-  if (decoded.length > MAX_IMAGE_FILE_BYTES) throw new Error("图片超过 16 MiB 限制")
-  const bytes = new Uint8Array(decoded.length)
-  for (let index = 0; index < decoded.length; index += 1) bytes[index] = decoded.charCodeAt(index)
-  return new Blob([bytes], { type: expectedMimeType })
-}
-
-async function decodeImage(blob) {
-  const bitmap = await createImageBitmap(blob)
+async function decodeImage(source) {
+  const bitmap = await createImageBitmap(source)
   if (!bitmap.width || !bitmap.height || bitmap.width * bitmap.height > MAX_IMAGE_PIXELS) {
     bitmap.close()
     throw new Error("图片尺寸过大，最多支持 4000 万像素")
   }
   return bitmap
+}
+
+async function decodeStreamImage(url) {
+  const image = new Image()
+  image.decoding = "async"
+  image.src = url
+  try {
+    await image.decode()
+    return decodeImage(image)
+  } finally {
+    image.removeAttribute("src")
+  }
 }
 
 function replaceBitmap(bitmap, source) {
@@ -713,30 +682,28 @@ function replaceBitmap(bitmap, source) {
 
 async function loadConnectedImage(image) {
   const sequence = ++loadSequence
+  let opened
   setLoading(true, "正在读取画布图片…")
   try {
-    const result = await hostRequest("canvas.connectedImage.read", { nodeId: image.id })
-    if (sequence !== loadSequence) return
-    if (
-      !isRecord(result) ||
-      typeof result.dataUrl !== "string" ||
-      typeof result.mimeType !== "string" ||
-      !ACCEPTED_IMAGE_TYPES.has(result.mimeType.toLowerCase())
-    ) throw new Error("宿主没有返回可用图片")
-    const bitmap = await decodeImage(dataUrlBlob(result.dataUrl, result.mimeType))
+    opened = parseOpenedImageStream(
+      await hostRequest("canvas.inputs.open", { inputKey: image.id }),
+    )
+    const bitmap = await decodeStreamImage(opened.url)
     if (sequence !== loadSequence) {
       bitmap.close()
       return
     }
-    const name = typeof result.name === "string" ? result.name : image.name
-    replaceBitmap(bitmap, { kind: "canvas", name, nodeId: image.id })
+    replaceBitmap(bitmap, { kind: "canvas", name: image.name, nodeId: image.id })
     selectedSourceNodeId = image.id
     updateSourceSelect()
-    setSourceStatus("Canvas · " + name + " · " + String(bitmap.width) + "×" + String(bitmap.height))
+    setSourceStatus("Canvas · " + image.name + " · " + String(bitmap.width) + "×" + String(bitmap.height))
     queueStateSave()
   } catch (error) {
     if (sequence === loadSequence) showToast(errorMessage(error, "画布图片载入失败"), "error")
   } finally {
+    if (opened?.sessionId) {
+      await hostRequest("canvas.inputs.close", { sessionId: opened.sessionId }).catch(() => undefined)
+    }
     if (sequence === loadSequence) setLoading(false)
     updateGenerationAvailability()
   }
@@ -779,19 +746,7 @@ function clearSource(status) {
   updatePreviewState()
 }
 
-function handleHostMessage(event) {
-  const message = event.data
-  if (!isRecord(message) || message.protocol !== HOST_PROTOCOL) return
-  if (message.type === "response" && typeof message.id === "string") {
-    const pending = pendingRequests.get(message.id)
-    if (!pending) return
-    if (pending.timeout !== null) window.clearTimeout(pending.timeout)
-    pendingRequests.delete(message.id)
-    if (message.ok === true) pending.resolve(message.result)
-    else pending.reject(new Error(typeof message.error === "string" ? message.error : "宿主请求失败"))
-    return
-  }
-  if (message.type !== "command" || typeof message.command !== "string") return
+function handleHostCommand(message) {
   if (message.command === CONNECTED_IMAGES_CHANGED || message.command === "relight.refresh-connections") {
     void refreshConnectedImages(true)
     void refreshGenerationTools()
@@ -819,20 +774,20 @@ async function initializeHost() {
 }
 
 function handleWindowMessage(event) {
-  const message = event.data
-  if (
-    event.source !== window.parent ||
-    hostPort ||
-    !isRecord(message) ||
-    message.protocol !== HOST_PROTOCOL ||
-    message.type !== "connect" ||
-    message.pluginId !== PLUGIN_ID ||
-    event.ports.length !== 1
-  ) return
+  if (hostClient) return
+  const client = acceptPluginHostConnection(event, {
+    onFatalError: () => {
+      hostClient = null
+      hostReady = false
+      setConnectionState(false)
+      showToast("插件宿主连接已中断", "error")
+    },
+    requestIdPrefix: "relight-studio",
+  })
+  if (!client) return
   window.removeEventListener("message", handleWindowMessage)
-  hostPort = event.ports[0]
-  hostPort.onmessage = handleHostMessage
-  hostPort.start()
+  hostClient = client
+  hostClient.onCommand(handleHostCommand)
   void initializeHost()
 }
 
@@ -930,7 +885,7 @@ async function generateRelight() {
   try {
     await drainStateSave()
     const result = await hostRequest(
-      "generation.canvas.execute",
+      "generation.execute",
       buildRelightGenerationRequest({
         prompt: buildRelightPrompt(),
         referenceNodeId: image.id,
@@ -1074,12 +1029,8 @@ function bindLifecycle() {
     window.clearTimeout(saveTimer)
     window.clearTimeout(toastTimer)
     if (renderFrame) window.cancelAnimationFrame(renderFrame)
-    rejectPendingRequests(new Error("插件页面已关闭"))
-    if (hostPort) {
-      hostPort.onmessage = null
-      hostPort.close()
-      hostPort = null
-    }
+    hostClient?.close()
+    hostClient = null
     if (currentBitmap) currentBitmap.close()
     if (radixControls) {
       radixControls.destroy()

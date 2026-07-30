@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { parseRegistryV2 } from "@convax/marketplace-kit"
 
 const releaseBase = "https://github.com/microvoid/convax-plugins/releases/download/"
 const digestPattern = /^[a-f0-9]{64}$/
@@ -15,61 +16,6 @@ async function readJson(file, label) {
     return JSON.parse(await fs.readFile(file, "utf8"))
   } catch (cause) {
     throw new Error(`${label} is not valid JSON`, { cause })
-  }
-}
-
-function projectedPackages(registry, version) {
-  const label = `Registry v${version}`
-  const topLevelKeys = version === 1
-    ? ["packages", "revision", "schema", "sequence"]
-    : ["marketplaceId", "packages", "revision", "schema", "sequence"]
-  const actualKeys = Object.keys(registry ?? {}).sort()
-  if (
-    actualKeys.length !== topLevelKeys.length ||
-    actualKeys.some((key, index) => key !== topLevelKeys[index]) ||
-    registry.schema !== `convax.registry/${version}` ||
-    !Number.isSafeInteger(registry.sequence) ||
-    registry.sequence <= 0 ||
-    typeof registry.revision !== "string" ||
-    !(version === 1 ? /^[a-f0-9]{40}$/ : digestPattern).test(registry.revision) ||
-    (version === 2 && registry.marketplaceId !== "convax-official") ||
-    !Array.isArray(registry.packages)
-  ) {
-    throw new Error(`${label} is not a strict Official projection`)
-  }
-
-  const packages = new Map()
-  for (const entry of registry.packages) {
-    const supportedKinds = version === 1
-      ? ["plugin", "skill"]
-      : ["mcp-server", "plugin", "skill"]
-    if (!supportedKinds.includes(entry?.kind)) {
-      throw new Error(`${label} contains unsupported kind ${String(entry?.kind)}`)
-    }
-    if (
-      typeof entry.id !== "string" ||
-      entry.id.length === 0 ||
-      typeof entry.version !== "string" ||
-      entry.version.length === 0
-    ) {
-      throw new Error(`${label} contains an incomplete package identity`)
-    }
-    const identity = `${entry.kind}/${entry.id}`
-    if (packages.has(identity)) throw new Error(`${label} contains duplicate ${identity}`)
-    packages.set(identity, entry.version)
-  }
-  return packages
-}
-
-function assertEqualMaps(left, right, identityMessage, versionMessage) {
-  if (
-    left.size !== right.size ||
-    [...left].some(([identity]) => !right.has(identity))
-  ) {
-    throw new Error(identityMessage)
-  }
-  if ([...left].some(([identity, version]) => right.get(identity) !== version)) {
-    throw new Error(versionMessage)
   }
 }
 
@@ -101,7 +47,6 @@ function selectedPackageTags(registryPackages, selectedVersions) {
       typeof entry.kind !== "string" ||
       typeof entry.id !== "string" ||
       typeof entry.version !== "string" ||
-      typeof entry.itemKey !== "string" ||
       typeof entry.releaseTag !== "string" ||
       (entry.previousVersion !== undefined && typeof entry.previousVersion !== "string")
     ) {
@@ -109,11 +54,9 @@ function selectedPackageTags(registryPackages, selectedVersions) {
     }
     const identity = `${entry.kind}\0${entry.id}`
     const registryEntry = registryByIdentity.get(identity)
-    const expectedItemKey = sha256(Buffer.from(identity, "utf8"))
     if (
       !registryEntry ||
       registryEntry.version !== entry.version ||
-      entry.itemKey !== expectedItemKey ||
       entry.releaseTag !== expectedReleaseTag(registryEntry)
     ) {
       throw new Error(`selected version change ${entry.kind}/${entry.id} differs from Registry v2`)
@@ -280,10 +223,9 @@ export async function verifyMarketplaceOutput(
   catalogDirectory,
   { selectedVersions } = {},
 ) {
-  const [descriptor, registryV2, registryV1, showcaseV2, releasePlan] = await Promise.all([
+  const [descriptor, registryV2, showcaseV2, releasePlan] = await Promise.all([
     readJson(path.join(catalogDirectory, "marketplace.json"), "Marketplace descriptor"),
     readJson(path.join(catalogDirectory, "registry-v2.json"), "Registry v2"),
-    readJson(path.join(catalogDirectory, "registry-v1.json"), "Registry v1"),
     readJson(path.join(catalogDirectory, "showcase-v2.json"), "Showcase v2"),
     readJson(path.join(catalogDirectory, "release-plan.json"), "release-plan"),
   ])
@@ -293,7 +235,6 @@ export async function verifyMarketplaceOutput(
     descriptor?.id !== "convax-official" ||
     descriptor.repository?.owner !== "microvoid" ||
     descriptor.repository?.name !== "convax-plugins" ||
-    descriptor.registry?.v1?.url !== "https://microvoid.github.io/convax-plugins/registry/v1/index.json" ||
     descriptor.registry?.v2?.url !== "https://microvoid.github.io/convax-plugins/registry/v2/index.json" ||
     descriptor.showcase?.v2?.url !== "https://microvoid.github.io/convax-plugins/showcase/v2/index.json" ||
     descriptor.delivery?.kind !== "github-pages-releases" ||
@@ -306,21 +247,10 @@ export async function verifyMarketplaceOutput(
   ) {
     throw new Error("Official descriptor, Registry, Showcase, and release-plan are inconsistent")
   }
-  const v2Packages = projectedPackages(registryV2, 2)
-  const v1Packages = projectedPackages(registryV1, 1)
-  const v2Projection = new Map(
-    [...v2Packages].filter(([identity]) =>
-      identity.startsWith("plugin/") || identity.startsWith("skill/")),
-  )
-  assertEqualMaps(
-    v2Projection,
-    v1Packages,
-    "v1 Plugin/Skill identity set differs from Registry v2",
-    "v1 Plugin/Skill versions differ from Registry v2",
-  )
+  const canonicalRegistry = parseRegistryV2(registryV2)
 
-  const publishedPackageTags = selectedPackageTags(registryV2.packages, selectedVersions)
-  const metadataTag = `registry-v2-${registryV2.revision}`
+  const publishedPackageTags = selectedPackageTags(canonicalRegistry.packages, selectedVersions)
+  const metadataTag = `registry-v2-${canonicalRegistry.revision}`
   const admittedPlanTags = new Set([...publishedPackageTags, metadataTag])
   const assetsByUrl = new Map()
   const actualTags = new Set()
@@ -385,7 +315,6 @@ export async function verifyMarketplaceOutput(
 
   for (const [sitePath, flatPath, label] of [
     ["site/marketplace.json", "marketplace.json", "descriptor"],
-    ["site/registry/v1/index.json", "registry-v1.json", "registry v1"],
     ["site/registry/v2/index.json", "registry-v2.json", "registry v2"],
     ["site/showcase/v2/index.json", "showcase-v2.json", "showcase v2"],
   ]) {
@@ -408,7 +337,7 @@ export async function verifyMarketplaceOutput(
     }
   }
 
-  for (const entry of registryV2.packages) {
+  for (const entry of canonicalRegistry.packages) {
     const expectedTag = expectedReleaseTag(entry)
     for (const reference of collectReleaseReferences(entry)) {
       const { tag } = parseReleaseUrl(reference.url, "Registry")
@@ -438,10 +367,9 @@ export async function verifyMarketplaceOutput(
   }
 
   return {
-    packages: registryV2.packages.length,
+    packages: canonicalRegistry.packages.length,
     releaseAssets,
     releaseTags: actualTags.size,
-    v1Packages: v1Packages.size,
   }
 }
 
@@ -456,8 +384,8 @@ async function main(argv) {
     : undefined
   const result = await verifyMarketplaceOutput(directory, { selectedVersions })
   console.log(
-    `Verified ${result.packages} packages, ${result.v1Packages} v1 identities, ` +
-    `${result.releaseTags} immutable Releases, and ${result.releaseAssets} exact assets.`,
+    `Verified ${result.packages} packages, ${result.releaseTags} immutable ` +
+    `Releases, and ${result.releaseAssets} exact assets.`,
   )
 }
 

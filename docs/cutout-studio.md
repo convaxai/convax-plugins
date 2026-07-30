@@ -10,7 +10,7 @@ contract.
 
 - Plugin: `packages/plugins/cutout-studio`
 - Companion tool: `packages/tools/cutout-mcp`
-- Plugin ABI: `convax.plugin/7` with `convax.plugin-capability/2`
+- Plugin ABI: `convax.plugin/8`
 - Runtime command: `convax-cutout-mcp`
 - Operation: `background.remove`
 - Input: exactly one host-staged `reference_image`
@@ -23,6 +23,12 @@ and creates a connected pending image node beside the source. The source is neve
 modified. The new image node owns the complete scan, inference, dissolve, success,
 failure, cancellation, and retry lifecycle before becoming the transparent PNG.
 There is no Plugin iframe or second action inside a Plugin surface.
+
+The v8 declaration uses one generic image selection operation with
+`editor: "immediate"`, `presentation: "cutout-scan"`, and exactly one
+`background.remove` step. The referenced non-return generation tool outputs one
+image and accepts `reference_image`; the Plugin does not invent a Host call or
+branch Host behavior on `cutout-studio`.
 
 ## 不可变更的交互与验收契约
 

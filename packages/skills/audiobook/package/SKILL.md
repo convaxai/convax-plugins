@@ -1,5 +1,6 @@
 ---
 name: audiobook
+version: 0.2.1
 description: Turn a manuscript, story, article, or narration brief into an audiobook script, voice bible, cue sheet, and generation-ready production pack. Use when the user needs audiobook adaptation, narration planning, recording direction, or optional audio generation.
 ---
 

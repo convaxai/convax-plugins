@@ -1,14 +1,10 @@
 {
-  "schema": "convax.package/1",
+  "schema": "convax.package/2",
   "kind": "skill",
   "id": "skill-reviewer",
   "name": "Skill Reviewer",
   "description": "Review an agent Skill bundle for trigger quality, operational correctness, portability, safety, and maintainability.",
-  "version": "0.3.0",
-  "license": "MIT",
-  "compatibility": {
-    "skillSchema": "opencode.skill/1"
-  },
+  "version": "0.3.1",
   "showcase": {
     "poster": {
       "path": "showcase/poster.png",

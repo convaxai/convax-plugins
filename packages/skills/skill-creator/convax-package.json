@@ -1,14 +1,10 @@
 {
-  "schema": "convax.package/1",
+  "schema": "convax.package/2",
   "kind": "skill",
   "id": "skill-creator",
   "name": "Skill Creator",
   "description": "Design and author concise, portable agent Skills grounded in real workflows and available host capabilities.",
-  "version": "0.3.0",
-  "license": "MIT",
-  "compatibility": {
-    "skillSchema": "opencode.skill/1"
-  },
+  "version": "0.3.1",
   "showcase": {
     "poster": {
       "path": "showcase/poster.png",

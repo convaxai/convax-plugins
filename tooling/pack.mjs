@@ -1,12 +1,10 @@
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import {
+  assertPackagesPublishable,
   assetNameFor,
   createDeterministicZip,
-  createRegistryEntry,
-  createShowcaseEntry,
   discoverPackages,
-  json,
   loadCompanionArtifacts,
   parseArgs,
   root,
@@ -14,8 +12,53 @@ import {
   showcaseAssetNameFor,
   tagFor,
 } from "./lib.mjs"
+import { generateSkillApiReferences } from "./generate-skill-api-references.mjs"
+
+function filesWithGeneratedReferences(pkg, referencePlan) {
+  const generated = []
+  for (const reference of referencePlan?.references ?? []) {
+    if (pkg.metadata.kind === "skill" && reference.skillName === pkg.metadata.id) {
+      for (const file of reference.files) {
+        generated.push({
+          data: Buffer.from(file.bytes),
+          mode: 0o644,
+          relativePath: file.path,
+        })
+      }
+    }
+    if (pkg.metadata.kind === "plugin" && reference.pluginId === pkg.metadata.id) {
+      for (const file of reference.files) {
+        generated.push({
+          data: Buffer.from(file.bytes),
+          mode: 0o644,
+          relativePath: `${reference.bundlePath}/${file.path}`,
+        })
+      }
+    }
+  }
+  const sourcePaths = new Set(
+    pkg.files.map((file) => file.relativePath.toLocaleLowerCase("en-US")),
+  )
+  const collision = generated.find((file) =>
+    sourcePaths.has(file.relativePath.toLocaleLowerCase("en-US")))
+  if (collision) {
+    throw new Error(
+      `${pkg.metadata.kind}/${pkg.metadata.id}: generated Skill reference collides with source ${collision.relativePath}`,
+    )
+  }
+  return [...pkg.files, ...generated].sort((left, right) =>
+    left.relativePath.localeCompare(right.relativePath, "en"))
+}
 
 export async function packPackages(packages, outputDirectory, options = {}) {
+  if (
+    typeof options.referencePlan?.catalogDigest !== "string" ||
+    typeof options.referencePlan?.catalogVersion !== "string" ||
+    !Array.isArray(options.referencePlan?.references)
+  ) {
+    throw new Error("pack: a catalog-bound Skill reference plan is required")
+  }
+  assertPackagesPublishable(packages, "pack")
   if (options.preserveOtherPackages) {
     await fs.mkdir(outputDirectory, { recursive: true })
     await Promise.all(packages.map((pkg) =>
@@ -28,14 +71,13 @@ export async function packPackages(packages, outputDirectory, options = {}) {
     const tag = tagFor(pkg.metadata)
     const directory = path.join(outputDirectory, tag)
     const assetName = assetNameFor(pkg.metadata)
-    const zip = createDeterministicZip(pkg.files)
+    const zip = createDeterministicZip(
+      filesWithGeneratedReferences(pkg, options.referencePlan),
+    )
     const companions = await loadCompanionArtifacts(pkg)
-    const entry = createRegistryEntry(pkg, zip, companions)
     await fs.mkdir(directory, { recursive: true })
     const zipPath = path.join(directory, assetName)
-    const entryPath = path.join(directory, "registry-entry.json")
     await fs.writeFile(zipPath, zip)
-    await fs.writeFile(entryPath, json(entry))
     const companionAssets = []
     for (const companion of companions) {
       for (const target of companion.targets) {
@@ -56,12 +98,8 @@ export async function packPackages(packages, outputDirectory, options = {}) {
         })
       }
     }
-    const showcaseEntry = createShowcaseEntry(pkg)
     const showcaseAssets = []
-    let showcaseEntryPath
-    if (showcaseEntry) {
-      showcaseEntryPath = path.join(directory, "showcase-entry.json")
-      await fs.writeFile(showcaseEntryPath, json(showcaseEntry))
+    if (pkg.showcase) {
       for (const role of ["poster", "animation"]) {
         const media = pkg.showcase[role]
         if (!media) continue
@@ -71,8 +109,22 @@ export async function packPackages(packages, outputDirectory, options = {}) {
         showcaseAssets.push({ assetName: name, data: media.data, path: assetPath, role })
       }
     }
-    results.push({ assetName, companionAssets, directory, entry, entryPath, pkg, showcaseAssets, showcaseEntry, showcaseEntryPath,
-      tag, zip, zipPath })
+    results.push({
+      assetName,
+      ...(options.referencePlan
+        ? {
+            catalogDigest: options.referencePlan.catalogDigest,
+            catalogVersion: options.referencePlan.catalogVersion,
+          }
+        : {}),
+      companionAssets,
+      directory,
+      pkg,
+      showcaseAssets,
+      tag,
+      zip,
+      zipPath,
+    })
   }
   return results
 }
@@ -84,8 +136,18 @@ function selectionForTag(tag) {
 }
 
 export async function packFromArgs(argv, options = {}) {
-  const args = parseArgs(argv.filter((argument) => argument !== "--"))
-  const supported = new Set(["kind", "id", "tag"])
+  const normalizedArgv = argv.filter((argument) => argument !== "--")
+  const catalogArgumentCount = normalizedArgv.filter(
+    (argument) => argument === "--catalog",
+  ).length
+  if (
+    (options.catalogPath === undefined && catalogArgumentCount !== 1) ||
+    (options.catalogPath !== undefined && catalogArgumentCount !== 0)
+  ) {
+    throw new Error("arguments: exactly one --catalog path is required")
+  }
+  const args = parseArgs(normalizedArgv)
+  const supported = new Set(["catalog", "kind", "id", "tag"])
   const unknown = Object.keys(args).find((key) => !supported.has(key))
   if (unknown) throw new Error(`arguments: unsupported --${unknown}`)
   if ((args.kind && !args.id) || (args.id && !args.kind) || (args.tag && (args.kind || args.id))) {
@@ -93,14 +155,25 @@ export async function packFromArgs(argv, options = {}) {
   }
   const workspaceRoot = options.workspaceRoot ?? root
   const outputDirectory = options.outputDirectory ?? path.join(workspaceRoot, "dist", "packages")
+  const catalogPath =
+    options.catalogPath === undefined
+      ? path.resolve(args.catalog)
+      : path.resolve(workspaceRoot, options.catalogPath)
+  const referencePlan = await generateSkillApiReferences({
+    catalogPath,
+    check: true,
+    workspaceRoot,
+  })
   const selection = args.kind ? { kind: args.kind, id: args.id } : selectionForTag(args.tag)
   if (args.tag && !selection) throw new Error("arguments: tag must identify one versioned Plugin or Skill")
   let packages = await discoverPackages({ ...selection, workspaceRoot })
+  assertPackagesPublishable(packages, "pack")
   if (args.tag) packages = packages.filter((pkg) => tagFor(pkg.metadata) === args.tag)
   if (args.kind) packages = packages.filter((pkg) => pkg.metadata.kind === args.kind && pkg.metadata.id === args.id)
   if (packages.length === 0) throw new Error("No package matches the requested identity/tag")
   const results = await packPackages(packages, outputDirectory, {
     preserveOtherPackages: Boolean(args.kind || args.tag),
+    referencePlan,
   })
   return results
 }
@@ -108,7 +181,7 @@ export async function packFromArgs(argv, options = {}) {
 if (import.meta.main) {
   const results = await packFromArgs(process.argv.slice(2))
   for (const result of results) {
-    const showcase = result.showcaseEntry ? `, ${result.showcaseAssets.length} showcase assets` : ""
+    const showcase = result.showcaseAssets.length > 0 ? `, ${result.showcaseAssets.length} showcase assets` : ""
     const companions = result.companionAssets.length > 0 ? `, ${result.companionAssets.length} companion assets` : ""
     console.log(`${result.tag}: ${path.relative(root, result.zipPath)} (${result.zip.length} bytes${showcase}${companions})`)
   }

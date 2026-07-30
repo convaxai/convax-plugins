@@ -13,7 +13,7 @@ function exactKeys(value, allowed, required, label) {
   if (missing) throw new Error(`${label}: missing field ${missing}`)
 }
 
-function assertDescriptor(descriptor) {
+export function assertOfficialMarketplaceDescriptor(descriptor) {
   exactKeys(
     descriptor,
     ["schema", "id", "name", "publisher", "repository", "registry", "showcase", "compatibility", "delivery"],
@@ -28,11 +28,22 @@ function assertDescriptor(descriptor) {
   if (descriptor.repository.owner !== "microvoid" || descriptor.repository.name !== "convax-plugins") {
     throw new Error("marketplace.json: repository must remain microvoid/convax-plugins")
   }
-  exactKeys(descriptor.registry, ["v1", "v2"], ["v1", "v2"], "marketplace.json registry")
-  exactKeys(descriptor.registry.v1, ["url"], ["url"], "marketplace.json registry v1")
+  exactKeys(descriptor.registry, ["v2"], ["v2"], "marketplace.json registry")
   exactKeys(descriptor.registry.v2, ["url"], ["url"], "marketplace.json registry v2")
+  if (
+    descriptor.registry.v2.url !==
+    "https://microvoid.github.io/convax-plugins/registry/v2/index.json"
+  ) {
+    throw new Error("marketplace.json: Registry v2 URL must remain on the Official Pages origin")
+  }
   exactKeys(descriptor.showcase, ["v2"], ["v2"], "marketplace.json showcase")
   exactKeys(descriptor.showcase.v2, ["url"], ["url"], "marketplace.json showcase v2")
+  if (
+    descriptor.showcase.v2.url !==
+    "https://microvoid.github.io/convax-plugins/showcase/v2/index.json"
+  ) {
+    throw new Error("marketplace.json: Showcase v2 URL must remain on the Official Pages origin")
+  }
   exactKeys(descriptor.compatibility, ["convax"], ["convax"], "marketplace.json compatibility")
   exactKeys(descriptor.delivery, ["kind"], ["kind"], "marketplace.json delivery")
   if (descriptor.delivery.kind !== "github-pages-releases") {
@@ -51,7 +62,7 @@ function assertBuiltin(builtin) {
     builtin.members[0]?.kind !== "skill" ||
     builtin.members[0]?.id !== "canvas-storyboard"
   ) {
-    throw new Error("catalogs/builtin.json: v1 contains only skill/canvas-storyboard")
+    throw new Error("catalogs/builtin.json: must contain only skill/canvas-storyboard")
   }
 }
 
@@ -68,12 +79,12 @@ function assertPreinstalled(preinstalled) {
     item.targets?.length !== 1 ||
     item.targets[0] !== "darwin-arm64"
   ) {
-    throw new Error("catalogs/preinstalled.json: v1 contains only darwin-arm64 Official ffmpeg-tools")
+    throw new Error("catalogs/preinstalled.json: must contain only darwin-arm64 Official ffmpeg-tools")
   }
 }
 
 export function assertOfficialMarketplaceSource(source) {
-  assertDescriptor(source.descriptor)
+  assertOfficialMarketplaceDescriptor(source.descriptor)
   assertBuiltin(source.builtin)
   assertPreinstalled({ schema: "convax.preinstalled-config/1", packages: source.preinstalled })
 }

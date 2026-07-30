@@ -1,6 +1,10 @@
 # Convax Pet Runtime Fixes Design
 
-**Status:** Approved
+**Status:** Historical design record; not Plugin-task authority
+
+This document does not authorize Host edits from a Plugin task. Any missing public
+Host capability requires a request in `convax-plugins`, explicit human approval,
+and a separate Host-owned task.
 
 ## 1. Goal
 
@@ -216,6 +220,6 @@ No manifest capability or package schema changes are required.
 ## 6. Release
 
 Plugin byte changes require `convax-pet` version `0.2.2` and a Registry sequence
-increment. Convax host changes ship from its own `codex/convax-pet` branch. The
-Plugin release must not claim host-only fixes are available in an older Convax
-build.
+increment. Host-dependent fixes remain unavailable until a separately approved
+Host contract is released. The Plugin release must not claim host-only fixes are
+available in an older Convax build.

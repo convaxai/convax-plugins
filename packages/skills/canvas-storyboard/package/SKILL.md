@@ -1,5 +1,6 @@
 ---
 name: canvas-storyboard
+version: 0.1.1
 description: Convert a script or creative brief into ordered, reviewable shot cards on the active Convax Canvas.
 ---
 

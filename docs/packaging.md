@@ -28,22 +28,50 @@ STORE method. Thus identical source bytes produce identical SHA-256 digests acro
 machines. Uncompressed storage is intentional: packages are already size-bounded,
 and avoiding compressor-version drift makes releases reproducible.
 
-A headless `convax.plugin/2` through `/7` local Tool Plugin may contain only
-`manifest.json` and a license notice. Its executable contributions use one declared
-`mcp-stdio` executable that is a separate distributable and
-must never appear anywhere below `package/`; validation and packing do not install,
-build, or execute companion source under `packages/tools/`.
+New Plugin and Skill source uses only `convax.package/2`. Every source package has
+no portable publication field. `registry/host-capability-policy.json` is the sole
+policy owner and reverse-binds every pending Host capability request to exact
+package versions. Every affected workspace independently lists the request id in
+`package.json#convax.hostCapabilityRequests`; tooling requires an exact two-way
+match before deriving blocked state in memory. Normal source admission reports
+blocked packages without publishing them. Exact packing rejects a blocked target;
+Marketplace and release selection omit the blocked owner/owned-Skill closure and
+continue with unrelated ready packages. New Plugin manifests use only
+`convax.plugin/8`; older manifests are explicit rejection-test fixtures only.
+
+The protected CI/release path runs `tooling/host-capability-history.mjs` against
+the exact prior protected-main commit before version selection. Every pending
+request and affected package identity from that base is monotonic until a future
+external human-receipt verifier exists. The normalized request semantic core is
+also monotonic while generated Catalog evidence may refresh. Simultaneously
+deleting declarations, rewriting the pending contract, or copying a blocked
+implementation to a new Plugin id cannot produce a ready release. New and renamed
+Plugin identities enter pending human review by default.
+
+`.github/CODEOWNERS` covers the governance and publishing paths, and the publish job
+declares `plugin-marketplace-production`. Branch protection must require a named
+human code-owner, dismiss stale approvals, reject bot approval, require current CI,
+and protect that environment. Those remote settings remain mandatory external
+controls and must be verified outside repository source.
+
+A headless `convax.plugin/8` local Tool Plugin may contain only `manifest.json` and
+a license notice. It still declares
+`hostApi: {"major":1,"required":[],"optional":[]}` and must not claim Web APIs.
+Its executable contributions use one declared `mcp-stdio` executable that is a
+separate distributable and must never appear anywhere below `package/`; validation
+and packing do not install, build, or execute companion source under
+`packages/tools/`.
 
 ## Pet feature Plugin assets
 
-A `convax.plugin/5` Pet feature package remains inert, offline Web content. Its ZIP
+A `convax.plugin/8` Pet feature package remains inert, offline Web content. Its ZIP
 contains the manifest, license, documentation, static overlay and settings pages,
 browser JavaScript/CSS, a `convax.pet-library/1` document, and its referenced PNG
 or WebP atlases. The manifest's `contributes.pet` object names the packaged library
 and both static surfaces. The ZIP must not contain a runtime, executable,
-dependency tree, installer, remote script, or server. The Plugin uses the
-transport-neutral `convax.plugin-capability/1` compatibility pair and the narrow
-`convax.pet-host/1` surface protocol.
+dependency tree, installer, remote script, or server. The Plugin uses the narrow
+`convax.pet-host/1` surface protocol; a top-level Web entry would instead use the
+`@convax/plugin-sdk/client` `convax.plugin-host/8` ABI.
 
 For `spriteVersion: 2`, the sprite sheet is exactly 1536×1872 pixels: eight columns
 of 192-pixel cells and nine rows of 208-pixel cells. The ordinary 2 MiB per-file
@@ -55,13 +83,14 @@ activity data.
 
 ## Remote Agent MCP metadata
 
-A v6 remote `contributes.agent.mcp` Plugin may also be manifest-only, but it has no
+A v8 remote `contributes.agent.mcp` Plugin may also be manifest-only, but it has no
 companion or local command for that contribution. The manifest contains only an
 HTTPS endpoint, OAuth mode, and optional bounded literal non-credential headers;
 never package credentials, tokens, local executables, or an adapter. OpenCode/the
-native host owns the remote connection and standard OAuth flow. The concrete
-manifest and any owned Skill source remain under this repository's package
-workspaces.
+native host owns the remote connection and standard OAuth flow. A pure headless
+remote MCP Plugin explicitly declares
+`hostApi: {"major":1,"required":[],"optional":[]}`. The concrete manifest and any
+owned Skill source remain under this repository's package workspaces.
 
 The matching source metadata declares the reviewed tool directory and build output
 for each target. For example:
@@ -100,10 +129,25 @@ mode, size and SHA-256 checks as a native companion. Native companions remain va
 
 ## Plugin-owned Skill composition
 
-A `convax.plugin/4` or later manifest may declare `contributes.skills` entries such as
-`{"name":"ffmpeg-canvas","path":"skills/ffmpeg-canvas"}`. The named Skill remains
-an independent workspace and standard portable Skill package. Its source metadata
-declares `ownerPluginId`.
+A `convax.plugin/8` manifest may declare `contributes.skills` entries such as:
+
+```json
+{
+  "name": "ffmpeg-canvas",
+  "path": "skills/ffmpeg-canvas",
+  "uses": {
+    "pluginTools": ["run_video"]
+  }
+}
+```
+
+The named Skill remains an independent workspace and standard portable Skill
+package. Its `convax.package/2` source metadata declares `ownerPluginId`. Any Host
+API required by the Skill must be top-level required; an optional Skill API may be in
+either top-level list. Every selected API must have `agent-skill` audience in the
+catalog exported by `@convax/plugin-api`. Web-only Host APIs must never leak into the Skill.
+`pluginTools` names lower_snake_case Agent tool ids from
+`contributes.agent.tools`, not the underlying generation tool ids.
 
 The Plugin directory must not contain a copied Skill tree. Discovery verifies the
 two ownership declarations, reads the Skill workspace as inert bytes, and injects
@@ -111,11 +155,34 @@ those bytes below the declared Plugin ZIP path. The resulting ZIP is determinist
 while the source of truth remains singular. npm workspace dependencies are build
 relationships only and never imply Convax lifecycle ownership.
 
-Changing an owned Skill changes both its portable Skill ZIP and the owner Plugin ZIP.
-Both versions must be bumped and released. Catalog deployment recomputes every
-deterministic source ZIP and requires its size and SHA-256 to match the immutable
-Release entry, preventing an old owner Plugin from being paired with a newer Skill
-presentation artifact.
+The authoring check renders both generated references in memory from the installed
+SDK packages and validates the two stable `SKILL.md` links:
+
+```sh
+bun run skill-api:check
+```
+
+Authors must not create `references/convax-capabilities.md` or
+`references/plugin-capabilities.md`; both are reserved generated paths.
+`@convax/marketplace-kit` injects them from the canonical
+`renderPluginApiReference` and `renderPluginCapabilityReference` functions during
+build and publication. The first page records Host API catalog version, `since`,
+availability, and Plugin tools; the second records cross-Plugin imports, compatible
+version intervals, exports, operations, and closed schemas. Missing, unknown,
+Web-only, or malformed declarations fail closed.
+
+Generated references are artifact bytes, not authoring source, and they are not
+rewritten in an installed Skill when the Host upgrades. Changing an owned Skill,
+its manifest declaration, or an SDK-rendered reference changes both its portable
+Skill ZIP and the owner Plugin ZIP. Both versions must be bumped and released.
+Catalog deployment recomputes every deterministic ZIP and requires its size and
+SHA-256 to match the immutable Release entry, preventing an old owner Plugin from
+being paired with a newer Skill presentation artifact.
+
+Scanning authored Markdown for copied API ids, prose metadata, or schemas is a
+drift-prevention lint, not a security boundary. The publication boundary is the
+reserved generated paths, SDK renderer build-time injection, and the resulting
+portable Skill and owner Plugin snapshot digests.
 
 Paths must be portable POSIX relative paths. Symlinks, traversal, control characters,
 Windows device names, alternate data streams, case/Unicode-normalization collisions,
@@ -131,37 +198,33 @@ one; packing itself never executes tool source:
 
 ```sh
 bun run build:companions
+bun run skill-api:check
 bun run pack
 ```
 
-The legacy compatibility command
-`bun run pack -- --kind plugin --id hello-convax` writes a versioned ZIP and
-`registry-entry.json` below `dist/packages/`. `bun run build:index` reads those
-entries and writes `dist/registry/v1/index.json`. A package with `showcase`
-metadata also produces `showcase-entry.json` and versioned poster/animation assets;
-the index build writes `dist/showcase/v1/index.json` with the same sequence and
-revision as the Registry. A package with `companions` additionally produces one
-standalone `convax-companion-*` Release asset per target; the Registry entry records
-its immutable URL, exact byte size, and SHA-256.
+`bun run pack -- --kind plugin --id hello-convax` writes only the selected
+deterministic package artifacts below `dist/packages/`. Generated owned-Skill
+references are injected from the exact external Catalog and SDK renderers before
+the ZIP digest is computed. A package with `companions` additionally emits the
+declared target assets. It does not generate a second Registry or Showcase parser.
 
-Neither directory is a v2 publication input. Official v2, its strict v1
-projection, Showcase v2, grouped Release assets, Builtin bundle, and product-lock
-input come only from the exact `@convax/marketplace-kit` output.
-
-`bun run marketplace:verify` independently closes those outputs before
-publication. It checks the strict v1 identity projection, every Registry Release
-reference, immutable metadata copies, the Builtin reservation, and the sole
-`ffmpeg-tools` preinstall with its owned Skill and darwin-arm64 companion. Product
-lock reads are bounded, no-follow, single-link reads whose opened inode and size
-must remain stable through hashing.
+`bun run marketplace:check` runs Catalog-bound preflight and Marketplace Kit
+validation. `bun run marketplace:build` is the sole official v2 composition path:
+it produces Registry v2, Showcase v2, grouped immutable Release assets, the Builtin
+bundle, and product-lock input. `bun run marketplace:verify` independently closes
+those outputs before publication.
 
 ## Protected default-branch release
 
 Authors change an extension's identity version and merge through the protected
 default branch. The low-privilege job compares the Git tree recorded by the
-currently deployed strict v1 Registry with the protected-branch candidate,
+currently deployed Registry v2 metadata Release with the protected-branch candidate,
 rejects any changed package bytes whose version did not change, runs the complete
-check, and uploads only the exact verified artifacts. A separate minimal
+check, verifies SDK-owned Skill reference inputs and generated artifact bytes,
+omits blocked exact versions into an explicit diagnostics artifact, continues with
+unrelated ready versions, and uploads only the exact verified publication plan and
+artifacts.
+A separate minimal
 high-privilege job consumes those bytes, creates the deterministic tag, attests the
 artifacts, and publishes the immutable Release. Pull requests never receive release
 credentials and `pull_request_target` is not used.
@@ -174,12 +237,10 @@ disable a compromised version for new installs, publish a reviewed higher packag
 version with `yanked: true`. Existing immutable assets remain available for
 inventory, recovery, and audit.
 
-The serialized workflow fetches and strictly validates the complete current
-production closure: Registry v2, descriptor, Showcase v2, and the strict v1
-Registry and Showcase projections. The one-time bootstrap accepts strict v1 only
-after an exact v2 HTTP 404 and uses the checked-in descriptor while retaining the
-deployed source revision as the cumulative change-plan baseline. Every other
-network or validation failure stops publication. The Kit then writes
+The serialized workflow fetches and strictly validates the complete current v2
+production closure: descriptor, Registry, Showcase, and immutable metadata
+Release. Initial publication uses an explicit empty marker; a missing or malformed
+deployed v2 closure otherwise stops publication. The Kit then writes
 one grouped directory per immutable package Release plus one content-addressed
 Registry metadata Release. A changed Storyboard source also publishes the matching
 Builtin bundle Release. The privileged job consumes only those verified directories,
@@ -188,12 +249,10 @@ releasing the repository-wide publication lock. Every protected-main push rebuil
 reverifies, and redeploys the current Pages catalog even when the selected
 package-version plan is empty. Existing immutable Releases are accepted only after
 an exact-byte comparison. This lets a reviewed publication-workflow repair restore
-the descriptor, Registry v2, Showcase, and strict v1 projection without inventing a
-package version change or bypassing the ordinary release closure.
+the descriptor, Registry v2, and Showcase without inventing a package version
+change or bypassing the ordinary release closure.
 
-The production catalogs are:
-
-`https://microvoid.github.io/convax-plugins/registry/v1/index.json`
+The production Registry is:
 
 `https://microvoid.github.io/convax-plugins/registry/v2/index.json`
 
@@ -201,7 +260,6 @@ The matching presentation sidecar is:
 
 `https://microvoid.github.io/convax-plugins/showcase/v2/index.json`
 
-Each content-changing deployment uses
-`max(registry/config.json floor, previous production sequence) + 1` for both v2 and
-v1. Registry v2 revision is the canonical content SHA-256; the v1 projection keeps
-the explicit protected Git SHA required by existing clients.
+Each content-changing deployment advances from the validated production v2
+sequence and binds its revision and immutable release identity to the exact
+candidate bytes.

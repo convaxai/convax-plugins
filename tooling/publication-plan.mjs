@@ -1,5 +1,10 @@
 import { promises as fs } from "node:fs"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
+import {
+  assertSelectedCandidatesMatchSnapshot,
+  packageVersionSnapshot,
+} from "./marketplace-release.mjs"
 
 function parsePlan(value, label) {
   if (
@@ -38,7 +43,15 @@ export function composePublicationPlan({ builtin, catalog, selected }) {
   const selectedTags = new Set()
   let publishesBuiltin = false
   for (const entry of selected) {
-    if (typeof entry?.releaseTag !== "string") throw new Error("selected version change has no releaseTag")
+    if (
+      !entry ||
+      !["plugin", "skill", "mcp-server"].includes(entry.kind) ||
+      typeof entry.id !== "string" ||
+      typeof entry.version !== "string" ||
+      typeof entry.releaseTag !== "string"
+    ) {
+      throw new Error("selected version change is not a canonical Marketplace Kit selection")
+    }
     if (selectedTags.has(entry.releaseTag)) throw new Error(`duplicate selected tag ${entry.releaseTag}`)
     selectedTags.add(entry.releaseTag)
     publishesBuiltin ||= entry.kind === "skill" && entry.id === "canvas-storyboard"
@@ -78,6 +91,13 @@ async function main() {
     fs.readFile("dist/catalog/release-plan.json", "utf8").then(JSON.parse),
     fs.readFile("dist/builtin/release-plan.json", "utf8").then(JSON.parse),
   ])
+  const workspaceRoot = path.resolve(
+    fileURLToPath(new URL("..", import.meta.url)),
+  )
+  assertSelectedCandidatesMatchSnapshot(
+    selected,
+    await packageVersionSnapshot(workspaceRoot),
+  )
   const plan = composePublicationPlan({ builtin, catalog, selected })
   const output = path.resolve("dist/publication-plan.json")
   await fs.writeFile(output, `${JSON.stringify(plan, null, 2)}\n`)

@@ -20,7 +20,7 @@ describe("Codex Plugin catalog", () => {
       }
       schema: string
     }
-    expect(manifest.schema).toBe("convax.plugin/5")
+    expect(manifest.schema).toBe("convax.plugin/8")
     expect(manifest.contributes.llm).toEqual({
       models: codexLlmModels.map((model) => ({ ...model })),
       provider: { id: "codex", name: "Codex" },

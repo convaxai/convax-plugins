@@ -12,12 +12,12 @@ import {
   normalizeGenerationTools,
   presetById,
 } from "./multi-angle-model.js"
+import { normalizeImageInputs, parseOpenedImageStream } from "./image-inputs.js"
+import { acceptPluginHostConnection } from "./plugin-host-client.js"
 
-const HOST_PROTOCOL = "convax.plugin-host/3"
-const PLUGIN_ID = "multi-angle"
-const CONNECTIONS_CHANGED_COMMAND = "canvas.connectedImages.changed"
-const GENERATE_COMMAND = "multi-angle.generate"
-const REFRESH_COMMAND = "multi-angle.refresh"
+const CONNECTIONS_CHANGED_COMMAND = "canvas.inputs.changed"
+const GENERATE_MESSAGE = "renderer.multi-angle.generate"
+const REFRESH_MESSAGE = "renderer.multi-angle.refresh"
 const REQUEST_TIMEOUT = 30000
 const STATE_SAVE_DELAY = 240
 
@@ -56,15 +56,14 @@ const elements = {
   toolSelect: document.getElementById("toolSelect"),
 }
 
-let hostPort = null
-let requestSequence = 0
-let pendingRequests = new Map()
+let hostClient = null
 let pluginContext = null
 let pluginState = createDefaultState()
 let hydrationSource = "empty"
 let connectedImages = []
 let generationTools = []
-let sourceDataUrl = ""
+let sourcePreviewUrl = ""
+let sourceSessionId = null
 let sourceLoadSequence = 0
 let refreshPromise = null
 let refreshQueued = false
@@ -108,70 +107,45 @@ function setLoading(active, text) {
   setHidden(elements.loadingOverlay, !active)
 }
 
-function rejectPendingRequests(error) {
-  for (const pending of pendingRequests.values()) {
-    if (pending.timeout !== null) window.clearTimeout(pending.timeout)
-    pending.reject(error)
+async function hostRequest(method, params, timeoutMs) {
+  if (!hostClient) throw new Error("Convax Plugin host is not connected")
+  const requestTimeout = timeoutMs === undefined ? REQUEST_TIMEOUT : timeoutMs
+  if (requestTimeout === null) return hostClient.callHostApi(method, params)
+  const controller = new AbortController()
+  const timeout = window.setTimeout(
+    () => controller.abort(new Error("插件宿主请求超时")),
+    requestTimeout,
+  )
+  try {
+    return await hostClient.callHostApi(method, params, { signal: controller.signal })
+  } finally {
+    window.clearTimeout(timeout)
   }
-  pendingRequests.clear()
 }
 
-function hostRequest(method, params, timeoutMs) {
-  if (!hostPort) return Promise.reject(new Error("Convax Plugin host is not connected"))
-  const id = "multi-angle-" + String(++requestSequence)
-  const request = {
-    id,
-    method,
-    ...(params === undefined ? {} : { params }),
-    protocol: HOST_PROTOCOL,
-    type: "request",
-  }
-  return new Promise(function (resolve, reject) {
-    const requestTimeout = timeoutMs === undefined ? REQUEST_TIMEOUT : timeoutMs
-    const timeout = requestTimeout === null ? null : window.setTimeout(function () {
-      pendingRequests.delete(id)
-      reject(new Error("插件宿主请求超时"))
-    }, requestTimeout)
-    pendingRequests.set(id, { reject, resolve, timeout })
-    try {
-      hostPort.postMessage(request)
-    } catch (error) {
-      if (timeout !== null) window.clearTimeout(timeout)
-      pendingRequests.delete(id)
-      reject(error)
-    }
-  })
-}
-
-function handlePortMessage(event) {
-  const message = event.data
-  if (!isRecord(message) || message.protocol !== HOST_PROTOCOL) return
-  if (message.type === "response" && typeof message.id === "string" && typeof message.ok === "boolean") {
-    const pending = pendingRequests.get(message.id)
-    if (!pending) return
-    pendingRequests.delete(message.id)
-    if (pending.timeout !== null) window.clearTimeout(pending.timeout)
-    if (message.ok) pending.resolve(message.result)
-    else pending.reject(new Error(typeof message.error === "string" ? message.error : "Convax Plugin request failed"))
-    return
-  }
-  if (message.type !== "command" || typeof message.command !== "string") return
-  if (message.command === CONNECTIONS_CHANGED_COMMAND || message.command === REFRESH_COMMAND) {
+function handleHostCommand(message) {
+  if (message.command === CONNECTIONS_CHANGED_COMMAND || message.command === REFRESH_MESSAGE) {
     if (runActive) refreshQueued = true
     else void refreshAll(true)
-  } else if (message.command === GENERATE_COMMAND) {
+  } else if (message.command === GENERATE_MESSAGE) {
     void runGeneration()
   }
 }
 
 function handleWindowMessage(event) {
-  if (hostPort || event.source !== window.parent || event.ports.length !== 1) return
-  const message = event.data
-  if (!isRecord(message) || message.protocol !== HOST_PROTOCOL || message.type !== "connect" || message.pluginId !== PLUGIN_ID) return
+  if (hostClient) return
+  const client = acceptPluginHostConnection(event, {
+    onFatalError: () => {
+      hostClient = null
+      setConnectionState(false)
+      showToast("插件宿主连接已中断", "error")
+    },
+    requestIdPrefix: "multi-angle",
+  })
+  if (!client) return
   window.removeEventListener("message", handleWindowMessage)
-  hostPort = event.ports[0]
-  hostPort.onmessage = handlePortMessage
-  hostPort.start()
+  hostClient = client
+  hostClient.onCommand(handleHostCommand)
   setConnectionState(true)
   void hydrateFromHost()
 }
@@ -191,7 +165,7 @@ function queueStateSave() {
 
 async function flushStateSave() {
   window.clearTimeout(stateSaveTimer)
-  if (!hostPort || stateWritesSuspended) return
+  if (!hostClient || stateWritesSuspended) return
   if (stateSavePromise) {
     await stateSavePromise
     if (stateSaveDirty && !stateWritesSuspended) return flushStateSave()
@@ -200,7 +174,7 @@ async function flushStateSave() {
   if (!stateSaveDirty) return
   const snapshot = pluginState
   stateSaveDirty = false
-  stateSavePromise = hostRequest("canvas.node.updateState", { state: snapshot })
+  stateSavePromise = hostRequest("canvas.node.state.replace", { state: snapshot })
   try {
     await stateSavePromise
   } catch (error) {
@@ -214,18 +188,10 @@ async function flushStateSave() {
 }
 
 function postStateSnapshotBestEffort() {
-  if (!hostPort || runActive || stateWritesSuspended || hydrationSource === "unsupported") return
-  try {
-    hostPort.postMessage({
-      id: "multi-angle-unload-" + String(++requestSequence),
-      method: "canvas.node.updateState",
-      params: { state: pluginState },
-      protocol: HOST_PROTOCOL,
-      type: "request",
-    })
-  } catch {
+  if (!hostClient || runActive || stateWritesSuspended || hydrationSource === "unsupported") return
+  void hostClient.callHostApi("canvas.node.state.replace", { state: pluginState }).catch(() => {
     // The owning Canvas keeps the last state snapshot already accepted by the host.
-  }
+  })
 }
 
 async function hydrateFromHost() {
@@ -245,23 +211,6 @@ async function hydrateFromHost() {
   }
 }
 
-function normalizeConnectedImages(result) {
-  if (!isRecord(result) || !Array.isArray(result.images)) return []
-  return result.images.filter(function (image) {
-    return isRecord(image) && typeof image.id === "string" && typeof image.name === "string"
-      && typeof image.readable === "boolean"
-  }).map(function (image) {
-    return {
-      height: typeof image.height === "number" ? image.height : undefined,
-      id: image.id,
-      mimeType: typeof image.mimeType === "string" ? image.mimeType : undefined,
-      name: image.name,
-      readable: image.readable,
-      width: typeof image.width === "number" ? image.width : undefined,
-    }
-  })
-}
-
 function chooseSourceImage() {
   return connectedImages.find((image) => image.id === pluginState.sourceNodeId && image.readable)
     ?? connectedImages.find((image) => image.readable)
@@ -271,23 +220,31 @@ function chooseSourceImage() {
 async function readSelectedSource(force) {
   const source = chooseSourceImage()
   const sequence = ++sourceLoadSequence
+  const previousSessionId = sourceSessionId
+  sourceSessionId = null
+  sourcePreviewUrl = ""
+  if (previousSessionId) {
+    await hostRequest("canvas.inputs.close", { sessionId: previousSessionId }).catch(() => undefined)
+  }
+  if (sequence !== sourceLoadSequence) return
   if (!source) {
-    sourceDataUrl = ""
     setLoading(false)
     renderSource()
     renderActions()
     return
   }
-  if (!force && source.id === pluginState.sourceNodeId && sourceDataUrl) return
-  sourceDataUrl = ""
   setLoading(true, "正在读取参考图…")
   renderSource()
   try {
-    const result = await hostRequest("canvas.connectedImage.read", { nodeId: source.id })
-    if (!isRecord(result) || typeof result.dataUrl !== "string" || typeof result.mimeType !== "string") {
-      throw new Error("宿主没有返回可预览的参考图")
+    const result = parseOpenedImageStream(
+      await hostRequest("canvas.inputs.open", { inputKey: source.id }),
+    )
+    if (sequence !== sourceLoadSequence || pluginState.sourceNodeId !== source.id) {
+      await hostRequest("canvas.inputs.close", { sessionId: result.sessionId }).catch(() => undefined)
+      return
     }
-    if (sequence === sourceLoadSequence && pluginState.sourceNodeId === source.id) sourceDataUrl = result.dataUrl
+    sourceSessionId = result.sessionId
+    sourcePreviewUrl = result.url
   } catch (error) {
     if (sequence === sourceLoadSequence) showToast(errorMessage(error, "参考图预览失败；仍可尝试通过统一生成接口处理该节点。"), "warning")
   } finally {
@@ -309,7 +266,7 @@ async function refreshTools() {
 
 async function refreshConnectedImages(force) {
   const previousSourceId = pluginState.sourceNodeId
-  connectedImages = normalizeConnectedImages(await hostRequest("canvas.connectedImages.list"))
+  connectedImages = normalizeImageInputs(await hostRequest("canvas.inputs.list"))
   const source = chooseSourceImage()
   if (source?.id !== previousSourceId) {
     pluginState = {
@@ -318,14 +275,14 @@ async function refreshConnectedImages(force) {
       result: null,
       sourceNodeId: source?.id ?? null,
     }
-    sourceDataUrl = ""
+    sourcePreviewUrl = ""
   }
   renderAll()
   await readSelectedSource(force)
 }
 
 async function refreshAll(force = false) {
-  if (!hostPort) return
+  if (!hostClient) return
   if (runActive) {
     refreshQueued = true
     return
@@ -473,13 +430,13 @@ function renderSource() {
   setHidden(elements.sourceSelectShell, connectedImages.length === 0)
 
   const source = chooseSourceImage()
-  const hasPreview = Boolean(source && sourceDataUrl)
+  const hasPreview = Boolean(source && sourcePreviewUrl)
   elements.sourceStage.classList.toggle("has-image", hasPreview)
   setHidden(elements.emptySource, hasPreview)
   setHidden(elements.sourceImage, !hasPreview)
   setHidden(elements.sourceOverlay, !hasPreview)
   if (hasPreview) {
-    elements.sourceImage.src = sourceDataUrl
+    elements.sourceImage.src = sourcePreviewUrl
     elements.sourceImage.alt = "多角度参考图：" + source.name
     elements.sourceSize.textContent = source.width && source.height
       ? String(source.width) + " × " + String(source.height)
@@ -572,7 +529,7 @@ function renderResults() {
   if (hydrationSource === "unsupported") {
     title = "状态版本不受支持"
     message = "当前节点保留了未知版本状态；只有在你主动修改或生成后，插件才会写入新格式。"
-  } else if (!generationTools.length && hostPort) {
+  } else if (!generationTools.length && hostClient) {
     title = "没有可用的 AI 图片模型"
     message = "安装并配置一个支持 reference_image 的图片 model Tool Plugin 后，再刷新此节点。"
   } else if (run?.failure) {
@@ -608,7 +565,7 @@ function renderActions() {
   if (!source) elements.actionHint.textContent = "先从 Canvas 连接并选择一张参考图"
   else if (!tool) elements.actionHint.textContent = "先安装或选择一个支持参考图的 AI 图片模型"
   else elements.actionHint.textContent = "将通过“" + tool.title + "”发起 1 次统一生图，输出一张多宫格图片"
-  elements.generateButton.disabled = runActive || !hostPort || !pluginContext || !source || !tool
+  elements.generateButton.disabled = runActive || !hostClient || !pluginContext || !source || !tool
     || selectedCount < MIN_SELECTED_PRESETS
   elements.generateLabel.textContent = runActive ? "宫格图生成中…" : "生成宫格图"
 }
@@ -689,7 +646,7 @@ async function runGeneration() {
       const request = createGenerationRequest({ prompt, sourceNodeId: source.id, toolId: tool.id })
       // Generation has no client deadline. The host owns queued-job polling,
       // frame cancellation, stale-scope checks, managed assets and Canvas commit.
-      const rawResult = await hostRequest("generation.canvas.execute", request, null)
+      const rawResult = await hostRequest("generation.execute", request, null)
       return normalizeGenerationResult(rawResult, presetIds, new Date().toISOString())
     },
   })
@@ -729,14 +686,19 @@ function bindEvents() {
   window.addEventListener("message", handleWindowMessage)
   window.addEventListener("beforeunload", function () {
     postStateSnapshotBestEffort()
+    if (sourceSessionId && hostClient) {
+      void hostClient.callHostApi("canvas.inputs.close", {
+        sessionId: sourceSessionId,
+      }).catch(() => {
+        // Host frame teardown revokes any remaining connection-bound session.
+      })
+      sourceSessionId = null
+      sourcePreviewUrl = ""
+    }
     window.clearTimeout(stateSaveTimer)
     window.clearTimeout(toastTimer)
-    rejectPendingRequests(new Error("插件页面已关闭"))
-    if (hostPort) {
-      hostPort.onmessage = null
-      hostPort.close()
-      hostPort = null
-    }
+    hostClient?.close()
+    hostClient = null
   })
   elements.refreshButton.addEventListener("click", function () {
     if (!runActive) void refreshAll(true)
@@ -747,7 +709,7 @@ function bindEvents() {
     const source = connectedImages.find((image) => image.id === elements.sourceSelect.value && image.readable)
     if (!source || source.id === pluginState.sourceNodeId) return
     pluginState = { ...pluginState, sourceNodeId: source.id }
-    sourceDataUrl = ""
+    sourcePreviewUrl = ""
     resetRunForPlanChange()
     queueStateSave()
     renderAll()

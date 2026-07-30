@@ -1,5 +1,5 @@
 {
-  "schema": "convax.plugin/7",
+  "schema": "convax.plugin/8",
   "id": "nexus-service",
   "name": "Convax Account",
   "description": "Connects Convax to your Convax Account for OpenRouter chat and live image-model generation through short-lived Data Tokens.",
@@ -7,7 +7,10 @@
   "contributes": {
     "generation": {
       "models": [
-        { "tool": "image.generate", "name": "Nexus · OpenRouter Image" }
+        {
+          "tool": "image.generate",
+          "name": "Nexus · OpenRouter Image"
+        }
       ],
       "tools": [
         {
@@ -20,10 +23,16 @@
       ]
     },
     "llm": {
-      "provider": { "id": "openrouter", "name": "Nexus · OpenRouter" },
+      "provider": {
+        "id": "openrouter",
+        "name": "Nexus · OpenRouter"
+      },
       "modelCatalog": "runtime",
       "models": [
-        { "id": "deepseek/deepseek-v4-flash", "name": "DeepSeek V4 Flash" }
+        {
+          "id": "deepseek/deepseek-v4-flash",
+          "name": "DeepSeek V4 Flash"
+        }
       ]
     },
     "service": {
@@ -39,5 +48,10 @@
   "runtime": {
     "type": "mcp-stdio",
     "command": "convax-nexus-mcp"
+  },
+  "hostApi": {
+    "major": 1,
+    "required": [],
+    "optional": []
   }
 }

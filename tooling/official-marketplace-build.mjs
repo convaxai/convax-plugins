@@ -1,28 +1,36 @@
 import { spawnSync } from "node:child_process"
+import { promises as fs } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import {
+  buildMarketplace,
+  discoverMarketplacePackages,
+} from "@convax/marketplace-kit"
+import {
+  createMarketplacePublicationView,
+  disposeMarketplacePublicationView,
+} from "./marketplace-publication-view.mjs"
+import { marketplacePreflight } from "./marketplace-preflight.mjs"
+import { effectivePublicationOmissions } from "./publication-eligibility.mjs"
 
 export function officialBuildArgs({
-  bootstrapPreviousV1,
   changed,
   previous,
   previousDescriptor,
   previousShowcase,
-  previousShowcaseV1,
-  previousV1,
-  v1Revision,
 }) {
-  if (bootstrapPreviousV1 && previous) {
-    throw new Error("Official build accepts exactly one previous Registry mode")
-  }
-  if (previous && (!previousDescriptor || !previousShowcase || !previousShowcaseV1 || !previousV1)) {
+  const previousInputs = [previous, previousDescriptor, previousShowcase]
+  const hasPrevious = previousInputs.some(Boolean)
+  if (hasPrevious && !previousInputs.every(Boolean)) {
     throw new Error("Official build requires a complete previous v2 closure")
   }
-  if (bootstrapPreviousV1 && (!previousDescriptor || !previousShowcaseV1)) {
-    throw new Error("Official build requires a complete previous v1 closure")
+  if (changed && !hasPrevious) {
+    throw new Error("Selective Official build requires a complete previous v2 closure")
   }
-  if (typeof v1Revision !== "string" || !/^[a-f0-9]{40}$/.test(v1Revision)) {
-    throw new Error("Official v1 revision must be an exact Git SHA")
+  if (hasPrevious && !changed) {
+    throw new Error(
+      "Non-initial Official build requires an exact ready-only change selection",
+    )
   }
   const args = [
     "build-index",
@@ -32,7 +40,7 @@ export function officialBuildArgs({
     "--official",
   ]
   if (changed) args.push("--changed", changed)
-  if (previous) {
+  if (hasPrevious) {
     return [
       ...args,
       "--previous-descriptor",
@@ -41,28 +49,9 @@ export function officialBuildArgs({
       previous,
       "--previous-showcase",
       previousShowcase,
-      "--previous-v1",
-      previousV1,
-      "--previous-showcase-v1",
-      previousShowcaseV1,
-      "--v1-revision",
-      v1Revision,
     ]
   }
-  if (bootstrapPreviousV1) {
-    return [
-      ...args,
-      "--previous-descriptor",
-      previousDescriptor,
-      "--bootstrap-previous-v1",
-      bootstrapPreviousV1,
-      "--previous-showcase-v1",
-      previousShowcaseV1,
-      "--v1-revision",
-      v1Revision,
-    ]
-  }
-  return [...args, "--initial", "--v1-revision", v1Revision]
+  return [...args, "--initial"]
 }
 
 export function officialBuildInvocation(args) {
@@ -72,28 +61,73 @@ export function officialBuildInvocation(args) {
   }
 }
 
-function main() {
-  const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)))
-  const v1Revision = process.env.GITHUB_SHA ?? spawnSync(
-    "git",
-    ["rev-parse", "HEAD"],
-    { cwd: root, encoding: "utf8" },
-  ).stdout?.trim()
+export async function runOfficialBuild({
+  build = buildMarketplace,
+  createView = createMarketplacePublicationView,
+  discover = discoverMarketplacePackages,
+  disposeView = disposeMarketplacePublicationView,
+  environment = process.env,
+  preflight = marketplacePreflight,
+  spawn = spawnSync,
+} = {}) {
+  const workspaceRoot = fileURLToPath(new URL("..", import.meta.url))
+  const catalogPath = environment.CONVAX_PLUGIN_API_CATALOG
+  if (!catalogPath) {
+    throw new Error("Official Marketplace build requires CONVAX_PLUGIN_API_CATALOG")
+  }
+  const admission = await preflight({
+    catalogPath,
+    workspaceRoot,
+  })
+  const omissions = {
+    schema: "convax.marketplace-build-omissions/1",
+    omitted: effectivePublicationOmissions(admission.packages),
+  }
+  const omissionsPath = path.join(
+    workspaceRoot,
+    "dist",
+    "marketplace-build-omissions.json",
+  )
+  await fs.mkdir(path.dirname(omissionsPath), { recursive: true })
+  await fs.writeFile(
+    omissionsPath,
+    `${JSON.stringify(omissions, null, 2)}\n`,
+  )
+  const hasPrevious = Boolean(
+    environment.CONVAX_MARKETPLACE_PREVIOUS &&
+    environment.CONVAX_MARKETPLACE_PREVIOUS_DESCRIPTOR &&
+    environment.CONVAX_MARKETPLACE_PREVIOUS_SHOWCASE,
+  )
+  if (!hasPrevious && omissions.omitted.length > 0) {
+    const candidates = await discover(workspaceRoot)
+    const view = await createView({
+      candidates,
+      packages: admission.packages,
+      workspaceRoot,
+    })
+    try {
+      await build({
+        initialOfficial: true,
+        official: true,
+        outDir: path.join(workspaceRoot, "dist", "catalog"),
+        root: view.root,
+      })
+      return
+    } finally {
+      await disposeView(view)
+    }
+  }
   const args = officialBuildArgs({
-    bootstrapPreviousV1: process.env.CONVAX_MARKETPLACE_BOOTSTRAP_PREVIOUS_V1,
-    changed: process.env.CONVAX_MARKETPLACE_CHANGED,
-    previous: process.env.CONVAX_MARKETPLACE_PREVIOUS,
-    previousDescriptor: process.env.CONVAX_MARKETPLACE_PREVIOUS_DESCRIPTOR,
-    previousShowcase: process.env.CONVAX_MARKETPLACE_PREVIOUS_SHOWCASE,
-    previousShowcaseV1: process.env.CONVAX_MARKETPLACE_PREVIOUS_SHOWCASE_V1,
-    previousV1: process.env.CONVAX_MARKETPLACE_PREVIOUS_V1,
-    v1Revision,
+    changed: environment.CONVAX_MARKETPLACE_CHANGED,
+    previous: environment.CONVAX_MARKETPLACE_PREVIOUS,
+    previousDescriptor: environment.CONVAX_MARKETPLACE_PREVIOUS_DESCRIPTOR,
+    previousShowcase: environment.CONVAX_MARKETPLACE_PREVIOUS_SHOWCASE,
   })
   const invocation = officialBuildInvocation(args)
-  const result = spawnSync(invocation.command, invocation.args, {
-    cwd: root,
+  const result = spawn(invocation.command, invocation.args, {
+    cwd: fileURLToPath(new URL("..", import.meta.url)),
     encoding: "utf8",
-    env: process.env,
+    env: environment,
     stdio: "inherit",
   })
   if (result.error) throw result.error
@@ -104,7 +138,7 @@ function main() {
 
 if (import.meta.main) {
   try {
-    main()
+    await runOfficialBuild()
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error))
     process.exitCode = 1

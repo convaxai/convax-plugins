@@ -220,9 +220,11 @@ describe("Storyboard Studio Skill package", () => {
     expect(metadata).toMatchObject({
       id: "storyboard-studio",
       ownerPluginId: "storyboard-studio",
-      version: "0.1.0",
+      version: "0.1.1",
     })
-    expect(packageJson.version).toBe("0.1.0")
+    expect(packageJson.version).toBe("0.1.1")
+    expect(skill).toContain("references/convax-capabilities.md")
+    expect(skill).toContain("references/plugin-capabilities.md")
     expect(skill).toContain("references/story-file-layout.md")
     expect(skill).toContain("references/character-card.md")
     expect(skill).toContain("references/agent-workflow.md")

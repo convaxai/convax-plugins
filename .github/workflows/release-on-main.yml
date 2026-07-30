@@ -11,6 +11,9 @@ concurrency:
   group: convax-marketplace-release
   cancel-in-progress: false
 
+env:
+  CONVAX_PLUGIN_API_CATALOG: node_modules/@convax/plugin-api/dist/generated/plugin-api.json
+
 jobs:
   verify:
     runs-on: macos-14
@@ -36,7 +39,10 @@ jobs:
         run: |
           bun tooling/marketplace-release.mjs \
             --base "$CONVAX_MARKETPLACE_BASE_SHA" \
+            --catalog "$CONVAX_PLUGIN_API_CATALOG" \
+            --governance-base "${{ github.event.before }}" \
             --head "$GITHUB_SHA" \
+            --omissions-output dist/release-omissions.json \
             --output dist/release-plan.json
           echo "count=$(jq length dist/release-plan.json)" >> "$GITHUB_OUTPUT"
           echo "CONVAX_MARKETPLACE_CHANGED=dist/release-plan.json" >> "$GITHUB_ENV"
@@ -73,10 +79,6 @@ jobs:
           echo "CONVAX_FFMPEG_REQUIRE_PGP=1" >> "$GITHUB_ENV"
       - name: Validate and build immutable release inputs
         run: bun run check
-      - name: Stage reviewed public schemas into the low-privilege Pages tree
-        run: |
-          mkdir -p dist/catalog/site/schemas
-          cp schemas/*.json dist/catalog/site/schemas/
       - name: Stage verified FFmpeg source and SBOM beside the companion
         if: env.CONVAX_FFMPEG_REQUIRE_PGP == '1'
         run: |
@@ -116,6 +118,7 @@ jobs:
             dist/catalog
             dist/product-lock-input.json
             dist/publication-plan.json
+            dist/release-omissions.json
             dist/release-plan.json
           if-no-files-found: error
           retention-days: 1
@@ -124,6 +127,7 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: plugin-marketplace-production
     permissions:
       attestations: write
       contents: write

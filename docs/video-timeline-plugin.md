@@ -1,12 +1,13 @@
 # Video Timeline Plugin 方案
 
-状态：Implemented through `0.1.3`
+状态：Implemented through `0.1.5`
 
 目标工作区：
 
 - 具体 Plugin：`packages/plugins/video-timeline`
 - 可选的后续渲染 companion：`packages/tools/video-timeline-renderer`
-- 缺失的通用宿主能力：兄弟仓库 `../convax`
+- 缺失的通用宿主能力：在当前插件仓创建
+  `docs/host-capability-requests/<kebab-case-slug>.md`，并保持相关发布 blocked
 
 ## 1. 结论
 
@@ -48,7 +49,7 @@ Composition。
 宿主媒体流的 probe 或浏览器 `loadedmetadata` 获取真实时长后，更新 source binding，
 并且只在初始 Clip 仍保持占位长度时扩展它。后续边刷新不得再把已探测时长覆盖回 1 秒。
 
-当前 Convax 尚未提供通用 node-tool Dock ABI，因此 `0.1.3` 使用全屏工具作为明确的
+当前 Convax 尚未提供通用 node-tool Dock ABI，因此 `0.1.5` 使用全屏工具作为明确的
 卡片/工具分界。将来若宿主提供对所有 Plugin 都可用的通用底部 Dock，本 Plugin 只需
 替换打开容器，不改变 Composition 或预览协议；宿主不得为 `video-timeline` 增加特例。
 
@@ -113,7 +114,7 @@ Plugin 首次挂载后根据直接输入幂等物化初始 Track/Clip。宿主�
 
 ## 4. 连线和协调规则
 
-`canvas.connectedInputs.list` 返回的直接输入顺序是初始化提示，不是持续覆盖
+`canvas.inputs.list` 返回的直接输入顺序是初始化提示，不是持续覆盖
 Composition 的第二事实源。
 
 对每个唯一媒体节点：
@@ -124,13 +125,13 @@ Composition 的第二事实源。
 - 同一节点的重复边：按宿主结果去重，不重复物化；
 - 同一素材需要重复使用时，在 Timeline 内复制 Clip，不依赖重复 Canvas 边。
 
-协调必须使用稳定 `sourceNodeId` 幂等执行：
+协调必须使用 `canvas.inputs.list` 返回的不透明 `inputKey` 幂等执行：
 
 - 新连接：创建 source binding、Track 和初始 Clip；
 - 重复 invalidation：不产生新实体；
 - 断开连接：binding 进入 `offline`，保留 Track、Clip 和最后已知描述；
-- 同 node id 重连：恢复原 binding，不创建重复 Track；
-- 同 node id 内容替换：保留剪辑编辑并刷新描述/预览；
+- 同 `inputKey` 重连：恢复原 binding，不创建重复 Track；
+- 同 `inputKey` 内容替换：保留剪辑编辑并刷新描述/预览；
 - 新素材可用范围变短：标记越界，不静默裁切、移动或删除 Clip；
 - Canvas 边顺序变化：不得覆盖用户已经保存的 `trackOrder`。
 
@@ -163,6 +164,11 @@ interface VideoTimelineStateV1 {
   sourceBindingsByNodeId: Record<string, SourceBindingV1>
 }
 ```
+
+V1 状态属性名 `sourceBindingsByNodeId` 和 `sourceRef.nodeId` 是已发布的
+Composition schema 名称；从 `0.1.5` 起其中保存的是宿主返回的不透明
+`inputKey`，不得把它解释为 Canvas node id、路径或跨 Plugin authority。新的 Host
+请求只把该值作为 `canvas.inputs.open({ inputKey })` 的参数。
 
 Track 至少保存：
 
@@ -250,7 +256,7 @@ interface TimeRangeV1 {
 - 关闭、重开、复制 Timeline 节点后的确定性恢复。
 
 拖动过程中只更新 iframe 本地 projection；在手势结束时提交一次原子
-`canvas.node.updateState`。可以有限节流，但必须在 surface 隐藏、卸载和 teardown 前
+`canvas.node.state.replace`。可以有限节流，但必须在 surface 隐藏、卸载和 teardown 前
 flush。写入失败进行有限重试，并在 UI 中保留明确的未保存状态。
 
 以下属于 session/UI state，不写入 Composition：播放头、播放状态、当前选择、hover、
@@ -299,12 +305,13 @@ action variant，语义为“从当前合法媒体选择创建贡献者自己的
 
 ### 8.2 Connected media preview stream
 
-当前 `canvas.connectedInputs.list` 只返回无路径元数据，不能支撑 Timeline monitor。
-新增窄能力，例如 `canvas.connectedMedia.stream`，并提供等价于以下的方法：
+`canvas.inputs.list` 只返回无路径元数据和不透明 `inputKey`。Timeline monitor
+通过已声明的 `canvas.connectedMedia.stream` grant 使用 v8 Catalog API：
 
 ```text
-canvas.connectedMedia.open({ nodeId })
-canvas.connectedMedia.close({ sessionId })
+canvas.inputs.list()
+canvas.inputs.open({ inputKey })
+canvas.inputs.close({ sessionId })
 ```
 
 `open` 返回短生命周期 session、宿主管理的流式媒体 URL 和无路径 probe facts：
@@ -317,12 +324,14 @@ canvas.connectedMedia.close({ sessionId })
 
 安全约束：
 
-- node 必须仍是当前 Plugin 节点的直接输入；
+- `inputKey` 必须来自当前连接的 `canvas.inputs.list`，对应素材仍是当前 Plugin
+  节点的直接输入；
 - 只在用户显式播放/打开预览时签发；
 - 支持范围读取或等价流式传输，不把整段视频编码成 data URL；
 - URL 不包含原生路径且只对当前 frame/session 有效；
 - 每次请求重新校验 Project、Canvas、直接边、资源引用和 media revision；
-- 边断开、素材替换、frame 销毁、Plugin 更新或显式 close 时立即撤销；
+- `canvas.inputs.changed` 触发重新协调；边断开、素材替换、frame 销毁、Plugin
+  更新或显式 close 时立即撤销；
 - CSP 只为已授权 surface 开放宿主管理的媒体 scheme；
 - 不授予上传、任意网络或通用文件读取能力。
 
@@ -420,8 +429,10 @@ Golden fixtures 至少覆盖：空 Timeline、单视频、多视频轨、音频�
 
 ## 13. 验证要求
 
-`convax` 中运行受影响 package 的 typecheck/test，并对 ABI、Canvas persistence、IPC 或
-Desktop composition 变更运行根级 `bun check`。
+当前 Plugin 任务不得切换到或修改 Host 仓库。若验证发现现有 Catalog/SDK 缺少通用
+能力，只能在本仓按 `convax-plugin-authoring` 模板创建结构化 capability request，
+标记受影响包 blocked，并停止依赖该能力的实现。只有人类明确批准后，才能另起一个
+独立的 Host-owned 任务；该任务的实现、测试和 PR 不属于本 Plugin 任务。
 
 `convax-plugins` 中按仓库契约运行：
 
@@ -434,18 +445,18 @@ bun run workspaces:test
 bun run build:companions
 bun test
 bun run pack
-bun run build:index
+bun run skill-api:check
+bun run marketplace:check
 ```
 
 检查生成 ZIP 的文件清单，但不要提交 `dist/`、依赖、凭据或本地 Convax 状态。
 
 ## 14. 参考基线
 
-- `../convax/README.md`
-- `../convax/docs/plugin-skill-platform.md`
-- `../convax/docs/plugin-canvas-capabilities.md`
-- `../convax/docs/canvas-selection-context.md`
 - `docs/plugin-authoring.md`
+- `packages/skills/convax-plugin-authoring/package/SKILL.md`
+- 构建或发布环境提供的 `@convax/plugin-api` Catalog 与
+  `@convax/plugin-sdk` reference
 - `packages/plugins/chatcut`
 - `../../mediax/docs/timeline-opentimelineio.md`
 - `../../mediax/docs/canvas-node-domain.md`

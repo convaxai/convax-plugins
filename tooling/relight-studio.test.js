@@ -9,60 +9,84 @@ import {
 import {
   assertPluginStatic,
   collectFiles,
+  discoverPackages,
   parsePluginManifest,
-  parseSourceMetadata,
   readJson,
   root,
 } from "./lib.mjs"
 
 const sourceRoot = path.join(root, "packages", "plugins", "relight-studio")
 const packageRoot = path.join(sourceRoot, "package")
+const skillRoot = path.join(root, "packages", "skills", "relight-studio")
 
 describe("relight-studio package", () => {
-  test("declares a v3 Web caller of the shared generation executor", async () => {
-    const metadata = parseSourceMetadata(
-      await readJson(path.join(sourceRoot, "convax-package.json")),
-      "plugin/relight-studio",
-    )
+  test("declares a v8 Web caller blocked on an approved image-input contract", async () => {
+    const packages = await discoverPackages({ kind: "plugin", id: "relight-studio" })
+    const metadata = packages.find((pkg) => pkg.kind === "plugin").metadata
     const manifest = parsePluginManifest(
       await readJson(path.join(packageRoot, "manifest.json")),
       "plugin/relight-studio manifest",
     )
 
     expect(metadata).toEqual({
-      schema: "convax.package/1",
+      schema: "convax.package/2",
       kind: "plugin",
       id: "relight-studio",
       name: "重打光",
       description: manifest.description,
-      version: "0.1.2",
-      license: "MIT",
-      compatibility: {
-        pluginSchema: "convax.plugin/3",
-        pluginHost: "convax.plugin-host/3",
+      version: "0.1.4",
+      publication: {
+        status: "blocked",
+        blockers: [
+          {
+            code: "host-capability-review-required",
+            note: expect.stringContaining(
+              "docs/host-capability-requests/web-plugin-image-input-read.md",
+            ),
+          },
+        ],
       },
       yanked: false,
     })
     expect(manifest).toEqual(expect.objectContaining({
-      schema: "convax.plugin/3",
+      schema: "convax.plugin/8",
       id: metadata.id,
       name: metadata.name,
       description: metadata.description,
       version: metadata.version,
       entry: "index.html",
       capabilities: [
-        "canvas.connectedImages.read",
+        "canvas.connectedInputs.read",
+        "canvas.connectedMedia.stream",
         "canvas.node.write",
         "generation.execute",
         "ui.fullscreen",
       ],
-      skill: "SKILL.md",
+      hostApi: {
+        major: 1,
+        required: [
+          "canvas.inputs.close",
+          "canvas.inputs.list",
+          "canvas.inputs.open",
+          "canvas.node.state.replace",
+          "generation.execute",
+          "generation.tools.list",
+          "host.context.get",
+        ],
+        optional: [],
+      },
     }))
     expect(manifest.contributes).toEqual({
       canvas: {
         renderer: { create: true, width: 1080, height: 720 },
       },
+      skills: [{
+        name: "relight-studio",
+        path: "skills/relight-studio",
+      }],
     })
+    expect(metadata).not.toHaveProperty("compatibility")
+    expect(manifest).not.toHaveProperty("skill")
     expect(manifest).not.toHaveProperty("runtime")
     expect(manifest.contributes).not.toHaveProperty("generation")
     expect(metadata).not.toHaveProperty("companions")
@@ -137,7 +161,7 @@ describe("relight-studio package", () => {
     expect(generateEnd).toBeGreaterThan(generateStart)
     const generate = app.slice(generateStart, generateEnd)
     const drainIndex = generate.indexOf("await drainStateSave()")
-    const executeIndex = generate.indexOf('hostRequest(\n      "generation.canvas.execute"')
+    const executeIndex = generate.indexOf('hostRequest(\n      "generation.execute"')
     expect(drainIndex).toBeGreaterThanOrEqual(0)
     expect(executeIndex).toBeGreaterThan(drainIndex)
     expect(generate.slice(0, executeIndex)).not.toContain("void flushStateSave()")
@@ -185,16 +209,25 @@ describe("relight-studio package", () => {
 
     expect(names).toEqual(expect.arrayContaining([
       "LICENSE",
-      "SKILL.md",
       "assets/radix-controls.js",
       "index.html",
       "manifest.json",
     ]))
+    expect(names).not.toContain("SKILL.md")
     expect(() => assertPluginStatic(files, "plugin/relight-studio")).not.toThrow()
 
-    const skill = files.find((file) => file.relativePath === "SKILL.md")?.data.toString("utf8") ?? ""
+    const packages = await discoverPackages({ kind: "plugin", id: "relight-studio" })
+    const skillMetadata = packages.find((pkg) => pkg.kind === "skill").metadata
+    expect(skillMetadata).toMatchObject({
+      schema: "convax.package/2",
+      kind: "skill",
+      id: "relight-studio",
+      ownerPluginId: "relight-studio",
+      publication: { status: "ready", blockers: [] },
+    })
+    const skill = await fs.readFile(path.join(skillRoot, "package", "SKILL.md"), "utf8")
     expect(skill).toContain("generation.tools.list")
-    expect(skill).toContain("generation.canvas.execute")
+    expect(skill).toContain("generation.execute")
     expect(skill).toContain("created Canvas node")
     expect(skill).not.toContain("local preview only")
   })

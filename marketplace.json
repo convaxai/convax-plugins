@@ -12,9 +12,6 @@
   "registry": {
     "v2": {
       "url": "https://microvoid.github.io/convax-plugins/registry/v2/index.json"
-    },
-    "v1": {
-      "url": "https://microvoid.github.io/convax-plugins/registry/v1/index.json"
     }
   },
   "showcase": {

@@ -14,7 +14,7 @@ and downloaded safely by Convax. Package source is reviewed in Git, immutable ZI
 are published through GitHub Releases, and GitHub Pages hosts the lightweight
 Marketplace descriptor at
 `https://microvoid.github.io/convax-plugins/marketplace.json`. Current clients use
-Registry v2; a strict Registry v1 projection remains available for older clients.
+Registry v2. Legacy Registry projections are not authored or published here.
 
 ![Animated previews of the Image Remix, Audiobook, and Ecommerce Image Skills](docs/assets/skill-showcases.gif)
 
@@ -56,6 +56,47 @@ The generated Plugin ZIP has `manifest.json` at its root. A Skill ZIP has
 `SKILL.md` at its root. No dependency install or contributor build script is run
 while validating or packing a package.
 
+Authoring source has exactly one publishable shape: package metadata uses
+`convax.package/2`, and every Plugin manifest uses `convax.plugin/8`.
+`convax.package/2` has no compatibility escape hatch. Its explicit
+publication eligibility is not portable package metadata. The sole owner is
+`registry/host-capability-policy.json`, which reverse-binds every pending
+`docs/host-capability-requests/*.md` request to exact package versions. Each
+affected workspace independently declares the request id in
+`package.json#convax.hostCapabilityRequests`, so rewriting business code cannot
+silently erase the obligation. Normal source validation admits and reports these
+blocked packages. Exact package packing rejects them; release selection and
+Marketplace composition omit them and their owner/owned-Skill closure while
+continuing with unrelated ready packages.
+
+Immutable Registry history may still contain pre-cutover package and Plugin
+schemas. Clients may continue reading that history, but templates, source
+validation, packing, Marketplace builds, and release planning never admit those
+schemas as a new publication candidate.
+
+Plugin-owned Skill capability references are rendered from the installed
+`@convax/plugin-api` and `@convax/plugin-sdk` packages during Marketplace Kit
+build and publication. Check declarations and stable links without creating
+generated source:
+
+```sh
+bun run skill-api:check
+```
+
+`contributes.skills[].uses.requiredHostApis` and `optionalHostApis` select only
+SDK catalog APIs whose audience includes `agent-skill`. `uses.pluginTools` names
+lower_snake_case Agent tool ids declared by that Plugin under
+`contributes.agent.tools`; it does not name a raw generation tool, provider, or
+Host API.
+
+The generated `references/convax-capabilities.md` and
+`references/plugin-capabilities.md` are reserved artifact paths and must not exist
+in authoring source. They are part of both the portable Skill bytes and the owner
+Plugin snapshot. They record the selected API subset, `since` versions, runtime
+availability rules, and cross-Plugin import/export schemas. `SKILL.md` keeps only
+stable index links. Installed Skill copies are never rewritten merely because the
+Host upgrades.
+
 ## Create a third-party Marketplace
 
 The public scaffold and Kit use the same Plugin, Skill, and MCP Server contracts
@@ -77,9 +118,9 @@ For a reviewed managed-stdio MCP companion, admit one target with
 the bare executable is copied into the private authoring input area and the source
 path is never published.
 
-Executable Tool Plugins may be headless. `convax.plugin/3` separates executable
-tools, model-picker entries, Agent tools, and Canvas selection actions;
-`convax.plugin/4` and later may also own Skills. Local executable contributions
+Executable `convax.plugin/8` Tool Plugins may be headless. Declarative contributions
+separate executable tools, model-picker entries, Agent tools, Canvas selection
+actions, and Plugin-owned Skills. Local executable contributions
 declare a separately installed bare `mcp-stdio` command and never embed that
 executable, its dependencies, vendor credentials, or provider configuration. See
 [`docs/plugin-authoring.md`](docs/plugin-authoring.md#declarative-tool-plugin).
@@ -88,7 +129,7 @@ platform/architecture companion artifacts beside the ZIP. Convax verifies their
 size and SHA-256 into host-owned storage, so users do not install a sidecar through
 `PATH` and executables still never enter a Plugin package.
 
-`convax.plugin/5` additionally declares an LLM provider as bounded provider/model
+The v8 manifest may declare an LLM provider as bounded provider/model
 metadata. It may opt into a fixed, bounded runtime model catalog while keeping
 model ids opaque. The verified sidecar supplies that display catalog and a random,
 Main-only loopback gateway at runtime; manifests and service projections never
@@ -109,29 +150,39 @@ executable Agent code rather than iframe content, default/background provisionin
 never authorizes new Hook bytes. See
 [`docs/plugin-authoring.md`](docs/plugin-authoring.md#agent-hooks).
 
-`convax.plugin/5` and `/6` use the transport-neutral
-`convax.plugin-capability/1` host contract. v5 adds Project/Canvas grants and
-generic LLM display metadata. v6 may additionally declare one HTTPS remote Agent
-MCP endpoint. Convax delegates that endpoint to OpenCode/the native MCP host,
+`convax.plugin/8` Web entries bundle `createPluginHostClient` from
+`@convax/plugin-sdk/client` at build time and use its `convax.plugin-host/8` ABI
+with an explicit versioned `hostApi` declaration. Handwritten request envelopes,
+pending maps, and MessagePort response dispatch are rejected. It supports Project/Canvas grants,
+generic LLM display metadata, and one HTTPS remote Agent MCP endpoint. Convax
+delegates that endpoint to OpenCode/the native MCP host,
 including standard OAuth, while the remote service retains its own account and
 authentication system. The declaration contains no local command, adapter, or
 secret. Only bounded literal non-credential headers are allowed. Concrete Plugin,
 Skill, and reviewed companion source remains in this repository rather than moving
 into the Convax host.
 
-`convax.plugin/7` uses `convax.plugin-capability/2`. It adds a declaration that can
-materialize the contributing Plugin's own renderer node from one selected image or video,
-plus a short-lived `canvas.connectedMedia.stream` grant for directly connected
-audio/video preview. Neither declaration can name another Plugin or expose a
-native Project path.
+Canvas UI in v8 has one canonical `commands` registry. `toolbar` and `menus` are
+placement-only lists that reference those commands; command title, Host icon token,
+and `renderer-message` target are never repeated or overridden at a placement. A
+menu is limited to the owning node's `overflow`, and activating either surface
+delivers the declared message only to that node's live sandbox renderer. It does
+not grant Host API authority. Legacy inline toolbar or menu definitions are not
+accepted. See
+[`docs/plugin-authoring.md`](docs/plugin-authoring.md#canvas-commands-and-placements).
 
-v6 also supports Canvas sink operations: a Web node can inspect pathless metadata
+v8 image selection operations may declare one `editor: "immediate"` step with
+the Host-rendered `cutout-scan` presentation. The referenced generic tool must
+accept `reference_image` and return one image; the Host preserves the source and
+owns the adjacent pending/result node lifecycle without branching on Plugin id.
+
+v8 supports Canvas sink operations: a Web node can inspect pathless metadata
 for directly connected media, while a manifest-declared local operation can bind
 its Agent references to those exact incoming edges and return a bounded text result
 without creating another Canvas node. Edge changes only refresh pending input
 metadata; external transfer still requires an explicit user action.
 
-`convax.plugin/4` and later support Plugin-owned Skills. The Plugin declares
+`convax.plugin/8` supports Plugin-owned Skills. The Plugin declares
 `contributes.skills`, and the packer injects each referenced standard Skill
 workspace into the Plugin ZIP. Convax may show that Skill in its catalog, but its
 install, update, and removal lifecycle belongs to the Plugin. The standalone Skill
@@ -140,9 +191,16 @@ changes both archives, an owned Skill release must also bump and publish its own
 Plugin. Pages withholds an incomplete owner/Skill update and keeps their previous
 published pair visible until both new Releases exist.
 
-`convax.plugin/5` adds transport-neutral host capabilities, including a sandboxed
-desktop pet feature. One Pet feature Plugin uses the
-`convax.plugin-capability/1` compatibility pair and contributes static overlay and
+Each owned Skill may declare a minimal `uses` subset:
+`requiredHostApis`, `optionalHostApis`, and `pluginTools`. The first two are
+validated against the `@convax/plugin-api` catalog and top-level `hostApi`
+declaration. `pluginTools` refers to the Agent-facing id in
+`contributes.agent.tools`; the SDK renderer resolves that id to the underlying
+Plugin tool description, while the runtime `tools/list` response remains
+authoritative.
+
+The v8 contract includes transport-neutral host capabilities, including a sandboxed
+desktop pet feature. One Pet feature Plugin contributes static overlay and
 settings surfaces plus a `convax.pet-library/1` packaged collection through
 `contributes.pet`. The surfaces use the scoped `convax.pet-host/1` protocol; Convax
 retains only the native window, content-free activity projection, validated
@@ -154,7 +212,7 @@ See the working example in
 
 - [`docs/plugin-authoring.md`](docs/plugin-authoring.md) for the sandbox and host protocol;
 - [`docs/panorama-viewer.md`](docs/panorama-viewer.md) for the Panorama Viewer source-ownership and clean-profile release boundary;
-- [`docs/cutout-studio.md`](docs/cutout-studio.md) for the local model, companion, and reference-motion contract;
+- [`docs/cutout-studio.md`](docs/cutout-studio.md) for the local model, companion, and adjacent-result contract;
 - [`docs/storyboard-studio.md`](docs/storyboard-studio.md) for the episodic story files, character-card contract, Agent grouping workflow, and current host boundary;
 - [`docs/storyai-3d-director-desk.md`](docs/storyai-3d-director-desk.md) for the 3D Director Desk source-ownership, upstream, and clean-profile release boundary;
 - [`docs/skill-authoring.md`](docs/skill-authoring.md) for safe, portable Skills;
@@ -188,11 +246,11 @@ Open **Settings → Skills and Plugins** in a compatible Convax build. The catal
 loaded from the public Registry above; selecting **Install Plugin** or **Install
 Skill** sends only the package id to Convax main, which downloads and validates the
 corresponding immutable Release ZIP.
-If a v2 through v7 Plugin declares Registry companions for a local runtime, the
+If a v8 Plugin declares Registry companions for a local runtime, the
 same install transaction selects
 only the exact local platform/architecture artifact and verifies its immutable URL,
 byte count, and SHA-256 separately from the static ZIP.
-For v4 and later, Plugin-owned Skills are admitted and removed in that same Plugin
+Plugin-owned Skills are admitted and removed in that same Plugin
 transaction;
 they are never an independent Convax install action.
 
@@ -218,7 +276,6 @@ packages/mcp-servers/<id>/
 packages/tools/<id>/       # reviewed Tool workspace; separately distributed
 templates/                 # copy-only author starters
 tooling/                   # validation and deterministic ZIP
-schemas/                   # package, Registry, and Plugin JSON Schemas
 dist/                      # generated; never committed
 ```
 
@@ -226,31 +283,38 @@ dist/                      # generated; never committed
 
 ```sh
 bun run validate            # validate all source packages
+bun run pack -- --kind plugin --id hello-convax # pack one current-format package
 bun run workspaces:build:packages # build self-contained Skill/Plugin package trees
 bun run workspaces:typecheck # type-check workspaces that declare the script
 bun run workspaces:test     # test workspaces that declare the script
 bun test                    # validator, ZIP, Registry, and protocol tests
-bun run render:showcases -- --id ad-idea # render one poster and animation
+bun run skill-api:check     # validate owned-Skill SDK inputs, reserved paths, and stable links
 bun run build:companions    # compile explicitly reviewed platform targets
-bun run marketplace:check  # validate authoring source through the packed Kit
-bun run marketplace:build  # build v2/v1, Releases, Builtin, and lock input
-bun run check               # complete local CI sequence
+bun run marketplace:check  # fail-closed authoring validation through the packed Kit
+bun run marketplace:build  # fail-closed Registry v2, Release, Builtin, and lock-input build
+bun run check               # complete fail-closed local CI sequence
 ```
 
-Marketplace publication dogfoods the packed `@convax/marketplace-kit`.
-The repository pins the Kit to exact version `0.1.0`; local source links are not a
-valid publication dependency. The matching Kit package must therefore be published
-before a clean frozen install of this repository.
+Marketplace publication consumes the public authoring contracts
+`@convax/plugin-api@1.0.0`, `@convax/plugin-sdk@0.1.0`, and
+`@convax/marketplace-kit@0.2.0`. Local source links are validation aids, not valid
+publication dependencies. All three exact packages must be available from the
+configured registry before a clean frozen install or publication can succeed.
+See the [SDK authoring rollout blocker](docs/sdk-authoring-contract-rollout.md).
 
 Authors change a Plugin, Skill, or MCP Server version and merge through protected `main`;
 they do not create release tags. The default-branch workflow rejects changed bytes
 without a version change, builds deterministic artifacts in a low-privilege job,
 then lets a minimal privileged job tag and publish only those verified bytes.
-Registry v2, its strict v1 projection, Showcase v2, and the immutable Builtin bundle
-are generated rather than hand-edited.
+Registry v2, Showcase v2, and the immutable Builtin bundle are generated rather
+than hand-edited; no Registry v1 authoring or publication path remains.
 
-`bun run pack` and `bun run build:index` remain legacy v1 compatibility diagnostics.
-They do not provide bytes, URLs, or metadata to the v2 release workflow.
+`bun run check` admits policy-consistent blocked source and reports it explicitly.
+It still fails closed when source uses an obsolete package or Plugin schema, a
+request declaration/policy/document binding is missing, an owned Skill reference
+is stale, or a declared Host API or Agent tool is unknown. Exact packing rejects a
+blocked target. Marketplace and release outputs contain only ready closures and
+emit machine-readable omission diagnostics for blocked versions.
 
 ## Troubleshooting installation
 
@@ -271,7 +335,7 @@ They do not provide bytes, URLs, or metadata to the v2 release workflow.
 Third-party Plugin ZIPs are inert during validation and packing. Web surfaces are static HTML/CSS/JavaScript
 rendered by Convax in an iframe with exactly `sandbox="allow-scripts"`; they cannot
 contain native executables, Node/Electron code, network permissions, or a generic
-host bridge. A v2 through v7 Tool Plugin may name a separately installed external command.
+host bridge. A current `convax.plugin/8` Tool Plugin may name a separately installed external command.
 Convax resolves and fingerprints it during explicit Plugin install/update; that
 transaction is consent to the exact binding, so later calls do not show a separate
 command prompt. It never becomes part of the ZIP. A Registry companion is an
@@ -287,7 +351,7 @@ bound to its normalized manifest and exact bytes; OpenCode loads only a private
 host snapshot. It is not sandboxed, so silent default installation or background
 updates cannot authorize it.
 
-A v6 remote Agent MCP contribution is different: it names only an HTTPS endpoint
+A `convax.plugin/8` remote Agent MCP contribution is different: it names only an HTTPS endpoint
 that the native Agent host connects through its standard MCP/OAuth support. It does
 not authorize iframe networking, ship a local command, or carry credentials.
 

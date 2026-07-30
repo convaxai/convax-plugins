@@ -291,7 +291,7 @@ function scheduleStateSave() {
   saveTimer = window.setTimeout(() => {
     saveTimer = null
     void host
-      .request("canvas.node.updateState", { state: persistedState })
+      .request("canvas.node.state.replace", { state: persistedState })
       .catch((error) => showResult("草稿保存失败", message(error), "error"))
   }, 320)
 }
@@ -1061,7 +1061,7 @@ function renderCharacter(next = character) {
 async function readProjectText(path) {
   const safePath = portableProjectPath(path)
   if (!safePath) throw new Error("Project 文件路径无效")
-  const result = await host.request("project.file.readText", { path: safePath })
+  const result = await host.request("project.file.text.read", { path: safePath })
   if (!isRecord(result) || result.path !== safePath || result.exists !== true || typeof result.content !== "string") {
     throw new Error(`Project 文件不存在或不可读：${safePath}`)
   }
@@ -1228,7 +1228,7 @@ async function loadCanvasSources() {
   const ref = { projectId: context.project.id, canvasId: context.canvas.id }
   const [documentResult, mediaResult] = await Promise.allSettled([
     host.request("canvas.document.get", { ref, projection: "structure" }),
-    host.request("canvas.connectedInputs.list"),
+    host.request("canvas.inputs.list"),
   ])
   if (documentResult.status === "fulfilled") {
     const document = isRecord(documentResult.value) ? documentResult.value.document : null
@@ -1244,7 +1244,7 @@ async function loadCanvasSources() {
         : []
     connectedMedia = Array.isArray(raw)
       ? raw.slice(0, MAX_CONNECTED_SOURCES).filter(isRecord).map((input) => ({
-          id: boundedText(input.id ?? input.nodeId, 160),
+          id: boundedText(input.inputKey, 160),
           kind: boundedText(input.kind, 40, "media"),
           label: boundedText(input.label ?? input.name, 240, "已连接素材"),
           mimeType: boundedText(input.mimeType, 200),
@@ -1704,7 +1704,7 @@ window.addEventListener("message", (event) => {
 })
 
 host.onCommand((command) => {
-  if (command === "storyboard.refresh" || command === "refresh" || command === "canvas.connectedInputs.changed") {
+  if (command === "renderer.storyboard.refresh" || command === "canvas.inputs.changed") {
     void refresh()
   }
 })

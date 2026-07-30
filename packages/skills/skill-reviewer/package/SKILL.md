@@ -1,5 +1,6 @@
 ---
 name: skill-reviewer
+version: 0.3.1
 description: Review an agent Skill or Skill bundle for trigger accuracy, workflow quality, tool correctness, safety, portability, and maintainability. Use for audits, pre-publication checks, migration reviews, or focused feedback on SKILL.md and bundled resources.
 ---
 

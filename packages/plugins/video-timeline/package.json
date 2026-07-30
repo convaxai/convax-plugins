@@ -1,11 +1,16 @@
 {
   "name": "@microvoid/convax-plugin-video-timeline",
-  "version": "0.1.3",
+  "version": "0.1.5",
   "private": true,
   "type": "module",
+  "devDependencies": {
+    "@convax/plugin-sdk": "0.1.0"
+  },
   "scripts": {
+    "build": "bun scripts/build.ts",
+    "build:check": "bun scripts/build.ts --check",
     "validate": "bun ../../../tooling/validate.mjs --kind plugin --id video-timeline",
-    "pack": "bun ../../../tooling/pack.mjs --kind plugin --id video-timeline",
+    "pack": "bun ../../../tooling/pack.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-../../../node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" --kind plugin --id video-timeline",
     "test": "bun test"
   }
 }

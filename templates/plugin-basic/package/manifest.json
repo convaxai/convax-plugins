@@ -1,14 +1,53 @@
 {
-  "schema": "convax.plugin/1",
+  "schema": "convax.plugin/8",
   "id": "__PLUGIN_ID__",
   "name": "__PLUGIN_NAME__",
   "description": "__PLUGIN_DESCRIPTION__",
   "version": "0.1.0",
+  "hostApi": {
+    "major": 1,
+    "required": ["host.context.get"],
+    "optional": []
+  },
   "entry": "index.html",
   "capabilities": [],
   "contributes": {
     "canvas": {
-      "renderer": { "create": true, "width": 640, "height": 400 }
+      "renderer": {
+        "create": true,
+        "width": 640,
+        "height": 400
+      },
+      "commands": [
+        {
+          "id": "context.refresh",
+          "title": {
+            "default": "Refresh context",
+            "zh-CN": "刷新上下文"
+          },
+          "icon": "refresh",
+          "target": {
+            "type": "renderer-message",
+            "message": "renderer.context.refresh"
+          }
+        }
+      ],
+      "toolbar": [
+        {
+          "id": "context-refresh-toolbar",
+          "command": "context.refresh",
+          "order": 10
+        }
+      ],
+      "menus": [
+        {
+          "id": "context-refresh-menu",
+          "command": "context.refresh",
+          "placement": "overflow",
+          "group": "context",
+          "order": 10
+        }
+      ]
     }
   }
 }

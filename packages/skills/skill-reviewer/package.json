@@ -1,10 +1,10 @@
 {
   "name": "@microvoid/convax-skill-skill-reviewer",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "scripts": {
     "validate": "bun ../../../tooling/validate.mjs --kind skill --id skill-reviewer",
-    "pack": "bun ../../../tooling/pack.mjs --kind skill --id skill-reviewer"
+    "pack": "bun ../../../tooling/pack.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-../../../node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" --kind skill --id skill-reviewer"
   }
 }

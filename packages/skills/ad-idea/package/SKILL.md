@@ -1,5 +1,6 @@
 ---
 name: ad-idea
+version: 0.3.1
 description: Develop advertising concepts from a product, brand, campaign, or launch brief. Use when the user needs a big idea, campaign territories, hooks, taglines, scripts, storyboards, or a production-ready creative proposal.
 ---
 

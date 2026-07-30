@@ -17,9 +17,15 @@ function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex")
 }
 
-function mcpTag(id, version) {
-  const key = sha256(Buffer.from(`mcp-server\0${id}`, "utf8"))
-  return `mcp-server-${key.slice(0, 16)}-v${version}`
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+      .join(",")}}`
+  }
+  return JSON.stringify(value)
 }
 
 async function writeFixture() {
@@ -28,14 +34,11 @@ async function writeFixture() {
   const definitions = [
     { kind: "plugin", id: "fixture-plugin", version: "1.0.0" },
     { kind: "skill", id: "fixture-skill", version: "2.0.0" },
-    { kind: "mcp-server", id: "io.example/fixture", version: "2026.07" },
   ]
   const releasePlan = []
   const packages = []
   for (const definition of definitions) {
-    const tag = definition.kind === "mcp-server"
-      ? mcpTag(definition.id, definition.version)
-      : `${definition.kind}-${definition.id}-v${definition.version}`
+    const tag = `${definition.kind}-${definition.id}-v${definition.version}`
     const name = `${definition.kind}-${definition.version}.bin`
     const bytes = Buffer.from(`${definition.kind}/${definition.id}@${definition.version}`)
     const relativePath = `releases/${tag}/${name}`
@@ -55,46 +58,32 @@ async function writeFixture() {
       compatibility: { convax: ">=0.1.0" },
       presentation: { name: definition.id },
       yanked: false,
-      delivery: definition.kind === "mcp-server"
+      delivery: {
+        kind: "artifact",
+        url,
+        size: bytes.length,
+        sha256: sha256(bytes),
+      },
+      ...(definition.kind === "plugin"
         ? {
-            kind: "mcp-managed-stdio",
-            serverJson: {},
-            serverJsonSha256: "0".repeat(64),
-            extension: {},
-            extensionSha256: "1".repeat(64),
-            companions: [{
-              target: "darwin-arm64",
-              command: name,
-              url,
-              size: bytes.length,
-              sha256: sha256(bytes),
-            }],
+            manifest: {
+              schema: "convax.plugin/8",
+              id: definition.id,
+              version: definition.version,
+              hostApi: { major: 1, required: [], optional: [] },
+            },
           }
-        : {
-            kind: "artifact",
-            url,
-            size: bytes.length,
-            sha256: sha256(bytes),
-          },
+        : {}),
     })
   }
+  const registryRevision = sha256(Buffer.from(canonicalJson(packages)))
   const registryV2Bytes = Buffer.from(
     `${JSON.stringify({
       schema: "convax.registry/2",
       marketplaceId: "convax-official",
       sequence: 1,
-      revision: "a".repeat(64),
+      revision: registryRevision,
       packages,
-    })}\n`,
-  )
-  const registryV1Bytes = Buffer.from(
-    `${JSON.stringify({
-      schema: "convax.registry/1",
-      sequence: 1,
-      revision: "a".repeat(40),
-      packages: packages
-        .filter((entry) => entry.kind !== "mcp-server")
-        .map(({ kind, id, version }) => ({ kind, id, version })),
     })}\n`,
   )
   const marketplaceBytes = Buffer.from(`${JSON.stringify({
@@ -104,7 +93,6 @@ async function writeFixture() {
     publisher: { name: "Microvoid" },
     repository: { owner: "microvoid", name: "convax-plugins" },
     registry: {
-      v1: { url: "https://microvoid.github.io/convax-plugins/registry/v1/index.json" },
       v2: { url: "https://microvoid.github.io/convax-plugins/registry/v2/index.json" },
     },
     showcase: {
@@ -116,14 +104,13 @@ async function writeFixture() {
   const showcaseBytes = Buffer.from(`${JSON.stringify({
     schema: "convax.showcase/2",
     marketplaceId: "convax-official",
-    revision: "a".repeat(64),
+    revision: registryRevision,
     packages: [],
   })}\n`)
   await fs.writeFile(path.join(catalogDirectory, "marketplace.json"), marketplaceBytes)
   await fs.writeFile(path.join(catalogDirectory, "registry-v2.json"), registryV2Bytes)
-  await fs.writeFile(path.join(catalogDirectory, "registry-v1.json"), registryV1Bytes)
   await fs.writeFile(path.join(catalogDirectory, "showcase-v2.json"), showcaseBytes)
-  const metadataTag = `registry-v2-${"a".repeat(64)}`
+  const metadataTag = `registry-v2-${registryRevision}`
   const metadataAssets = []
   for (const [name, bytes] of [
     ["marketplace.json", marketplaceBytes],
@@ -152,7 +139,6 @@ async function writeFixture() {
   )
   for (const [relativePath, bytes] of [
     ["marketplace.json", marketplaceBytes],
-    ["registry/v1/index.json", registryV1Bytes],
     ["registry/v2/index.json", registryV2Bytes],
     ["showcase/v2/index.json", showcaseBytes],
   ]) {
@@ -160,7 +146,7 @@ async function writeFixture() {
     await fs.mkdir(path.dirname(output), { recursive: true })
     await fs.writeFile(output, bytes)
   }
-  return { catalogDirectory, releasePlan }
+  return { catalogDirectory, registryRevision, releasePlan }
 }
 
 async function rewriteMetadataFixture(catalogDirectory, name, value, sitePath) {
@@ -189,63 +175,13 @@ afterAll(async () => {
 })
 
 describe("published Marketplace output closure", () => {
-  test("binds v1 identities and every Registry Release URL to exact local bytes", async () => {
+  test("binds every Registry v2 Release URL to exact local bytes", async () => {
     const fixture = await writeFixture()
     await expect(verifyMarketplaceOutput(fixture.catalogDirectory)).resolves.toEqual({
-      packages: 3,
-      releaseAssets: 6,
-      releaseTags: 4,
-      v1Packages: 2,
+      packages: 2,
+      releaseAssets: 5,
+      releaseTags: 3,
     })
-  })
-
-  test("rejects silent v1 projection loss", async () => {
-    const fixture = await writeFixture()
-    const registryPath = path.join(fixture.catalogDirectory, "registry-v1.json")
-    const registry = JSON.parse(await fs.readFile(registryPath, "utf8"))
-    registry.packages.pop()
-    const bytes = `${JSON.stringify(registry)}\n`
-    await fs.writeFile(registryPath, bytes)
-    await fs.writeFile(
-      path.join(fixture.catalogDirectory, "site/registry/v1/index.json"),
-      bytes,
-    )
-    await expect(verifyMarketplaceOutput(fixture.catalogDirectory))
-      .rejects.toThrow("v1 Plugin/Skill identity set differs from Registry v2")
-  })
-
-  test("rejects a non-strict or lossy v1 projection", async () => {
-    const fixture = await writeFixture()
-    const registryPath = path.join(fixture.catalogDirectory, "registry-v1.json")
-    const sitePath = path.join(fixture.catalogDirectory, "site/registry/v1/index.json")
-    const registry = JSON.parse(await fs.readFile(registryPath, "utf8"))
-
-    registry.schema = "convax.registry/2"
-    let bytes = `${JSON.stringify(registry)}\n`
-    await fs.writeFile(registryPath, bytes)
-    await fs.writeFile(sitePath, bytes)
-    await expect(verifyMarketplaceOutput(fixture.catalogDirectory))
-      .rejects.toThrow("Registry v1 is not a strict Official projection")
-
-    registry.schema = "convax.registry/1"
-    registry.packages[0].version = "9.9.9"
-    bytes = `${JSON.stringify(registry)}\n`
-    await fs.writeFile(registryPath, bytes)
-    await fs.writeFile(sitePath, bytes)
-    await expect(verifyMarketplaceOutput(fixture.catalogDirectory))
-      .rejects.toThrow("v1 Plugin/Skill versions differ from Registry v2")
-
-    registry.packages[0].version = "1.0.0"
-    registry.packages.push({
-      kind: "mcp-server",
-      id: "io.example/fixture",
-      version: "2026.07",
-    })
-    bytes = `${JSON.stringify(registry)}\n`
-    await fs.writeFile(registryPath, bytes)
-    await fs.writeFile(sitePath, bytes)
-    await expect(verifyMarketplaceOutput(fixture.catalogDirectory))
-      .rejects.toThrow("Registry v1 contains unsupported kind mcp-server")
   })
 
   test("requires every current Registry package Release and referenced asset in the plan", async () => {
@@ -278,7 +214,6 @@ describe("published Marketplace output closure", () => {
     }
     const selectedVersions = [{
       id: "fixture-plugin",
-      itemKey: sha256(Buffer.from("plugin\0fixture-plugin", "utf8")),
       kind: "plugin",
       previousVersion: "0.9.0",
       releaseTag: "plugin-fixture-plugin-v1.0.0",
@@ -289,10 +224,9 @@ describe("published Marketplace output closure", () => {
       fixture.catalogDirectory,
       { selectedVersions },
     )).resolves.toEqual({
-      packages: 3,
+      packages: 2,
       releaseAssets: 4,
       releaseTags: 2,
-      v1Packages: 2,
     })
 
     selectedVersions[0].releaseTag = "plugin-fixture-plugin-v9.9.9"
@@ -361,7 +295,7 @@ describe("published Marketplace output closure", () => {
       path.join(
         fixture.catalogDirectory,
         "releases",
-        `registry-v2-${"a".repeat(64)}`,
+        `registry-v2-${fixture.registryRevision}`,
         "registry-v2.json",
       ),
       changedRegistry,
@@ -369,13 +303,13 @@ describe("published Marketplace output closure", () => {
     const planPath = path.join(fixture.catalogDirectory, "release-plan.json")
     const plan = JSON.parse(await fs.readFile(planPath, "utf8"))
     const registryAsset = plan.releases
-      .find((entry) => entry.tag === `registry-v2-${"a".repeat(64)}`)
+      .find((entry) => entry.tag === `registry-v2-${fixture.registryRevision}`)
       .assets.find((entry) => entry.name === "registry-v2.json")
     registryAsset.size = Buffer.byteLength(changedRegistry)
     registryAsset.sha256 = sha256(Buffer.from(changedRegistry))
     await fs.writeFile(planPath, `${JSON.stringify(plan)}\n`)
     await expect(verifyMarketplaceOutput(fixture.catalogDirectory))
-      .rejects.toThrow("does not use its immutable Release tag")
+      .rejects.toThrow("Registry revision does not match canonical package content")
   })
 
   test("rejects a Pages tree that differs from the descriptor-addressed flat catalogs", async () => {

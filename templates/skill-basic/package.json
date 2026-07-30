@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "validate": "bun ../../../tooling/validate.mjs --kind skill --id __SKILL_ID__",
-    "pack": "bun ../../../tooling/pack.mjs --kind skill --id __SKILL_ID__"
+    "pack": "bun ../../../tooling/pack.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-../../../node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" --kind skill --id __SKILL_ID__"
   }
 }

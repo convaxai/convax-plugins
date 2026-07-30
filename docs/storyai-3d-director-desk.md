@@ -1,31 +1,50 @@
 # 3D Director Desk ownership and release
 
-`packages/plugins/storyai-3d-director-desk` is the only source tree for the
-StoryAI 3D Director Desk integration. Its pinned upstream evidence, Convax patches,
-HTML, CSS, generated JavaScript, manifest, legacy companion Skill, tests, showcase
-media, package metadata, and release ZIP all live in this repository.
+The StoryAI 3D Director Desk integration has two authoritative source workspaces:
+
+- `packages/plugins/storyai-3d-director-desk` owns the pinned upstream evidence,
+  Convax patches, HTML, CSS, generated JavaScript, v8 manifest, showcase media,
+  Plugin metadata, and Plugin release ZIP;
+- `packages/skills/storyai-3d-director-desk` owns the portable Agent Skill,
+  `convax.package/2` Skill metadata, and generated capability reference.
+
+The Plugin packer injects the owned Skill into the Plugin ZIP. The Plugin directory
+must not contain a copied `SKILL.md` or Skill tree.
 
 Convax Desktop owns only the generic host capabilities used by this and other
 Plugins:
 
 - sandboxed static Web Plugin frames and manifest-driven Canvas renderers;
 - bounded Plugin-owned Canvas node state;
-- `canvas.image.create` for one validated PNG;
+- `host.context.get` for the negotiated Host API major 1 profile;
+- `canvas.node.state.replace` for bounded Plugin-owned state;
+- `canvas.resource.image.create` for one validated PNG;
 - managed Project asset admission, Canvas image-node creation, connection, and
   rollback;
 - manifest-driven Canvas toolbar commands.
 
 Desktop must not carry a second 3D Director Desk bundle, its Skill/showcase assets,
-or reserve `storyai-3d-director-desk` as a built-in id. Version `0.1.0` is the
-first stable Registry release and targets clean/current profiles. It deliberately
-does not claim or rewrite installations made from the earlier unreleased trusted
-built-in versions; those experimental profiles must remove the old installation
-or be reset before installing this Registry package.
+or reserve `storyai-3d-director-desk` as a built-in id. The current authoring
+version is `0.1.3` and targets the `convax.package/2` and `convax.plugin/8`
+publication path.
 
-The package retains `convax.plugin/1` and the top-level `skill` field so the
-companion Skill remains independently managed, matching the pre-migration
-lifecycle. This source-ownership move does not grant new capabilities or transfer
-the Skill to Plugin-owned v4 lifecycle semantics.
+The manifest declares the independent Skill workspace through
+`contributes.skills` and the Skill metadata binds back with
+`ownerPluginId: "storyai-3d-director-desk"`. Convax installs, updates, and removes
+that Skill atomically with its owner Plugin, while the standalone Skill ZIP remains
+portable to compatible Agent Skills clients.
+
+The owned Skill omits `uses`. All StoryAI Host APIs are Web-only, so none may be
+copied into an Agent Skill reference. The Skill source keeps stable links but must
+not author the reserved generated reference files. At build or publication,
+`@convax/marketplace-kit` uses the SDK renderers to inject pages stating that no
+Agent Host API, Plugin tool, or inter-Plugin capability is declared. Those bytes
+participate in both the Skill artifact and owner Plugin snapshot digest and are
+never rewritten in an installed Skill after a Host upgrade.
+
+Pre-v8 manifests and the top-level `skill` field are historical Registry
+consumption only. They must not reappear in StoryAI authoring source, templates,
+or new release candidates.
 
 The unreleased built-in manifest used a host-private `icon: "play"` hint on its
 toolbar item. Registry validation intentionally accepts only the public
@@ -47,9 +66,10 @@ Run the repository's complete release gate:
 
 ```sh
 bun install --frozen-lockfile --ignore-scripts
+bun run skill-api:check
 bun run check
 ```
 
 The package-specific tests additionally pin the upstream evidence and generated
-hashes, reject remote/runtime content, validate the smallest host capability set,
-and check the deterministic static package inventory.
+hashes, reject remote/runtime content, validate the smallest Web Host API set and
+owned-Skill boundary, and check the deterministic static package inventory.

@@ -1,9 +1,24 @@
 import { promises as fs } from "node:fs"
 import path from "node:path"
-import { discoverPackages, exactKeys, parseArgs, readJson, root } from "./lib.mjs"
+import {
+  blockedPackagePublications,
+  discoverPackages,
+  exactKeys,
+  parseArgs,
+  readJson,
+  root,
+} from "./lib.mjs"
 
-function validateLocalMarkdownReferences(files, label) {
-  const paths = new Set(files.map((file) => file.relativePath))
+const generatedOwnedSkillReferences = [
+  "references/convax-capabilities.md",
+  "references/plugin-capabilities.md",
+]
+
+function validateLocalMarkdownReferences(files, label, generatedPaths = []) {
+  const paths = new Set([
+    ...files.map((file) => file.relativePath),
+    ...generatedPaths,
+  ])
   for (const file of files.filter((item) => item.relativePath.endsWith(".md"))) {
     const markdown = file.data.toString("utf8")
     const links = markdown.matchAll(/!?\[[^\]]*\]\(\s*<?([^\s)>]+)>?(?:\s+["'][^)]*["'])?\s*\)/g)
@@ -38,38 +53,28 @@ export async function validateRepository(options = {}) {
       new Set(config.yanked).size !== config.yanked.length) {
     throw new Error("registry/config.json: yanked must contain unique kind/id@version identities")
   }
-  const schemaDirectory = path.join(root, "schemas")
-  const schemaNames = [
-    "convax-package-v1.schema.json",
-    "convax-plugin-manifest-v1.schema.json",
-    "convax-plugin-manifest-v2.schema.json",
-    "convax-plugin-manifest-v3.schema.json",
-    "convax-plugin-manifest-v4.schema.json",
-    "convax-plugin-manifest-v5.schema.json",
-    "convax-plugin-manifest-v6.schema.json",
-    "convax-plugin-manifest-v7.schema.json",
-    "convax-registry-v1.schema.json",
-    "convax-showcase-entry-v1.schema.json",
-    "convax-showcase-v1.schema.json",
-  ]
-  for (const name of schemaNames) await readJson(path.join(schemaDirectory, name), `schemas/${name}`)
   const packages = await discoverPackages(options)
   if (packages.length === 0) throw new Error("At least one source package is required")
+  const blockedPackages = blockedPackagePublications(packages, "source admission")
   for (const skill of packages.filter((pkg) => pkg.metadata.kind === "skill")) {
-    validateLocalMarkdownReferences(skill.files, `skill/${skill.metadata.id}`)
+    validateLocalMarkdownReferences(
+      skill.files,
+      `skill/${skill.metadata.id}`,
+      skill.metadata.ownerPluginId ? generatedOwnedSkillReferences : [],
+    )
   }
   for (const plugin of packages.filter((pkg) =>
-    pkg.metadata.kind === "plugin" && (
-      pkg.manifest.schema === "convax.plugin/4" ||
-      pkg.manifest.schema === "convax.plugin/5" ||
-      pkg.manifest.schema === "convax.plugin/6" ||
-      pkg.manifest.schema === "convax.plugin/7"))) {
+    pkg.metadata.kind === "plugin" && pkg.manifest.schema === "convax.plugin/8")) {
     for (const contribution of plugin.manifest.contributes.skills ?? []) {
       const prefix = `${contribution.path}/`
       const files = plugin.files
         .filter((file) => file.relativePath.startsWith(prefix))
         .map((file) => ({ ...file, relativePath: file.relativePath.slice(prefix.length) }))
-      validateLocalMarkdownReferences(files, `plugin/${plugin.metadata.id} owned skill/${contribution.name}`)
+      validateLocalMarkdownReferences(
+        files,
+        `plugin/${plugin.metadata.id} owned skill/${contribution.name}`,
+        generatedOwnedSkillReferences,
+      )
     }
   }
   for (const plugin of packages.filter((pkg) => pkg.metadata.kind === "plugin" && pkg.manifest.skill)) {
@@ -102,17 +107,30 @@ export async function validateRepository(options = {}) {
       if (!source.includes("__")) throw new Error(`templates/${template}/${name}: expected replacement tokens`)
     }
   }
-  return { packages, sequence: config.sequence }
+  return { blockedPackages, packages, sequence: config.sequence }
 }
 
 if (import.meta.main) {
   const args = parseArgs(process.argv.slice(2).filter((argument) => argument !== "--"))
-  const unknown = Object.keys(args).find((key) => key !== "kind" && key !== "id")
+  const unknown = Object.keys(args).find(
+    (key) => key !== "kind" && key !== "id",
+  )
   if (unknown) throw new Error(`arguments: unsupported --${unknown}`)
   if ((args.kind && !args.id) || (args.id && !args.kind)) throw new Error("arguments: use --kind and --id together")
-  const result = await validateRepository(args.kind ? { kind: args.kind, id: args.id } : undefined)
+  const result = await validateRepository({
+    ...(args.kind ? { kind: args.kind, id: args.id } : {}),
+  })
   if (args.kind && !result.packages.some((pkg) => pkg.metadata.kind === args.kind && pkg.metadata.id === args.id)) {
     throw new Error(`No package matches ${args.kind}/${args.id}`)
   }
-  console.log(`Validated ${result.packages.length} packages at Registry sequence ${result.sequence}.`)
+  console.log(
+    `Admitted ${result.packages.length} source packages at Registry sequence ${result.sequence}; ${result.blockedPackages.length} publication-blocked.`,
+  )
+  for (const pkg of result.blockedPackages) {
+    console.log(
+      `BLOCKED ${pkg.kind}/${pkg.id}@${pkg.version}: ${pkg.publication.blockers
+        .map((blocker) => `${blocker.code}: ${blocker.note}`)
+        .join("; ")}`,
+    )
+  }
 }

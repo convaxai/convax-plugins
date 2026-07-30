@@ -1,17 +1,11 @@
-export const PROTOCOL = "convax.plugin-capability/2"
-export const PLUGIN_ID = "video-timeline"
-
-function isResponse(value) {
-  return value && value.protocol === PROTOCOL && value.type === "response" && typeof value.id === "string" && typeof value.ok === "boolean"
-}
+import { acceptPluginHostConnection } from "./plugin-host-client.js"
 
 export class TimelineHostClient {
-  #port = null
-  #counter = 0
-  #pending = new Map()
+  #client = null
   #commands = new Set()
   #connectedResolve
   #connectedReject
+  #unsubscribeCommand
 
   constructor(options = {}) {
     this.timeoutMs = options.timeoutMs ?? 15000
@@ -22,11 +16,18 @@ export class TimelineHostClient {
   }
 
   acceptConnect(event) {
-    const message = event?.data
-    if (event?.source !== window.parent || message?.protocol !== PROTOCOL || message?.type !== "connect" || message?.pluginId !== PLUGIN_ID || event.ports?.length !== 1 || this.#port) return false
-    this.#port = event.ports[0]
-    this.#port.onmessage = (next) => this.#receive(next.data)
-    this.#port.start()
+    if (this.#client) return false
+    const client = acceptPluginHostConnection(event, {
+      onFatalError: (error) => this.#disconnect(error),
+      requestIdPrefix: "timeline",
+    })
+    if (!client) return false
+    this.#client = client
+    this.#unsubscribeCommand = client.onCommand((command) => {
+      for (const listener of this.#commands) {
+        listener(command.command, command.params)
+      }
+    })
     this.#connectedResolve(this)
     return true
   }
@@ -38,46 +39,32 @@ export class TimelineHostClient {
 
   async request(method, params) {
     await this.connected
-    const id = `timeline-${++this.#counter}`
-    return new Promise((resolve, reject) => {
-      const timeout = window.setTimeout(() => {
-        this.#pending.delete(id)
-        reject(new Error(`Host request timed out: ${method}`))
-      }, this.timeoutMs)
-      this.#pending.set(id, { resolve, reject, timeout })
-      try {
-        this.#port.postMessage({ id, method, ...(params === undefined ? {} : { params }), protocol: PROTOCOL, type: "request" })
-      } catch (error) {
-        window.clearTimeout(timeout)
-        this.#pending.delete(id)
-        reject(error)
-      }
-    })
+    if (!this.#client) throw new Error("Host connection closed")
+    const controller = new AbortController()
+    const timeout = window.setTimeout(
+      () => controller.abort(new Error(`Host request timed out: ${method}`)),
+      this.timeoutMs,
+    )
+    try {
+      return await this.#client.callHostApi(method, params, {
+        signal: controller.signal,
+      })
+    } finally {
+      window.clearTimeout(timeout)
+    }
   }
 
   close() {
-    this.#connectedReject?.(new Error("Host connection closed"))
-    for (const pending of this.#pending.values()) {
-      window.clearTimeout(pending.timeout)
-      pending.reject(new Error("Host connection closed"))
-    }
-    this.#pending.clear()
-    this.#port?.close()
-    this.#port = null
+    this.#disconnect(new Error("Host connection closed"))
   }
 
-  #receive(value) {
-    if (value?.protocol === PROTOCOL && value?.type === "command" && typeof value.command === "string") {
-      for (const listener of this.#commands) listener(value.command, value.params)
-      return
-    }
-    if (!isResponse(value)) return
-    const pending = this.#pending.get(value.id)
-    if (!pending) return
-    this.#pending.delete(value.id)
-    window.clearTimeout(pending.timeout)
-    if (value.ok) pending.resolve(value.result)
-    else pending.reject(new Error(value.error || "Host request failed"))
+  #disconnect(error) {
+    this.#connectedReject?.(error)
+    this.#connectedReject = undefined
+    this.#unsubscribeCommand?.()
+    this.#unsubscribeCommand = undefined
+    this.#client?.close()
+    this.#client = null
   }
 }
 

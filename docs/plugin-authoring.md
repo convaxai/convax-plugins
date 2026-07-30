@@ -1,636 +1,369 @@
 # Plugin authoring
 
-A Convax Plugin package is offline content and is inert during validation and
-packing. A Plugin with a Web surface is served through a private protocol and
-mounted in an iframe with exactly `sandbox="allow-scripts"`. It has an opaque
-origin: it cannot inspect the parent DOM, use browser storage as shared application
-state, or access Node/Electron. The one exception at runtime is an explicitly
-declared and authorized OpenCode Hook module described below.
+Convax publishes one authoring contract:
 
-`convax.plugin/2` through `/7` may instead be headless Tool Plugins. Local
-executable contributions name a separately distributed bare `mcp-stdio` command;
-their ZIP still contains no executable code. v4 and later may own Skills, v5 adds
-transport-neutral Project/Canvas grants and LLM display metadata, and v6 may expose
-one HTTPS remote Agent MCP server without a local runtime. Concrete Plugin, Skill,
-and reviewed companion source belongs in this repository; the Convax repository
-supplies only the generic host ABI and lifecycle.
+- source metadata is `convax.package/2`;
+- Plugin manifests are `convax.plugin/8`;
+- the runtime compatibility projection is derived by the Registry builder, never
+  copied into source metadata.
 
-## Manifest
+Older schemas remain readable only as immutable Registry history. They are not
+valid source candidates, templates, release selections, or new Release entries.
 
-`package/manifest.json` uses `convax.plugin/1` through `/7`. Only
-documented fields are accepted. Source metadata must use the matching pair:
+## Source publication state
 
-- `convax.plugin/1` with `convax.plugin-host/1`;
-- `convax.plugin/2` with `convax.plugin-host/2`;
-- `convax.plugin/3` with `convax.plugin-host/3`;
-- `convax.plugin/4` with `convax.plugin-host/4`;
-- `convax.plugin/5` with `convax.plugin-capability/1`;
-- `convax.plugin/6` with `convax.plugin-capability/1`;
-- `convax.plugin/7` with `convax.plugin-capability/2`.
-
-There is no `convax.plugin-host/5`, `/6`, or `/7`. The capability protocol is versioned
-independently from the manifest schema so later schemas can evolve without another
-major-specific host bridge.
-
-The v1 schema is static-only:
+`convax-package.json` contains portable package metadata only:
 
 ```json
 {
-  "schema": "convax.plugin/1",
-  "id": "my-plugin",
-  "name": "My Plugin",
-  "description": "A focused Canvas surface.",
-  "version": "0.1.0",
+  "schema": "convax.package/2",
+  "kind": "plugin",
+  "id": "example",
+  "name": "Example",
+  "description": "A bounded example Plugin.",
+  "version": "1.0.0",
+  "yanked": false
+}
+```
+
+`registry/host-capability-policy.json` is the sole publication-policy owner.
+Every pending request under `docs/host-capability-requests/` must appear there
+with exact affected package versions. Each affected workspace must also list the
+request id under `package.json#convax.hostCapabilityRequests`; tooling requires the
+declaration and policy to match in both directions before deriving `publication:
+{status:"blocked",blockers}` in memory. Missing policy, request document,
+declaration, edited decision, or stale package version fails closed. The portable
+package and runtime Registry never acquire this authoring policy.
+
+The current repository deliberately accepts only `status: "pending"` with
+`humanDecision: null`; changing either field cannot unlock publication. A future
+resolution flow must verify a protected human decision receipt outside the author
+PR and bind it to the exact published generic contract package/version, Catalog
+SHA-256, and runtime conformance evidence before removing the explicitly declared
+dependency. Until that verifier exists, approval cannot be self-authored
+in this repository.
+
+CI and release selection also compare the candidate with the exact protected-main
+commit supplied by GitHub. A pending request id and each affected `{kind,id}` from
+that base must remain pending across version bumps. Its normalized semantic core
+also remains immutable: generated Catalog evidence may refresh, but the problem,
+requested contract, authority, compatibility, falsifiable tests, and Plugin-side
+plan cannot be replaced in place. Deleting all declarations or rewriting the
+request therefore fails before release planning.
+
+A new or renamed Plugin that uses only the published Catalog is an ordinary
+Plugin-review decision, not a Host-change request. CODEOWNERS and protected-branch
+review own that admission. Do not fabricate a missing Host capability merely to
+make a new identity visible to CI.
+
+Known gaps use the strongest reliable evidence available. A
+`convax.pet-host/1` contribution is a validated Manifest fact, so tooling requires
+the pending `sdk-owned-pet-surface-client` request regardless of how source code
+spells its transport. By contrast, `canvas.inputs.open` is a valid published
+audio/video stream API: its generated response contract admits only
+`probe.kind: "audio" | "video"`. Declaring it does not imply image access and must
+not be blocked. A Plugin that needs image bytes must stop and declare
+`web-plugin-image-input-read`; it cannot reinterpret the audio/video result or
+request a Host edit. The three known image consumers already carry that explicit
+dependency, and protected request history prevents them from deleting it through
+a business-code rewrite. Tooling does not pretend static source inference can
+prove an arbitrary Plugin's media intent.
+
+`.github/CODEOWNERS` assigns the checker, policy, requests, authoring Skill, Plugin
+source, and workflows to a human owner. Publication declares the protected
+`plugin-marketplace-production` environment. The remote ruleset must require that
+human code-owner, dismiss stale approvals, reject bot approval, require current CI,
+and protect the environment. Local source text cannot prove those external settings
+or reviewer identity.
+
+## Host API declaration
+
+Every v8 manifest explicitly declares the Host API catalog major and its required
+and optional API ids:
+
+```json
+{
+  "schema": "convax.plugin/8",
+  "id": "example",
+  "name": "Example",
+  "description": "A bounded example Plugin.",
+  "version": "1.0.0",
   "entry": "index.html",
-  "capabilities": ["canvas.node.read"],
+  "hostApi": {
+    "major": 1,
+    "required": ["host.context.get"],
+    "optional": []
+  },
+  "capabilities": [],
   "contributes": {
     "canvas": {
-      "renderer": { "create": true, "width": 640, "height": 400 },
-      "toolbar": [{ "id": "refresh", "title": "Refresh", "command": "refresh" }]
+      "renderer": { "create": true, "width": 640, "height": 400 }
     }
   }
 }
 ```
 
-Renderer matching may use `create`, `extensions`, `mimeTypes`, or `nodeKinds`.
-Package paths are POSIX-relative and case-sensitive. The optional `skill` points to
-a companion `SKILL.md` inside the same Plugin ZIP; installing it remains an explicit,
-independent user action. This legacy field is available only through v3. Do not use
-it for a Skill whose lifecycle belongs to its Plugin.
+A Plugin with `entry` must require `host.context.get`; the negotiated profile and
+availability query are exposed through that connection API. A pure headless Tool,
+Hook, Pet, or remote MCP Plugin still declares
+`{"major":1,"required":[],"optional":[]}` and must not claim Web-only APIs.
 
-## Pet contribution
+`hostApi` is an availability/compatibility declaration. Existing capability
+grants remain the authority request. Declaring an API does not bypass permission,
+scope, live context, setup, transition, or installed-byte checks.
 
-`convax.plugin/5` adds a sandboxed Pet feature contribution. A package contributes
-one Pet feature Plugin and
-owns its static overlay, settings, packaged collection, animation rules, and
-selection. Its `convax.plugin-capability/1` compatibility label describes manifest
-support; the surfaces use the separate `convax.pet-host/1` protocol:
+Web author source imports `createPluginHostClient` from
+`@convax/plugin-sdk/client`. The package build bundles that client and a minimal
+browser-safe manifest projection into `package/assets/plugin-host-client.js`;
+the immutable package never relies on a bare package import at runtime. The
+projection retains `hostApi` and inter-Plugin capability imports, but excludes
+Agent MCP endpoints, Skills, executable runtimes, services, and unrelated UI
+contributions. Do not hand-edit the generated asset or implement request ids,
+pending maps, protocol envelopes, `MessagePort.postMessage`, response parsing, or
+cancellation beside the SDK. Run both `bun run build` and
+`bun run build:check` before publishing.
 
-The `contributes.pet` object declares the library and both static feature surfaces:
+## Canvas commands and placements
+
+A v8 Web Plugin defines each Canvas UI command exactly once in `commands`.
+`toolbar` and `menus` contain placement records that reference those definitions:
 
 ```json
 {
-  "schema": "convax.plugin/5",
-  "id": "convax-pet",
-  "name": "Convax Pet",
-  "description": "A local desktop companion and pet library for Convax activity.",
-  "version": "0.2.1",
-  "capabilities": [
-    "pet.activity.read",
-    "pet.activity.open",
-    "pet.preferences.write",
-    "pet.custom.manage"
-  ],
   "contributes": {
-    "pet": {
-      "library": "pet-library.json",
-      "overlay": "pet/index.html",
-      "settings": "settings/index.html",
-      "protocol": "convax.pet-host/1"
+    "canvas": {
+      "renderer": {
+        "create": true,
+        "width": 640,
+        "height": 400
+      },
+      "commands": [
+        {
+          "id": "context.refresh",
+          "title": {
+            "default": "Refresh context",
+            "zh-CN": "刷新上下文"
+          },
+          "icon": "refresh",
+          "target": {
+            "type": "renderer-message",
+            "message": "renderer.context.refresh"
+          }
+        }
+      ],
+      "toolbar": [
+        {
+          "id": "context-refresh-toolbar",
+          "command": "context.refresh",
+          "order": 10
+        }
+      ],
+      "menus": [
+        {
+          "id": "context-refresh-menu",
+          "command": "context.refresh",
+          "placement": "overflow",
+          "group": "context",
+          "order": 10
+        }
+      ]
     }
   }
 }
 ```
 
-The `convax.pet-library/1` document contains one to 64 unique pet entries. Each
-entry supplies `id`, `displayName`, `description`, package-relative `spritesheet`,
-`spriteVersion: 2`, and `alt`. Every atlas is a 1536×1872 PNG or WebP containing
-eight 192×208 cells across and nine state rows in this order: `idle`,
-`running-right`, `running-left`, `waving`, `jumping`, `failed`, `waiting`,
-`running`, and `review`.
+The Host owns presentation and placement:
 
-The exact `pet.custom.manage` grant exposes only the scoped
-`collection.get`/`collection.import`/`collection.delete` host methods. Import uses
-the native Convax file picker; a Pet surface never receives a filesystem path.
-Convax accepts one current-format transparent 1536×1872 PNG or WebP atlas, stores a
-managed copy, and serves it through `convax-pet-asset:`. Legacy Goku folders,
-`pet.json`, remote assets, and arbitrary file reads are not supported.
-Pet Plugins that do not offer custom collection management omit this optional
-grant while retaining the three required activity and preference capabilities.
+- `title`, optional `icon`, and `target` belong only to a command. Supported
+  Host-rendered icon tokens are `download`, `edit`, `open`, `play`, `refresh`,
+  `settings`, `sparkles`, and `upload`; Plugins cannot contribute SVG, HTML,
+  URLs, React components, or platform-native icon names.
+- A command target is only
+  `{"type":"renderer-message","message":"<bounded-message>"}`. Activation sends
+  that message to the exact live owning renderer frame as a
+  `convax.plugin-host/8` message with `type: "command"`. This envelope is owned
+  by `@convax/plugin-sdk/client`; it cannot name a
+  Host function or another Plugin, and it grants no Host API authority.
+- Toolbar records contain only `id`, `command`, and optional `order`. Menu
+  records add the required `placement: "overflow"` and optional `group`; menus
+  are limited to the owning Canvas node overflow.
+- Command ids, placement ids, and references are stable Plugin-local ids.
+  Placement ids are unique across both surfaces, every reference resolves to a
+  command, and a surface cannot reference the same command twice. One command
+  may appear once in each surface.
+- Commands and placements require a declared sandbox renderer. Inline legacy
+  toolbar or menu definitions are not accepted, and placements cannot override
+  command presentation or behavior.
 
-The settings and overlay pages run with no Node, Electron, remote network, native
-path, or arbitrary IPC access. Their surface-scoped `convax.pet-host/1` ports expose
-only content-free activity, validated navigation, overlay movement, preferences,
-and wake/tuck lifecycle. Installation never wakes the pet automatically. New pets
-ship as library entries in a new version of the same feature Plugin.
-
-## Agent Hooks
-
-`hooks` names one self-contained `.js` or `.mjs` OpenCode Plugin module:
-
-```json
-{
-  "schema": "convax.plugin/2",
-  "id": "agent-observer",
-  "name": "Agent Observer",
-  "description": "Observes Agent session lifecycle events.",
-  "version": "1.0.0",
-  "hooks": "hooks/index.mjs",
-  "capabilities": [],
-  "contributes": {}
-}
-```
+The renderer handles the declared message through the SDK client:
 
 ```js
-export const AgentObserver = async ({ client }) => ({
-  event: async ({ event }) => {
-    if (event.type !== "session.idle") return;
-    await client.app.log({
-      body: {
-        service: "agent-observer",
-        level: "info",
-        message: "Agent session became idle",
-      },
-    });
-  },
-});
+const unsubscribeCommands = client.onCommand(({ command }) => {
+  if (command === "renderer.context.refresh") void refreshContext()
+})
+
+window.addEventListener("pagehide", () => {
+  unsubscribeCommands()
+  client.close()
+})
 ```
 
-This is OpenCode's native Plugin function and native Hook object. Convax does not
-define another event enum or dispatch engine. The module may use the Hook events
-supported by the OpenCode version bundled with the host. Callable product tools
-still belong in standard MCP contributions; `hooks` is for lifecycle interception
-and observation.
+## Declarative Tool Plugins
 
-The module is executable Agent code with the OpenCode Plugin context, including
-filesystem, network, SDK, and Bun capabilities. It is not an iframe and is not
-sandboxed. Therefore an explicit Plugin install or update is execution consent for
-the normalized manifest and exact Hook bytes. Convax copies those bytes to a
-private immutable snapshot and OpenCode never imports the mutable Plugin package
-path. Missing or changed bytes disable that Plugin's Hook and require reinstall.
-Default/background provisioning cannot silently authorize a new Hook or changed
-Hook bytes.
+A headless v8 Tool Plugin declares a separately published `mcp-stdio` runtime and
+one or more generic generation, service, LLM, Agent-tool, or inter-Plugin
+capability contributions. The Plugin ZIP remains inert; companion bytes are
+published, verified, and authorized independently.
 
-The first version deliberately authorizes one file only. It must be valid JavaScript
-ESM and export at least one OpenCode Plugin entry. Bundle all runtime code into that
-file. Only static `node:` and `bun:` built-in imports may remain; package, relative,
-absolute, CommonJS globals, runtime module loaders such as `node:module`, and dynamic
-imports are rejected. Do not ship a dependency tree, dynamically download code, or
-rely on project-local OpenCode configuration. A Hook-only Plugin uses
-`convax.plugin/2` or later; v1 still requires its ordinary static Canvas surface.
-Hook modules are loaded in stable Plugin-id order after host-configured OpenCode
-Plugins and before Convax's protected-path guard, so the guard sees the final tool
-arguments.
+`generation.tools` is the executable operation catalog.
+`generation.models` is a separate display catalog and may be empty for utilities.
+A companion that discovers a live model catalog may mark exactly one required
+top-level bounded string selector in `tools/list.inputSchema` with
+`"x-convax-role": "generation-model-id"`. The selector must contain explicit
+bounded choices. If a model-driven tool cannot return that bounded catalog, omit
+the tool from `tools/list`; do not expose a provider model id as an ordinary
+free-text fallback. Missing or malformed runtime catalog data fails closed.
 
-## Plugin-owned Skills
-
-`convax.plugin/4` introduced explicit
-Plugin-owned Skill contributions. The owner must still provide a real Plugin
-capability—such as a sandboxed Canvas renderer, an executable generation/service
-runtime, a v5 Project/Canvas grant, or a v6 remote Agent MCP endpoint—beyond merely
-wrapping a Skill. v4, v5, and v6 all use the same `contributes.skills` ownership
-contract; v7 retains it:
+A generic image operation can be placed directly on selected image nodes:
 
 ```json
 {
-  "schema": "convax.plugin/4",
-  "id": "creative-tools",
-  "name": "Creative Tools",
-  "description": "Provides local creative operations and their Agent workflow.",
-  "version": "1.0.0",
   "contributes": {
     "generation": {
       "models": [],
       "tools": [
         {
-          "id": "media.inspect",
-          "title": "Inspect media",
-          "description": "Inspect one staged media input.",
-          "output": "text",
-          "acceptedInputs": ["reference_video"]
-        }
-      ]
-    },
-    "skills": [
-      {
-        "name": "creative-tools-workflow",
-        "path": "skills/creative-tools-workflow"
-      }
-    ]
-  },
-  "runtime": { "type": "mcp-stdio", "command": "creative-tools-mcp" }
-}
-```
-
-Each `name` is a portable Skill id and each path is exactly `skills/<name>`.
-The Skill is authored once under `packages/skills/<name>/package/`; do not copy it
-into the Plugin source. The Skill source metadata declares `ownerPluginId`, and the
-packer injects its files into the Plugin ZIP after validating both declarations.
-Any owned Skill byte change also changes the Plugin ZIP, so publish a new owner
-Plugin version together with the new Skill version. Pages keeps the previous
-owner/Skill pair selected until every package in the current ownership group has a
-matching Release.
-
-Convax may list the Skill with a “Provided by” relationship, but users install,
-update, and remove it only through the owning Plugin. Its standard standalone ZIP
-remains usable by Codex and other Agent Skills clients. A normal standalone Skill
-that merely benefits from an optional Plugin must omit `ownerPluginId` and provide
-an honest missing-tool fallback instead.
-
-## v5 capability host
-
-`convax.plugin/5` replaces the numbered Plugin Host compatibility pair with
-`convax.plugin-capability/1`. A headless v5 Plugin may request one or more
-Project/Canvas grants (`projects.read`, `canvas.catalog.read`,
-`canvas.document.read`, `canvas.document.write`, or `canvas.events.subscribe`)
-without inventing a Web surface or local runtime. The native host routes those
-calls through the same scoped Project and Canvas services used by the product.
-
-v5 also permits generic `contributes.llm` display metadata for a verified local
-runtime. Provider credentials, base URLs, and routing do not belong in the
-manifest. v6 inherits the v5 capability contract and all v4 owned-Skill behavior.
-
-## v6 remote Agent MCP
-
-`convax.plugin/6` may contribute one standards-based remote MCP server directly to
-the Agent:
-
-```json
-{
-  "schema": "convax.plugin/6",
-  "id": "remote-editor",
-  "name": "Remote Editor",
-  "description": "Connects the Agent to the Remote Editor service.",
-  "version": "1.0.0",
-  "contributes": {
-    "agent": {
-      "mcp": {
-        "type": "remote",
-        "url": "https://editor.example.com/mcp",
-        "oauth": "auto",
-        "headers": { "X-Client": "convax" }
-      }
-    }
-  }
-}
-```
-
-The URL must be absolute HTTPS with no embedded credentials or fragment. `oauth`
-is `auto` (the default) or `none`. `headers` is optional and contains at most 16
-static literal, non-secret values; `Authorization`, `Cookie`, and
-`Proxy-Authorization` are forbidden, as are environment/file placeholders.
-
-Convax delegates this declaration to OpenCode/the native MCP host, which owns the
-remote connection and standard OAuth flow. The service keeps its own account and
-authentication system. Do not add a Convax-specific adapter, `runtime`, local
-command, executable fallback, credential, or token to make the remote MCP work. A
-runtime may coexist only when it backs a separate local contribution. This
-`agent.mcp` contribution is itself a real Plugin capability and may coexist with
-v4+ owned Skills and v5 Project/Canvas grants.
-
-## Declarative Tool Plugin
-
-A headless v3 through v6 local executable package declares `runtime` together with
-`contributes.generation`, `contributes.service`, and/or the v5+ `contributes.llm`.
-It does not need an `entry`, fake HTML, Canvas renderer, provider connection
-details, or credential fields. The generation execution catalog and model catalog
-are deliberately separate:
-
-```json
-{
-  "schema": "convax.plugin/3",
-  "id": "creative-tools",
-  "name": "Creative Tools",
-  "description": "Generates Canvas media through an external MCP tool.",
-  "version": "1.0.0",
-  "contributes": {
-    "generation": {
-      "models": [{ "tool": "image.generate", "name": "Imagine Pro" }],
-      "tools": [
-        {
-          "id": "image.generate",
-          "title": "Generate image",
-          "description": "Generate an image from a prompt and optional visual references.",
+          "id": "background.remove",
+          "title": "Remove background",
+          "description": "Create one transparent image from the selected source.",
           "output": "image",
           "acceptedInputs": ["reference_image"]
         }
       ]
-    }
-  },
-  "runtime": {
-    "type": "mcp-stdio",
-    "command": "creative-tools-mcp"
-  }
-}
-```
-
-`generation.tools` is the complete executable MCP tool contract.
-`generation.models` is required in v3 and is the only source for the model picker;
-it contains `{tool,name}` references to generation tools and may be `[]` for an
-operation-only Plugin such as FFmpeg. Model names and referenced tools are unique.
-This positive declaration prevents utilities from appearing as generation models.
-
-A companion whose `tools/list` response exposes a live, bounded model catalog may
-annotate exactly one required, top-level string property in that generation tool's
-input schema with `"x-convax-role": "generation-model-id"`. The marked property
-must contain explicit bounded choices (for example, `oneOf` string constants), so
-the host can project those choices directly into its generation-model picker and
-bind the selected opaque value at execution time. If a model-driven generation
-tool cannot provide that bounded catalog, omit the tool from `tools/list`; do not
-expose a provider model id as an ordinary free-text parameter. The annotation
-never turns unbounded provider input into a trusted catalog.
-
-Outputs are `text`, `image`, `video`, or `audio`. `acceptedInputs` may contain only
-`reference_image`, `reference_video`, `first_frame`, `last_frame`, `audio`, and
-`text`. It describes optional Canvas references; the prompt is always a separate
-argument, so a prompt-only tool declares `[]`. Tool ids are unique within the
-Plugin, and execution callers see `<plugin-id>/<tool-id>`.
-
-v3 and later local generation declarations may expose selected non-model tools to the Agent with
-`contributes.agent.tools`. Each item has a stable Agent id matching
-`^[a-z][a-z0-9_]{0,63}$` and a `tool` reference. At most 32 are allowed; ids and
-tool references are unique, and model tools cannot also be Agent tools. Hosts
-derive the public name generically from the Plugin and Agent ids, for example
-`plugin_ffmpeg_tools_run_video`. MCP clients may add their server namespace, such
-as `convax_plugin_ffmpeg_tools_run_video`. A Plugin id never creates a host special
-case.
-
-v6 operations may set `"delivery": "return"` when `output` is `text`. The host
-then reuses the normal verified companion, bounded input staging, stale-source
-checks, cancellation, and at-most-once execution path, but returns one bounded
-text result to the Agent instead of creating a Canvas node. Return-delivery tools
-cannot be models or Canvas selection actions.
-
-An Agent operation that represents a Canvas sink may additionally declare
-`"inputBinding": "direct-incoming"`. Its Agent tool requires an `ownerNodeId`;
-the host verifies that this is a Canvas node owned by the same installed Plugin
-and that every supplied reference is still connected directly into it, both
-before staging and immediately before execution. Such a tool must accept at least
-one reference role and cannot be a model. This is a generic graph constraint, not
-a Plugin-id special case.
-
-Video-node actions are declared under `contributes.canvas.selectionActions`.
-Each action supplies localized `title` and `description`, `target: "video"`, one
-of the fixed editors (`time-point`, `time-range`, `crop-region`, or
-`confirmation`), and up to 16 ordered `{tool}` steps. Interactive editors require
-exactly one step. Every step must reference a non-model tool whose
-`acceptedInputs` includes `reference_video`. A confirmation action may declare
-multiple steps, which supports paired outputs such as video-only plus audio-only.
-`canvas.renderer` is optional; toolbar contributions remain renderer-only.
-
-`runtime.command` is a portable bare executable name, never a path. Optional args
-are bounded static tokens without whitespace, shell syntax, native paths, or
-traversal. Keep reviewed sidecar source under `packages/tools/<id>` when it belongs in this
-repository, distribute it separately, and keep the executable and dependency tree
-out of `package/`. A first-party package declares its reviewed `source`, companion
-version, and platform targets in the adjacent `convax-package.json`; publishing
-turns those build paths into immutable Registry URLs with byte size and SHA-256.
-Convax installs only an exact platform/architecture target and fingerprints it.
-Explicitly installing or updating the Tool Plugin is consent to run that exact
-manifest/executable binding; normal generation and service calls do not add a
-first-call or per-billable-call command prompt. Missing or changed bytes fail
-closed and require reinstall. The Plugin manifest never contains build paths,
-vendor credentials, or a fallback download URL, and the user does not need to copy
-the executable into `PATH`.
-
-A v2 through v7 Web surface that calls installed generation tools requests
-`generation.execute` and uses an ordinary `entry` plus Canvas contribution. It may
-omit `runtime` and `contributes.generation`. Declaring a runtime does not grant the
-Web surface caller authority, and granting `generation.execute` does not let the
-iframe start processes or send arbitrary MCP requests.
-
-## Plugin service contribution
-
-A v2 through v7 executable Plugin may expose bounded account/service state through the same
-verified sidecar process used by generation. The manifest declares only which
-fixed host actions are meaningful; it cannot choose MCP method names or attach an
-action payload:
-
-```json
-{
-  "schema": "convax.plugin/3",
-  "id": "account-tools",
-  "name": "Account Tools",
-  "description": "Shows bounded account status from an external tool.",
-  "version": "1.0.0",
-  "contributes": {
-    "service": { "actions": ["sign_out"] }
-  },
-  "runtime": {
-    "type": "mcp-stdio",
-    "command": "account-tools-mcp"
-  }
-}
-```
-
-`actions` is a unique subset of `authorize`, `reauthorize`,
-`authorization.cancel`, `checkout`, and `sign_out`; an empty array declares status-only UI.
-The sidecar must always expose `service.status`, plus the corresponding fixed MCP
-tool for every declared action (`service.authorize`, `service.reauthorize`,
-`service.authorization.cancel`, `service.checkout`, or `service.sign_out`).
-All tools except Checkout accept exactly an empty object. `service.checkout` accepts
-exactly `{ "plan_key": "..." }`, where the bounded kebab-case Key was advertised
-by the current status.
-
-Successful service tools return `structuredContent` with exactly the
-`convax.plugin-service-status/2` display contract: `schema`, `state`, `credential`,
-`account`, `plan`, `billing`, `credits`, and `usage`. Status v1 is not accepted.
-Do not return credentials, URLs, native paths, cookies, arbitrary diagnostics, or
-provider configuration. Unsupported account, Plan, Billing, credit, or usage APIs
-must be represented as `{ "availability": "unavailable" }`, not guessed values.
-Available Billing contains a bounded Checkout catalog and optional subscription/
-pending Checkout status; it contains no price or Provider Product metadata.
-
-Successful `service.checkout` returns exactly
-`convax.plugin-service-checkout/1` with `checkout_id` and a canonical HTTPS
-`checkout_url`. That result is consumed and validated only by Desktop Main, which
-opens the system browser; it never reaches preload or renderer. Declaring an action
-does not grant browser, Cookie, or generic network access; the separately reviewed
-sidecar remains responsible for its own documented API boundary.
-
-If a reviewed sidecar must retain a higher-privilege first-party Web session for
-live service metadata, say so in the installed Plugin description. Store it
-separately from generation credentials in atomic Plugin-private storage, bind it
-to the matching authorization generation, never return it through MCP, and clear
-it on sign-out. Mode `0600` is best-effort isolation from other OS users; it does
-not protect against processes already running as the same OS account.
-
-## LLM provider contribution
-
-`convax.plugin/5` may contribute one OpenAI-compatible provider through the same
-verified sidecar lifecycle. The manifest contains display and selection metadata
-only:
-
-```json
-{
-  "contributes": {
-    "llm": {
-      "provider": { "id": "example-llm", "name": "Example LLM" },
-      "modelCatalog": "runtime",
-      "models": [{ "id": "example-main", "name": "Example Main" }]
+    },
+    "canvas": {
+      "selectionActions": [
+        {
+          "id": "remove-background",
+          "title": { "default": "Remove background" },
+          "description": {
+            "default": "Create a transparent image beside the source."
+          },
+          "target": "image",
+          "editor": "immediate",
+          "presentation": "cutout-scan",
+          "steps": [{ "tool": "background.remove" }]
+        }
+      ]
     }
   }
 }
 ```
 
-`models` is the bounded static catalog and remains required. A provider whose
-available models are account- or runtime-dependent may additionally declare
-`"modelCatalog": "runtime"`. Its sidecar must then expose the fixed, empty-input
-`llm.models.list` tool and return exactly
-`{schema:"convax.llm-model-catalog/1",models:[{id,name}]}`. The host bounds,
-deduplicates and validates this display-only catalog before it reaches OpenCode or
-renderer settings; it does not interpret model ids, pricing, routing, or provider
-payloads. Failure to load the runtime catalog omits that provider rather than
-trusting arbitrary sidecar output.
+The action has exactly one step. Its referenced tool is a non-model, non-return
+operation that accepts `reference_image` and outputs `image`. The Host preserves
+the selected source, creates the adjacent pending result, owns the fixed
+`cutout-scan` lifecycle on that result, and replaces only the guarded pending
+node. The Plugin never receives Canvas DOM access and the Host never branches on
+the concrete Plugin id.
 
-The sidecar must also expose the fixed, empty-input MCP tool `llm.gateway.start`. Its
-Main-only `structuredContent` is exactly `{schema, base_url, api_key}` with schema
-`convax.llm-gateway/1`, an ephemeral `http://127.0.0.1:<port>/v1` URL, and a random
-process-lifetime key. The gateway accepts only authenticated OpenAI-compatible
-requests for its validated static or runtime catalog. It owns upstream URLs, headers, credentials, Cookies,
-streaming, cancellation, and vendor error adaptation; none of those values belongs
-in the manifest, renderer, service status, or durable OpenCode config.
+## Missing Host capabilities
 
-Hosts namespace provider ids by Plugin identity, verify the installed executable
-before starting it, and discard the gateway when that exact Plugin runtime changes.
-An unavailable or invalid gateway is omitted rather than weakening loopback or
-executable verification.
+Use the standalone `convax-plugin-authoring` Skill whenever creating, modifying, or
+debugging a Plugin. Before adding a Host call, inspect the generated Catalog
+supplied by the build or release environment and verify its exact id, `since`,
+`audience`, grant, scope, side effect, errors, and documentation. Runtime
+negotiation then uses the availability profile returned by `host.context.get`.
 
-The v5 compatibility pair deliberately uses the independently versioned
-`convax.plugin-capability/1` broker. It does not extend the legacy iframe
-`convax.plugin-host/N` sequence.
+Plugin development never authorizes changes to the Host repository. If the Catalog
+does not contain the required generic API or contribution point:
 
-## Host connection
+1. do not reuse a legacy protocol, invent an undeclared method, inspect Host private
+   code, or switch to `../convax`;
+2. mark the affected package `blocked` with a structured
+   `host-capability-review-required` blocker;
+3. copy the Skill's
+   `references/host-capability-request.md` template into this repository and fill
+   in the problem, use case, requested generic capability, alternatives,
+   security/scope/side effect, compatibility, and acceptance tests;
+4. stop Host-dependent implementation until a human approves a generic contract
+   and a newly generated Catalog contains it.
 
-Convax transfers one fresh `MessagePort` to each mounted Plugin node using the
-versioned `convax.plugin-host/1` through `/4` protocols. Accept it only from
-`window.parent`, for the host protocol matching the manifest major, the exact
-Plugin id, and only once. The transport-neutral v5 compatibility label does not by
-itself grant this Canvas port. A Pet feature provider instead receives a separate
-`convax.pet-host/1` port only on its declared overlay and settings surfaces:
+Human approval starts a separate Host-owned task; it is not implicit permission for
+the Plugin authoring task to edit Host code.
 
-```js
-const PROTOCOL = "convax.plugin-host/1";
-window.addEventListener("message", function connect(event) {
-  const message = event.data;
-  if (
-    event.source !== window.parent ||
-    message?.protocol !== PROTOCOL ||
-    message?.type !== "connect" ||
-    message?.pluginId !== "my-plugin" ||
-    event.ports.length !== 1
-  )
-    return;
-  window.removeEventListener("message", connect);
-  const port = event.ports[0];
-  port.start();
-});
-```
+## Plugin-owned Skills
 
-Requests and responses use the transferred port, never global `postMessage`:
+Owned Skills are authored once under `packages/skills/<name>/package`. The Plugin
+declares the injection path and the subset used by the Skill:
 
 ```json
 {
-  "protocol": "convax.plugin-host/1",
-  "type": "request",
-  "id": "1",
-  "method": "host.context.get"
-}
-```
-
-Responses repeat `protocol`, `type: "response"`, and `id`, with either
-`{"ok":true,"result":...}` or `{"ok":false,"error":"..."}`. Toolbar commands
-arrive as `{"protocol":"convax.plugin-host/1","type":"command","command":"refresh"}`.
-
-v5 and v6 use `convax.plugin-capability/1`, not a synthesized
-`convax.plugin-host/5` or `/6`. Use only the typed capability client supplied by a
-compatible host; do not recreate that transport or forward arbitrary methods.
-
-v7 uses `convax.plugin-capability/2`. An image or video selection action may replace the
-generation editor/steps fields with the fixed declaration below:
-
-```json
-{
-  "id": "create-timeline",
-  "title": { "default": "Create Timeline" },
-  "description": {
-    "default": "Create an editable Timeline and keep the source."
-  },
-  "target": "video",
-  "action": {
-    "type": "materialize-own-plugin-node",
-    "connect": "selection-to-created"
+  "name": "example-workflow",
+  "path": "skills/example-workflow",
+  "uses": {
+    "pluginTools": ["inspect_media"]
   }
 }
 ```
 
-This action requires the same manifest to contribute a creatable renderer. The
-host derives the target Plugin identity from the installed manifest principal,
-creates only that renderer, preserves the selected media node, and commits node plus
-edge as one revision-checked Canvas business operation. It never grants generic
-Canvas document write access.
+`uses` and each child list are optional, but an included `uses` object must name at
+least one capability. A required Skill API must be required by top-level `hostApi`;
+an optional Skill API may be in either top-level list. Every Skill API must have
+`agent-skill` audience in the catalog exported by the installed
+`@convax/plugin-api`. Web-only APIs must never appear in an Agent Skill.
+`pluginTools` names lower_snake_case Agent tool ids from
+`contributes.agent.tools`; the SDK renderer resolves those aliases to their
+underlying Plugin tool descriptions while runtime `tools/list` remains
+authoritative.
 
-v7 image actions may instead run one declared image operation immediately and
-create a connected image result beside the selected source:
+Check the owned Skill declarations and stable links before build:
 
-```json
-{
-  "id": "remove-background",
-  "title": { "default": "Remove background" },
-  "description": { "default": "Create a transparent PNG beside the selected image." },
-  "target": "image",
-  "editor": "immediate",
-  "presentation": "cutout-scan",
-  "steps": [{ "tool": "background.remove" }]
-}
+```sh
+bun run skill-api:check
 ```
 
-The referenced tool must accept `reference_image`, return one image, and must not
-be a model, return tool, or use declarative input binding. The host preserves the
-selected source, creates one connected pending image node through the same
-generation pipeline used by FFmpeg operations, and replaces only that pending node
-with the result. The fixed `cutout-scan` presentation is host rendered on the new
-node; Plugin code does not receive Canvas DOM access.
+`SKILL.md` contains stable links to `references/convax-capabilities.md` and
+`references/plugin-capabilities.md`. Both paths are reserved: do not author or
+check in either file. `@convax/marketplace-kit` injects the deterministic bytes
+from `@convax/plugin-api` and `@convax/plugin-sdk` while building the Skill and
+owner Plugin artifacts. The Host API page records the SDK catalog version,
+`since`, availability guidance, and declared Plugin tools. The Plugin capability
+page records required and optional imports, version intervals, and exported
+operation schemas.
 
-`canvas.connectedMedia.stream` is also v7-only. Its node-scoped methods are
-`canvas.connectedMedia.open({nodeId})` and
-`canvas.connectedMedia.close({sessionId})`. Open is for explicit user preview and
-accepts only a current direct incoming video/audio node. The returned URL is
-short-lived, supports streaming ranges, contains no native path, and is revoked
-when the edge, source, Plugin, or frame changes. Never persist the URL or session.
+Generated reference bytes participate in both the Skill artifact and owner Plugin
+snapshot digest. Host upgrades never rewrite an already installed Skill in place.
 
-## Capabilities
+## Package boundary
 
-| Method                        | Manifest capability            | Scope                                                       |
-| ----------------------------- | ------------------------------ | ----------------------------------------------------------- |
-| `host.context.get`            | none                           | current Project, Canvas, and owning node                    |
-| `canvas.connectedInputs.list` | `canvas.connectedInputs.read`  | pathless metadata for direct incoming media                 |
-| `canvas.connectedMedia.open`  | `canvas.connectedMedia.stream` | short-lived stream for one direct incoming audio/video node |
-| `canvas.connectedMedia.close` | `canvas.connectedMedia.stream` | revoke a stream opened by the same Plugin frame             |
-| `canvas.node.get`             | `canvas.node.read`             | owning node only                                            |
-| `canvas.node.updateState`     | `canvas.node.write`            | Plugin-namespaced node state                                |
-| `canvas.connectedImages.list` | `canvas.connectedImages.read`  | directly connected managed Canvas image nodes               |
-| `canvas.connectedImages.read` | `canvas.connectedImages.read`  | bounded bytes for one directly connected managed image      |
-| `canvas.image.create`         | `canvas.image.write`           | one bounded PNG imported as a managed adjacent Canvas image |
-| `project.file.readText`       | `project.files.read`           | current Project-relative text file                          |
-| `agent.prompt`                | `agent.prompt`                 | current Project and owning node resource                    |
-| `generation.tools.list`       | `generation.execute`           | installed generation contracts in the current scope         |
-| `generation.canvas.execute`   | `generation.execute`           | shared scoped Canvas generation operation                   |
+The contents of `package/` become the immutable ZIP root. A Web surface runs in an
+opaque-origin `sandbox="allow-scripts"` iframe. A declared Hook is a separately
+authorized self-contained ESM module. Local executable runtimes and their
+dependencies remain separate verified companions; they never enter the Plugin
+ZIP.
 
-Request the smallest set. Arguments cannot select another Project, Canvas, or node.
-Treat results as untrusted structured data, bound message sizes, handle errors, and
-render a useful disconnected state. A successful domain mutation may be followed by
-a failed optional view effect; do not report that as a reverted mutation.
-`canvas.image.create` accepts a bounded PNG data URL and a portable display name;
-the host owns asset admission, node placement, the connection from the Plugin node,
-persistence, and rollback if the Canvas commit fails.
-The canonical production example is
-[`panorama-viewer`](../packages/plugins/panorama-viewer); its complete Web surface
-and manifest live in this repository, while Convax Desktop owns only these generic
-host operations.
+Web entry documents and every HTML/CSS/JavaScript subresource must use portable
+relative URLs. The Host binds the exact immutable Plugin snapshot into the
+document origin. Root-relative, absolute, Plugin-id-derived, or version-derived
+asset URLs do not carry that identity and fail closed instead of resolving against
+the current installation.
 
-`canvas.connectedInputs.list` returns only bounded node id, kind, label/name, MIME,
-status, and basic media metadata in direct-edge order. It never returns bytes,
-native paths, managed Project paths, or account credentials. The corresponding
-`canvas.connectedInputs.changed` command means the pending list is stale; it does
-not authorize upload or any other external side effect. A Web surface should
-refresh its list and wait for an explicit user action.
+Concrete integrations stay in this repository. Runtime behavior derives only from
+validated contributions and Host API declarations, never from a concrete Plugin
+id.
 
-## Forbidden behavior
+## Verification
 
-No remote scripts/assets, iframe network APIs, popups, downloads, eval-generated
-code, native/WASM executables, packaged Node servers, filesystem paths, secrets,
-telemetry, service workers, or generic method forwarding. Do not edit `.convax`
-files. A v2 through v7 external runtime is a separately installed and authorized
-tool, never a Plugin ZIP asset. A v6 remote Agent MCP URL is host-consumed metadata,
-not iframe network permission. Use host capabilities only.
+Run source admission normally:
+
+```sh
+bun run validate
+```
+
+Validation and Marketplace preflight admit policy-consistent blocked source and
+report it explicitly. Exact packing rejects a blocked target. Release selection and
+Marketplace composition omit blocked exact versions and their owner/owned-Skill
+closure while continuing with unrelated ready packages. A package can move from
+`blocked` to `ready` only through a future protected receipt verifier bound to the
+published contract, Catalog digest, runtime conformance, and a new package version.

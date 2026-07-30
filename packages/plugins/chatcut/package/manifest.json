@@ -1,9 +1,9 @@
 {
-  "schema": "convax.plugin/6",
+  "schema": "convax.plugin/8",
   "id": "chatcut",
   "name": "ChatCut",
   "description": "Imports directly connected Canvas media into ChatCut and connects Convax Agent sessions to ChatCut's hosted MCP server for authenticated, editable video workflows.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "entry": "index.html",
   "capabilities": [
     "agent.prompt",
@@ -54,12 +54,26 @@
     "skills": [
       {
         "name": "chatcut",
-        "path": "skills/chatcut"
+        "path": "skills/chatcut",
+        "uses": {
+          "pluginTools": [
+            "import_connected_media"
+          ]
+        }
       }
     ]
   },
   "runtime": {
     "type": "mcp-stdio",
     "command": "convax-chatcut-media-import-mcp"
+  },
+  "hostApi": {
+    "major": 1,
+    "required": [
+      "agent.prompt",
+      "canvas.inputs.list",
+      "host.context.get"
+    ],
+    "optional": []
   }
 }

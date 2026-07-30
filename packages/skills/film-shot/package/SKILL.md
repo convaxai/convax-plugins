@@ -1,5 +1,6 @@
 ---
 name: film-shot
+version: 0.3.1
 description: Design cinematic shots for a scene, script, storyboard, or visual sequence. Use when the user needs coverage, camera choices, blocking, continuity, a shot list, storyboard descriptions, or generation-ready image and video prompts.
 ---
 

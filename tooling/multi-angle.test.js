@@ -11,7 +11,7 @@ import {
   normalizeGenerationResult,
   normalizeGenerationTools,
 } from "../packages/plugins/multi-angle/package/assets/multi-angle-model.js"
-import { root } from "./lib.mjs"
+import { discoverPackages, root } from "./lib.mjs"
 
 const sourceRoot = path.join(root, "packages", "plugins", "multi-angle")
 const packageRoot = path.join(sourceRoot, "package")
@@ -31,21 +31,84 @@ async function relativeFiles(directory, prefix = "") {
 }
 
 describe("multi-angle Plugin package", () => {
-  test("is a provider-neutral v3 Web Plugin that uses only the unified generation API", async () => {
-    const metadata = JSON.parse(await fs.readFile(path.join(sourceRoot, "convax-package.json"), "utf8"))
+  test("is a provider-neutral v8 Web Plugin blocked on an approved image-input contract", async () => {
+    const [plugin] = await discoverPackages({ kind: "plugin", id: "multi-angle" })
+    const metadata = plugin.metadata
     const manifest = JSON.parse(await read("manifest.json"))
+    expect(metadata).toMatchObject({
+      schema: "convax.package/2",
+      kind: "plugin",
+      id: "multi-angle",
+      version: "0.1.3",
+      publication: {
+        status: "blocked",
+        blockers: [
+          {
+            code: "host-capability-review-required",
+            note: expect.stringContaining(
+              "docs/host-capability-requests/web-plugin-image-input-read.md",
+            ),
+          },
+        ],
+      },
+    })
     expect(manifest).toMatchObject({
-      capabilities: ["canvas.connectedImages.read", "canvas.node.write", "generation.execute"],
+      capabilities: [
+        "canvas.connectedInputs.read",
+        "canvas.connectedMedia.stream",
+        "canvas.node.write",
+        "generation.execute",
+      ],
       contributes: { canvas: { renderer: { create: true, height: 720, width: 1080 } } },
       entry: "index.html",
+      hostApi: {
+        major: 1,
+        required: [
+          "canvas.inputs.close",
+          "canvas.inputs.list",
+          "canvas.inputs.open",
+          "canvas.node.state.replace",
+          "generation.execute",
+          "generation.tools.list",
+          "host.context.get",
+        ],
+        optional: [],
+      },
       id: "multi-angle",
-      schema: "convax.plugin/3",
-      version: "0.1.0",
+      schema: "convax.plugin/8",
+      version: "0.1.3",
     })
-    expect(metadata.compatibility).toEqual({
-      pluginHost: "convax.plugin-host/3",
-      pluginSchema: "convax.plugin/3",
-    })
+    expect(manifest.contributes.canvas.commands).toEqual([
+      {
+        id: "multi-angle.generate",
+        title: {
+          default: "Generate multi-angle grid",
+          "zh-CN": "生成多角度宫格图",
+        },
+        icon: "sparkles",
+        target: {
+          type: "renderer-message",
+          message: "renderer.multi-angle.generate",
+        },
+      },
+      {
+        id: "multi-angle.refresh",
+        title: {
+          default: "Refresh image and models",
+          "zh-CN": "刷新参考图与模型",
+        },
+        icon: "refresh",
+        target: {
+          type: "renderer-message",
+          message: "renderer.multi-angle.refresh",
+        },
+      },
+    ])
+    expect(manifest.contributes.canvas.toolbar).toEqual([
+      { id: "generate", command: "multi-angle.generate", order: 10 },
+      { id: "refresh", command: "multi-angle.refresh", order: 20 },
+    ])
+    expect(metadata).not.toHaveProperty("compatibility")
     expect(manifest).not.toHaveProperty("runtime")
     expect(manifest.contributes).not.toHaveProperty("generation")
     expect(manifest).not.toHaveProperty("skill")
@@ -53,7 +116,9 @@ describe("multi-angle Plugin package", () => {
     expect(await relativeFiles(packageRoot)).toEqual([
       "LICENSE",
       "assets/app.js",
+      "assets/image-inputs.js",
       "assets/multi-angle-model.js",
+      "assets/plugin-host-client.js",
       "assets/styles.css",
       "index.html",
       "manifest.json",
@@ -61,6 +126,7 @@ describe("multi-angle Plugin package", () => {
 
     const entry = await read("index.html")
     const app = await read("assets/app.js")
+    const sdkClient = await read("assets/plugin-host-client.js")
     const model = await read("assets/multi-angle-model.js")
     const styles = await read("assets/styles.css")
     const runtime = `${app}\n${model}`
@@ -70,11 +136,15 @@ describe("multi-angle Plugin package", () => {
     expect(entry).not.toMatch(/(?:src|href)=["'](?:https?:|\/\/|\/)/u)
     expect(styles).not.toContain("@import")
     expect(styles).not.toContain("url(")
-    expect(app).toContain('HOST_PROTOCOL = "convax.plugin-host/3"')
+    expect(app).toContain(
+      'import { acceptPluginHostConnection } from "./plugin-host-client.js"',
+    )
+    expect(sdkClient).toContain("@convax/plugin-sdk/client:createPluginHostClient")
+    expect(sdkClient).toContain("convax.plugin-host/8")
     expect(app).toContain('hostRequest("generation.tools.list", { output: "image" })')
-    expect(app).toContain('hostRequest("generation.canvas.execute", request, null)')
+    expect(app).toContain('hostRequest("generation.execute", request, null)')
     expect(app).toContain("stateWritesSuspended = true")
-    expect(app.indexOf("stateWritesSuspended = true")).toBeLessThan(app.indexOf('hostRequest("generation.canvas.execute"'))
+    expect(app.indexOf("stateWritesSuspended = true")).toBeLessThan(app.indexOf('hostRequest("generation.execute"'))
     expect(runtime).not.toContain("agent.prompt")
     expect(runtime).not.toContain("CONVAX_MULTI_ANGLE_RESULT")
     expect(runtime).not.toContain("canvas_add_resources")

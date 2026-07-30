@@ -1,10 +1,19 @@
 {
   "name": "@microvoid/convax-plugin-panorama-viewer",
-  "version": "0.2.1",
+  "version": "0.2.4",
   "private": true,
   "type": "module",
+  "convax.hostCapabilityRequests": [
+    "web-plugin-image-input-read"
+  ],
+  "devDependencies": {
+    "@convax/plugin-sdk": "0.1.0"
+  },
   "scripts": {
+    "build": "bun scripts/build.ts",
+    "build:check": "bun scripts/build.ts --check",
+    "test": "bun test test",
     "validate": "bun ../../../tooling/validate.mjs --kind plugin --id panorama-viewer",
-    "pack": "bun ../../../tooling/pack.mjs --kind plugin --id panorama-viewer"
+    "pack": "bun ../../../tooling/pack.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-../../../node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" --kind plugin --id panorama-viewer"
   }
 }

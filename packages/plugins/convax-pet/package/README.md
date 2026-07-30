@@ -4,7 +4,7 @@ Convax Pet is one sandboxed feature Plugin that owns the floating pet experience
 the settings surface, activity presentation, and a packaged collection of pets.
 Individual characters are library entries, not separate Convax Plugins.
 
-The `convax.plugin/5` manifest declares `contributes.pet` with the static overlay,
+The `convax.plugin/8` manifest declares `contributes.pet` with the static overlay,
 settings, `convax.pet-library/1` document, and `convax.pet-host/1` protocol. Convax
 provides only the native window, content-free Agent activity, validated navigation,
 installed asset serving, bounded preferences, and managed custom-pet storage.

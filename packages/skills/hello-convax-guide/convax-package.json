@@ -1,14 +1,10 @@
 {
-  "schema": "convax.package/1",
+  "schema": "convax.package/2",
   "kind": "skill",
   "id": "hello-convax-guide",
   "name": "Hello Convax Guide",
   "description": "Explains how to verify the Hello Convax Plugin host connection.",
-  "version": "0.2.0",
-  "license": "MIT",
-  "compatibility": {
-    "skillSchema": "opencode.skill/1"
-  },
+  "version": "0.2.2",
   "showcase": {
     "poster": {
       "path": "showcase/poster.png",
@@ -25,5 +21,6 @@
       "height": 720
     }
   },
-  "yanked": false
+  "yanked": false,
+  "ownerPluginId": "hello-convax"
 }

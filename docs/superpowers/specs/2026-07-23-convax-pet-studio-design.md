@@ -1,9 +1,13 @@
 # Convax Pet Studio and Custom Pet Import Design
 
 **Date:** 2026-07-23
-**Status:** Approved for inline execution
+**Status:** Historical design record; not Plugin-task authority
 **Plugin owner:** `packages/plugins/convax-pet`
 **Host owner:** `packages/desktop` in `/path/to/convax`
+
+This document records a cross-repository architecture but does not authorize a
+Plugin task to edit Host code. Missing public support requires a structured
+capability request, explicit human approval, and a separate Host-owned task.
 
 ## Summary
 
@@ -92,4 +96,3 @@ inventory, deletion, and asset resolution; protocol URL rejection; method
 surface/capability enforcement; import cancellation; Plugin collection merging;
 selection fallback; settings source contract and visual controls; overlay use of
 custom descriptors; full repository checks; and a built Electron smoke.
-

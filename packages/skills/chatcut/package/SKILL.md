@@ -1,5 +1,6 @@
 ---
 name: chatcut
+version: 0.3.2
 description: Import directly connected Convax Canvas media and operate authenticated ChatCut video projects through the ChatCut MCP server, including selecting or creating projects, editing timelines, captions, or audio, verifying results, and exporting only on request. Use for video editing or creation work that should remain editable in ChatCut.
 ---
 
@@ -8,6 +9,9 @@ description: Import directly connected Convax Canvas media and operate authentic
 Use the ChatCut MCP tools advertised in the current session to make reviewable,
 editable project changes. Treat the current tool schemas and returned project state
 as the runtime contract.
+
+See [Convax capabilities](references/convax-capabilities.md) for the generated Host API and Plugin tool availability contract.
+See [Plugin capabilities](references/plugin-capabilities.md) for generated Plugin-to-Plugin imports and exports.
 
 ## Establish the connection
 
@@ -50,10 +54,12 @@ Merely adding or changing a Canvas edge refreshes the pending-input list; it is 
 authorization to upload and must never trigger this workflow automatically.
 
 1. Require a host-provided ChatCut Plugin `ownerNodeId` and ordered list of direct
-   incoming media nodes. Each item must contain a Canvas `nodeId` and one role from
-   `reference_image`, `reference_video`, or `audio`. Do not discover, substitute,
-   or add unrelated Canvas nodes. If either the owner or list is absent, ask the
-   user to connect the desired media to the ChatCut node and start the import there.
+   incoming media inputs. Each item must contain a host-provided opaque `inputKey`
+   and one role from `reference_image`, `reference_video`, or `audio`. Never parse
+   an `inputKey`, treat it as a Canvas node id, replace it, or reuse it with another
+   tool. Do not discover, substitute, or add unrelated Canvas inputs. If either the
+   owner or list is absent, ask the user to connect the desired media to the ChatCut
+   node and start the import there.
 2. Resolve the exact ChatCut project and target timeline before transferring any
    bytes. The user's explicit import request authorizes transfer of only the listed
    inputs to that target; clarify an ambiguous target, but do not repeat a
@@ -67,9 +73,11 @@ authorization to upload and must never trigger this workflow automatically.
    normalize, or replace either value.
 5. Immediately call the installed local operation
    `convax_plugin_chatcut_import_connected_media`. Pass the host-provided ChatCut
-   `ownerNodeId` at the operation's top
-   level, pass that batch as ordered `references`, and pass only `session_token`
-   (set to the exact remote `token`) and `endpoint` as scalar `toolInput` fields.
+   `ownerNodeId` at the operation's top level. Its fixed legacy-shaped schema names
+   the opaque input field `references[].nodeId`; copy each host-provided `inputKey`
+   into that field verbatim, preserve order and role, and do not interpret it as a
+   Canvas node id. Pass only `session_token` (set to the exact remote `token`) and
+   `endpoint` as scalar `toolInput` fields.
    Never create a second import session for that batch in the same Agent turn. If
    the local operation is absent or fails, stop and report the failure instead of
    looping through more `create_session` calls.

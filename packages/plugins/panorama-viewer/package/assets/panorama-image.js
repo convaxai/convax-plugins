@@ -81,7 +81,7 @@ function readWebpDimensions(bytes) {
   throw new Error("WebP 中没有可用的尺寸信息")
 }
 
-function validatePanoramaDimensions(width, height) {
+export function validatePanoramaDimensions(width, height) {
   if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1) {
     throw new Error("图片尺寸无效")
   }
@@ -152,10 +152,10 @@ function textureTargetDimensions(dimensions, gl) {
   }
 }
 
-export async function decodePanoramaImage(blob, dimensions, gl) {
+async function decodePanoramaSource(source, dimensions, gl) {
   const target = textureTargetDimensions(dimensions, gl)
   try {
-    const bitmap = await createImageBitmap(blob, {
+    const bitmap = await createImageBitmap(source, {
       resizeHeight: target.height,
       resizeQuality: "high",
       resizeWidth: target.width,
@@ -164,8 +164,41 @@ export async function decodePanoramaImage(blob, dimensions, gl) {
       bitmap.close()
       throw new Error("图片解码尺寸与预期不一致")
     }
-    return { bitmap: bitmap, target: target }
+    return { bitmap: bitmap, dimensions: dimensions, target: target }
   } catch (error) {
     throw new Error(errorMessage(error, "图片无法解码或格式不受支持"))
   }
+}
+
+export async function decodePanoramaImage(blob, dimensions, gl) {
+  return decodePanoramaSource(blob, dimensions, gl)
+}
+
+export async function decodePanoramaUrl(url, probe, gl) {
+  if (typeof url !== "string" || !url.startsWith("convax-connected-media://")) {
+    throw new Error("宿主返回了无效的连接图片地址")
+  }
+  if (!probe || typeof probe !== "object"
+    || probe.kind !== "image"
+    || typeof probe.mimeType !== "string"
+    || !ACCEPTED_IMAGE_TYPES.has(probe.mimeType.toLowerCase())
+    || !Number.isSafeInteger(probe.size)
+    || probe.size < 1
+    || probe.size > MAX_IMAGE_FILE_BYTES) {
+    throw new Error("宿主返回了不受支持的图片格式")
+  }
+  const image = await new Promise(function (resolve, reject) {
+    const element = new Image()
+    element.addEventListener("load", function () { resolve(element) }, { once: true })
+    element.addEventListener("error", function () {
+      reject(new Error("宿主连接图片无法载入"))
+    }, { once: true })
+    element.src = url
+  })
+  const dimensions = validatePanoramaDimensions(image.naturalWidth, image.naturalHeight)
+  if ((typeof probe.width === "number" && probe.width !== dimensions.width)
+    || (typeof probe.height === "number" && probe.height !== dimensions.height)) {
+    throw new Error("连接图片尺寸与宿主声明不一致")
+  }
+  return decodePanoramaSource(image, dimensions, gl)
 }

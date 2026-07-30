@@ -1,0 +1,345 @@
+import { describe, expect, test } from "bun:test";
+import os from "node:os";
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import {
+  assertPluginHostCapabilityDeclarations,
+  discoverPackages,
+  loadPublicationPolicy,
+  requiresSdkOwnedPetSurfaceClient,
+  root,
+} from "./lib.mjs";
+import { hostCapabilityRequestHeadings } from "./host-capability-request.mjs";
+
+const requiredProposalSections = hostCapabilityRequestHeadings;
+
+function unsafeHostMutationInstructions(source) {
+  const normalized = source.replace(/\s+/gu, " ");
+  return [
+    /if .{0,120}(?:missing|absent).{0,120}(?:edit|modify|revise|change) (?:the )?(?:Host|`convax`)/iu,
+    /(?:automatically|directly) (?:edit|modify|revise|change) (?:the )?(?:Host|`convax`)/iu,
+    /switch to `?\.\.\/convax`? (?:and|to) (?:edit|modify|implement)/iu,
+  ]
+    .map((pattern) => normalized.match(pattern)?.[0])
+    .filter(Boolean);
+}
+
+describe("Convax Plugin authoring governance", () => {
+  test("publishes a concise standalone authoring Skill with a reusable request template", async () => {
+    const packages = await discoverPackages();
+    const pkg = packages.find(
+      (candidate) =>
+        candidate.metadata.kind === "skill" &&
+        candidate.metadata.id === "convax-plugin-authoring",
+    );
+    expect(pkg?.metadata).toEqual(
+      expect.objectContaining({
+        schema: "convax.package/2",
+        version: "0.1.1",
+        publication: { status: "ready", blockers: [] },
+      }),
+    );
+    const skill = pkg.files
+      .find((file) => file.relativePath === "SKILL.md")
+      ?.data.toString("utf8");
+    const request = pkg.files
+      .find(
+        (file) =>
+          file.relativePath === "references/host-capability-request.md",
+      )
+      ?.data.toString("utf8");
+    expect(skill).toContain(
+      "Create, modify, or debug a Convax Plugin.",
+    );
+    expect(skill).toContain(
+      "[the Host capability request template](references/host-capability-request.md)",
+    );
+    expect(skill).toContain("@convax/plugin-api");
+    expect(skill).toContain("@convax/plugin-sdk");
+    expect(skill).toContain("Do not inspect, edit, or switch to the Host repository");
+    expect(skill).not.toMatch(/\|\s*(?:API|Host API)\s*\|/u);
+    for (const section of requiredProposalSections) {
+      expect(request).toContain(section);
+    }
+  });
+
+  test("keeps repository rules, docs, and the Plugin template fail closed at the Host boundary", async () => {
+    const relativePaths = [
+      "AGENTS.md",
+      "docs/plugin-authoring.md",
+      "templates/plugin-basic/AUTHORING.md",
+      "templates/plugin-basic/package/index.html",
+    ];
+    const sources = await Promise.all(
+      relativePaths.map(async (relativePath) => ({
+        relativePath,
+        source: await fs.readFile(path.join(root, relativePath), "utf8"),
+      })),
+    );
+    for (const { relativePath, source } of sources) {
+      expect(source).toContain("convax-plugin-authoring");
+      expect(unsafeHostMutationInstructions(source)).toEqual([]);
+      expect(source).not.toContain(
+        "add or revise the generic ABI in `convax`",
+      );
+    }
+    expect(sources[0].source).toContain("wait for explicit human review");
+    expect(sources[1].source).toContain(
+      "host-capability-review-required",
+    );
+    expect(sources[2].source).toContain(
+      "structured Host capability request",
+    );
+  });
+
+  test("runs the protected-base request high-water gate before validation and release selection", async () => {
+    const [codeowners, validateWorkflow, releaseWorkflow, historyGate] =
+      await Promise.all([
+        fs.readFile(
+          path.join(root, ".github", "CODEOWNERS"),
+          "utf8",
+        ),
+        fs.readFile(
+          path.join(root, ".github", "workflows", "validate.yml"),
+          "utf8",
+        ),
+        fs.readFile(
+          path.join(root, ".github", "workflows", "release-on-main.yml"),
+          "utf8",
+        ),
+        fs.readFile(
+          path.join(root, "tooling", "host-capability-history.mjs"),
+          "utf8",
+        ),
+      ]);
+    expect(validateWorkflow).toContain(
+      "host-capability-history.mjs --base",
+    );
+    expect(validateWorkflow).toContain("fetch-depth: 0");
+    expect(releaseWorkflow).toContain(
+      '--governance-base "${{ github.event.before }}"',
+    );
+    expect(releaseWorkflow).toContain(
+      "environment: plugin-marketplace-production",
+    );
+    expect(codeowners).toContain("@fearclear");
+    expect(codeowners).toContain(
+      "/tooling/host-capability-history.mjs",
+    );
+    expect(historyGate).toContain(
+      "cannot be removed without a protected external human-decision receipt",
+    );
+    expect(historyGate).toContain(
+      '["merge-base", "--is-ancestor", baseCommit, "HEAD"]',
+    );
+  });
+
+  test("routes ChatCut's PATH toolchain blocker through human review", async () => {
+    const [policy, request] = await Promise.all([
+      fs.readFile(
+        path.join(root, "registry", "host-capability-policy.json"),
+        "utf8",
+      ).then(JSON.parse),
+      fs.readFile(
+        path.join(
+          root,
+          "docs",
+          "host-capability-requests",
+          "verified-companion-toolchain.md",
+        ),
+        "utf8",
+      ),
+    ]);
+    const chatcut = policy.requests.flatMap((item) => item.affected).find(
+      (item) => item.kind === "plugin" && item.id === "chatcut",
+    );
+    expect(chatcut.blocker).toEqual(
+      expect.objectContaining({
+        code: "unverified-runtime-dependency",
+        note: expect.stringContaining(
+          "docs/host-capability-requests/verified-companion-toolchain.md",
+        ),
+      }),
+    );
+    for (const section of requiredProposalSections) {
+      expect(request).toContain(section);
+    }
+    for (const alternative of [
+      "Pure JavaScript media processing",
+      "Independent Host Tool capability",
+      "Bundle a multi-file closure",
+    ]) {
+      expect(request).toContain(alternative);
+    }
+    expect(request).toContain("ffmpeg");
+    expect(request).toContain("ffprobe");
+    expect(request).toContain("must not fall back to `PATH`");
+    expect(request).toContain("Decision: pending");
+  });
+
+  test("keeps the handwritten Pet transport publication-blocked until an SDK client is reviewed", async () => {
+    const requestId = "sdk-owned-pet-surface-client";
+    const requestPath =
+      `docs/host-capability-requests/${requestId}.md`;
+    const [packageJson, policy, request] = await Promise.all([
+      fs.readFile(
+        path.join(root, "packages", "plugins", "convax-pet", "package.json"),
+        "utf8",
+      ).then(JSON.parse),
+      fs.readFile(
+        path.join(root, "registry", "host-capability-policy.json"),
+        "utf8",
+      ).then(JSON.parse),
+      fs.readFile(path.join(root, requestPath), "utf8"),
+    ]);
+    expect(packageJson["convax.hostCapabilityRequests"]).toContain(requestId);
+    const policyRequest = policy.requests.find((item) => item.id === requestId);
+    expect(policyRequest).toEqual({
+      id: requestId,
+      document: requestPath,
+      status: "pending",
+      humanDecision: null,
+      affected: [{
+        kind: "plugin",
+        id: "convax-pet",
+        version: "0.2.3",
+        blocker: {
+          code: "host-capability-review-required",
+          note: expect.stringContaining(requestPath),
+        },
+      }],
+    });
+    for (const section of requiredProposalSections) {
+      expect(request).toContain(section);
+    }
+    expect(request).toContain("SDK-owned Pet surface client");
+    expect(request).toContain("must not inspect or modify Host source");
+
+    const fixture = await fs.mkdtemp(
+      path.join(os.tmpdir(), "convax-pet-governance-"),
+    );
+    const fixturePackagePath = path.join(
+      fixture,
+      "packages",
+      "plugins",
+      "convax-pet",
+      "package.json",
+    );
+    const fixturePolicyPath = path.join(
+      fixture,
+      "registry",
+      "host-capability-policy.json",
+    );
+    const fixtureRequestPath = path.join(fixture, requestPath);
+    try {
+      await Promise.all([
+        fs.mkdir(path.dirname(fixturePackagePath), { recursive: true }),
+        fs.mkdir(path.join(fixture, "packages", "skills"), {
+          recursive: true,
+        }),
+        fs.mkdir(path.dirname(fixturePolicyPath), { recursive: true }),
+        fs.mkdir(path.dirname(fixtureRequestPath), { recursive: true }),
+      ]);
+      const fixturePackage = {
+        name: packageJson.name,
+        version: packageJson.version,
+        "convax.hostCapabilityRequests": [requestId],
+      };
+      const fixturePolicy = {
+        schema: policy.schema,
+        requests: [policyRequest],
+      };
+      await Promise.all([
+        fs.writeFile(
+          fixturePackagePath,
+          `${JSON.stringify(fixturePackage, null, 2)}\n`,
+        ),
+        fs.writeFile(
+          fixturePolicyPath,
+          `${JSON.stringify(fixturePolicy, null, 2)}\n`,
+        ),
+        fs.writeFile(fixtureRequestPath, request),
+      ]);
+      await expect(loadPublicationPolicy(fixture)).resolves.toBeDefined();
+
+      delete fixturePackage["convax.hostCapabilityRequests"];
+      await fs.writeFile(
+        fixturePackagePath,
+        `${JSON.stringify(fixturePackage, null, 2)}\n`,
+      );
+      await expect(loadPublicationPolicy(fixture)).rejects.toThrow(
+        "must exactly match workspace declarations and policy affected versions",
+      );
+
+      fixturePackage["convax.hostCapabilityRequests"] = [requestId];
+      await Promise.all([
+        fs.writeFile(
+          fixturePackagePath,
+          `${JSON.stringify(fixturePackage, null, 2)}\n`,
+        ),
+        fs.writeFile(
+          fixturePolicyPath,
+          `${JSON.stringify({ schema: policy.schema, requests: [] }, null, 2)}\n`,
+        ),
+      ]);
+      await expect(loadPublicationPolicy(fixture)).rejects.toThrow(
+        `required pending request ${requestId} is missing from publication policy`,
+      );
+
+      await Promise.all([
+        fs.writeFile(
+          fixturePolicyPath,
+          `${JSON.stringify(fixturePolicy, null, 2)}\n`,
+        ),
+        fs.rm(fixtureRequestPath),
+      ]);
+      await expect(loadPublicationPolicy(fixture)).rejects.toThrow(
+        "pending request documents and policy requests must match exactly",
+      );
+    } finally {
+      await fs.rm(fixture, { force: true, recursive: true });
+    }
+  });
+
+  test("keeps the declared audio/video stream API usable while gating the known Pet gap", () => {
+    const manifest = {
+      hostApi: {
+        required: ["canvas.inputs.open"],
+      },
+    };
+    const files = [{
+      relativePath: "assets/app.js",
+      data: Buffer.from(
+        'client.callHostApi(["canvas","inputs","open"].join("."))',
+      ),
+    }];
+    expect(() =>
+      assertPluginHostCapabilityDeclarations(
+        manifest,
+        files,
+        [],
+        "plugin/video-stream",
+      ),
+    ).not.toThrow();
+
+    const petManifest = {
+      contributes: { pet: { protocol: "convax.pet-host/1" } },
+    };
+    expect(
+      requiresSdkOwnedPetSurfaceClient(
+        petManifest,
+        [],
+      ),
+    ).toBe(true);
+    expect(() =>
+      assertPluginHostCapabilityDeclarations(
+        petManifest,
+        [],
+        [],
+        "plugin/renamed-pet",
+      ),
+    ).toThrow(
+      "declare sdk-owned-pet-surface-client and remain publication-blocked pending human review",
+    );
+  });
+});

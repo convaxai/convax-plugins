@@ -1,6 +1,6 @@
 {
   "name": "@microvoid/convax-plugin-cutout-studio",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -9,7 +9,7 @@
   },
   "scripts": {
     "validate": "bun ../../../tooling/validate.mjs --kind plugin --id cutout-studio",
-    "pack": "bun ../../../tooling/pack.mjs --kind plugin --id cutout-studio",
+    "pack": "bun ../../../tooling/pack.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-../../../node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" --kind plugin --id cutout-studio",
     "test": "bun test"
   }
 }

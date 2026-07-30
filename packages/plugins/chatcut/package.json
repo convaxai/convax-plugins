@@ -1,15 +1,23 @@
 {
   "name": "@microvoid/convax-plugin-chatcut",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
+  "convax.hostCapabilityRequests": [
+    "verified-companion-toolchain"
+  ],
   "dependencies": {
     "@microvoid/convax-chatcut-media-import-mcp": "workspace:*",
     "@microvoid/convax-skill-chatcut": "workspace:*"
   },
+  "devDependencies": {
+    "@convax/plugin-sdk": "0.1.0"
+  },
   "scripts": {
+    "build": "bun scripts/build.ts",
+    "build:check": "bun scripts/build.ts --check",
     "validate": "bun ../../../tooling/validate.mjs --kind plugin --id chatcut",
-    "pack": "bun ../../../tooling/pack.mjs --kind plugin --id chatcut",
+    "pack": "bun ../../../tooling/pack.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-../../../node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" --kind plugin --id chatcut",
     "test": "bun test"
   }
 }

@@ -1,14 +1,10 @@
 {
-  "schema": "convax.package/1",
+  "schema": "convax.package/2",
   "kind": "skill",
   "id": "jianying-editor",
   "name": "剪映导入",
   "description": "将直接连接的 Convax Canvas 图片和视频安全导入剪映当前草稿或新草稿。",
-  "version": "2.0.0",
-  "license": "MIT",
-  "compatibility": {
-    "skillSchema": "opencode.skill/1"
-  },
+  "version": "2.0.1",
   "yanked": false,
   "ownerPluginId": "jianying-editor"
 }

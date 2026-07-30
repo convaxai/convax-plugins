@@ -1,5 +1,6 @@
 ---
 name: image-remix
+version: 0.2.1
 description: Remix or restyle one or more reference images into controlled variations. Use when the user wants to preserve selected subjects, products, composition, or brand traits while changing style, setting, lighting, palette, crop, or mood.
 ---
 

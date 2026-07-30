@@ -1,5 +1,6 @@
 ---
 name: jianying-editor
+version: 2.0.1
 description: Import directly connected Convax Canvas images and videos into JianYing, either into the stable current draft or a safely created new draft. Use when the user asks to send, import, or export Canvas media to 剪映 or JianYing.
 ---
 
@@ -8,6 +9,9 @@ description: Import directly connected Convax Canvas images and videos into Jian
 Use only the installed JianYing Plugin operations advertised in the current
 session. Do not inspect native paths, edit JianYing draft JSON, run shell
 commands, call a Deep Link directly, or recreate the local companion.
+
+See [Convax capabilities](references/convax-capabilities.md) for the generated Host API and Plugin tool availability contract.
+See [Plugin capabilities](references/plugin-capabilities.md) for generated Plugin-to-Plugin imports and exports.
 
 ## Resolve the source
 

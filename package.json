@@ -7,10 +7,13 @@
     "acorn": "8.17.0"
   },
   "devDependencies": {
-    "@convax/marketplace-kit": "0.1.1"
+    "@convax/marketplace-kit": "workspace:*",
+    "@convax/plugin-api": "workspace:*",
+    "@convax/plugin-sdk": "workspace:*"
   },
   "packageManager": "bun@1.3.14",
   "workspaces": [
+    "vendor/host-packages/*",
     "packages/plugins/*",
     "packages/skills/*",
     "packages/mcp-servers/*",
@@ -19,12 +22,11 @@
   "scripts": {
     "validate": "bun tooling/validate.mjs",
     "test": "bun test tooling",
-    "pack": "bun tooling/pack.mjs",
-    "render:showcases": "bun tooling/render-showcases.mjs",
-    "build:index": "bun tooling/build-index.mjs && bun tooling/build-showcase.mjs",
-    "marketplace:check": "convax-marketplace check .",
-    "marketplace:build-index": "bun tooling/official-marketplace-build.mjs",
-    "marketplace:bundle": "convax-marketplace bundle . --out dist/builtin",
+    "pack": "bun tooling/pack.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\"",
+    "marketplace:check": "bun tooling/marketplace-preflight.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" && convax-marketplace check .",
+    "marketplace:build-index": "CONVAX_PLUGIN_API_CATALOG=\"${CONVAX_PLUGIN_API_CATALOG:-node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" bun tooling/official-marketplace-build.mjs",
+    "marketplace:bundle": "bun tooling/marketplace-preflight.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" && convax-marketplace bundle . --out dist/builtin",
+    "skill-api:check": "bun tooling/generate-skill-api-references.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" --check",
     "marketplace:lock-input": "convax-marketplace lock-input --catalog dist/catalog --builtin dist/builtin --out dist/product-lock-input.json",
     "marketplace:verify": "bun tooling/verify-marketplace-output.mjs dist/catalog && bun tooling/verify-product-lock-input.mjs dist/product-lock-input.json",
     "marketplace:build": "bun run marketplace:bundle && bun run marketplace:build-index && bun run marketplace:lock-input && bun run marketplace:verify",
@@ -32,7 +34,8 @@
     "workspaces:typecheck": "bun tooling/run-workspace-script.mjs typecheck",
     "workspaces:test": "bun tooling/run-workspace-script.mjs test",
     "workspaces:build": "bun tooling/run-workspace-script.mjs build",
+    "workspaces:build:check": "bun tooling/run-workspace-script.mjs build:check plugins",
     "workspaces:build:packages": "bun tooling/run-workspace-script.mjs build skills plugins",
-    "check": "bun run workspaces:build:packages && bun run validate && bun run workspaces:typecheck && bun run workspaces:test && bun run build:companions && bun run marketplace:check && bun run test && bun run marketplace:build"
+    "check": "bun run workspaces:build:check && bun run workspaces:build:packages && bun run validate && bun run skill-api:check && bun run workspaces:typecheck && bun run workspaces:test && bun run build:companions && bun run marketplace:check && bun run test && bun run marketplace:build"
   }
 }

@@ -1,5 +1,6 @@
 ---
 name: clip-export
+version: 0.3.1
 description: Export image and video nodes from the active Convax Canvas into JianYing. Use when the user asks to send selected Canvas media to the currently open JianYing draft or create a new draft for those materials.
 ---
 

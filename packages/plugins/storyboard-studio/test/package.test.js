@@ -28,9 +28,9 @@ describe("storyboard-studio package contract", () => {
     ])
 
     expect(manifest).toMatchObject({
-      schema: "convax.plugin/6",
+      schema: "convax.plugin/8",
       id: "storyboard-studio",
-      version: "0.1.0",
+      version: "0.1.1",
       entry: "index.html",
       contributes: {
         canvas: {
@@ -57,16 +57,42 @@ describe("storyboard-studio package contract", () => {
       ".character.card.json",
     ])
     expect(manifest.contributes.canvas.renderer).not.toHaveProperty("nodeKinds")
+    expect(manifest.contributes.canvas.commands).toEqual([
+      {
+        id: "storyboard.refresh",
+        title: {
+          default: "Refresh storyboard",
+          "zh-CN": "刷新故事板",
+        },
+        icon: "refresh",
+        target: {
+          type: "renderer-message",
+          message: "renderer.storyboard.refresh",
+        },
+      },
+    ])
+    expect(manifest.contributes.canvas.toolbar).toEqual([
+      {
+        id: "storyboard-refresh-toolbar",
+        command: "storyboard.refresh",
+        order: 10,
+      },
+    ])
+    expect(manifest.hostApi.required).toEqual([
+      "agent.prompt",
+      "canvas.document.get",
+      "canvas.inputs.list",
+      "canvas.node.get",
+      "canvas.node.state.replace",
+      "host.context.get",
+      "project.file.text.read",
+    ])
 
     expect(metadata).toMatchObject({
-      schema: "convax.package/1",
+      schema: "convax.package/2",
       kind: "plugin",
       id: manifest.id,
       version: manifest.version,
-      compatibility: {
-        pluginSchema: manifest.schema,
-        pluginHost: "convax.plugin-capability/1",
-      },
       yanked: false,
     })
     expect(workspace).toMatchObject({
@@ -95,6 +121,7 @@ describe("storyboard-studio package contract", () => {
       "assets/demo-shots.jpg",
       "assets/host.js",
       "assets/model.js",
+      "assets/plugin-host-client.js",
       "assets/styles.css",
       "index.html",
       "manifest.json",
@@ -127,5 +154,25 @@ describe("storyboard-studio package contract", () => {
     expect(joined).not.toMatch(/\bnavigator\.sendBeacon\b/u)
     expect(joined).not.toMatch(/\bwindow\.open\s*\(/u)
     expect(joined).not.toMatch(/\b(?:localStorage|sessionStorage|indexedDB)\b/u)
+
+    const application = await readFile(path.join(packageRoot, "assets/app.js"), "utf8")
+    const hostAdapter = await readFile(path.join(packageRoot, "assets/host.js"), "utf8")
+    const sdkClient = await readFile(
+      path.join(packageRoot, "assets/plugin-host-client.js"),
+      "utf8",
+    )
+    expect(application).toContain('host.request("canvas.inputs.list")')
+    expect(application).toContain('.request("canvas.node.state.replace"')
+    expect(application).toContain('host.request("project.file.text.read"')
+    expect(application).not.toMatch(
+      /canvas\.connectedInputs\.list|canvas\.node\.updateState|project\.file\.readText/,
+    )
+    expect(hostAdapter).toContain(
+      'import { acceptPluginHostConnection } from "./plugin-host-client.js"',
+    )
+    expect(hostAdapter).not.toContain("postMessage")
+    expect(hostAdapter).not.toContain("new Map")
+    expect(sdkClient).toContain("@convax/plugin-sdk/client:createPluginHostClient")
+    expect(sdkClient).toContain("convax.plugin-host/8")
   })
 })

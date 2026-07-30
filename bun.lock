@@ -8,38 +8,43 @@
         "acorn": "8.17.0",
       },
       "devDependencies": {
-        "@convax/marketplace-kit": "0.1.1",
+        "@convax/marketplace-kit": "workspace:*",
+        "@convax/plugin-api": "workspace:*",
+        "@convax/plugin-sdk": "workspace:*",
       },
     },
     "packages/plugins/chatcut": {
       "name": "@microvoid/convax-plugin-chatcut",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "dependencies": {
         "@microvoid/convax-chatcut-media-import-mcp": "workspace:*",
         "@microvoid/convax-skill-chatcut": "workspace:*",
       },
+      "devDependencies": {
+        "@convax/plugin-sdk": "workspace:*",
+      },
     },
     "packages/plugins/codex-service": {
       "name": "@microvoid/convax-plugin-codex-service",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "dependencies": {
         "@microvoid/convax-codex-mcp": "workspace:*",
       },
     },
     "packages/plugins/convax-pet": {
       "name": "@microvoid/convax-plugin-convax-pet",
-      "version": "0.2.2",
+      "version": "0.2.3",
     },
     "packages/plugins/cutout-studio": {
       "name": "@microvoid/convax-plugin-cutout-studio",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@microvoid/convax-cutout-mcp": "workspace:*",
       },
     },
     "packages/plugins/ffmpeg-tools": {
       "name": "@microvoid/convax-plugin-ffmpeg-tools",
-      "version": "0.3.2",
+      "version": "0.3.3",
       "dependencies": {
         "@microvoid/convax-ffmpeg-mcp": "workspace:*",
         "@microvoid/convax-skill-ffmpeg-canvas": "workspace:*",
@@ -47,19 +52,31 @@
     },
     "packages/plugins/hello-convax": {
       "name": "@microvoid/convax-plugin-hello-convax",
-      "version": "0.1.0",
+      "version": "0.1.3",
+      "dependencies": {
+        "@microvoid/convax-skill-hello-convax-guide": "workspace:*",
+      },
+      "devDependencies": {
+        "@convax/plugin-sdk": "workspace:*",
+      },
     },
     "packages/plugins/jianying-editor": {
       "name": "@microvoid/convax-plugin-jianying-editor",
-      "version": "2.1.1",
+      "version": "2.1.2",
       "dependencies": {
         "@microvoid/convax-jianying-editor-mcp": "workspace:*",
         "@microvoid/convax-skill-jianying-editor": "workspace:*",
       },
+      "devDependencies": {
+        "@convax/plugin-sdk": "workspace:*",
+      },
     },
     "packages/plugins/multi-angle": {
       "name": "@microvoid/convax-plugin-multi-angle",
-      "version": "0.1.0",
+      "version": "0.1.3",
+      "devDependencies": {
+        "@convax/plugin-sdk": "workspace:*",
+      },
     },
     "packages/plugins/nexus-service": {
       "name": "@microvoid/convax-plugin-nexus-service",
@@ -70,12 +87,19 @@
     },
     "packages/plugins/panorama-viewer": {
       "name": "@microvoid/convax-plugin-panorama-viewer",
-      "version": "0.2.1",
+      "version": "0.2.4",
+      "devDependencies": {
+        "@convax/plugin-sdk": "workspace:*",
+      },
     },
     "packages/plugins/relight-studio": {
       "name": "@microvoid/convax-plugin-relight-studio",
-      "version": "0.1.2",
+      "version": "0.1.4",
+      "dependencies": {
+        "@microvoid/convax-skill-relight-studio": "workspace:*",
+      },
       "devDependencies": {
+        "@convax/plugin-sdk": "workspace:*",
         "@types/react": "19.2.14",
         "@types/react-dom": "19.2.3",
         "radix-ui": "1.6.2",
@@ -86,82 +110,106 @@
     },
     "packages/plugins/storyai-3d-director-desk": {
       "name": "@microvoid/convax-plugin-storyai-3d-director-desk",
-      "version": "0.1.0",
+      "version": "0.1.3",
+      "dependencies": {
+        "@microvoid/convax-skill-storyai-3d-director-desk": "workspace:*",
+      },
+      "devDependencies": {
+        "@convax/plugin-sdk": "workspace:*",
+      },
     },
     "packages/plugins/storyboard-studio": {
       "name": "@microvoid/convax-plugin-storyboard-studio",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@microvoid/convax-skill-storyboard-studio": "workspace:*",
+      },
+      "devDependencies": {
+        "@convax/plugin-sdk": "workspace:*",
       },
     },
     "packages/plugins/video-timeline": {
       "name": "@microvoid/convax-plugin-video-timeline",
-      "version": "0.1.3",
+      "version": "0.1.5",
+      "devDependencies": {
+        "@convax/plugin-sdk": "workspace:*",
+      },
     },
     "packages/skills/ad-idea": {
       "name": "@microvoid/convax-skill-ad-idea",
-      "version": "0.3.0",
+      "version": "0.3.1",
     },
     "packages/skills/audiobook": {
       "name": "@microvoid/convax-skill-audiobook",
-      "version": "0.2.0",
+      "version": "0.2.1",
     },
     "packages/skills/canvas-storyboard": {
       "name": "@microvoid/convax-skill-canvas-storyboard",
-      "version": "0.1.0",
+      "version": "0.1.1",
     },
     "packages/skills/chatcut": {
       "name": "@microvoid/convax-skill-chatcut",
-      "version": "0.3.1",
+      "version": "0.3.2",
     },
     "packages/skills/clip-export": {
       "name": "@microvoid/convax-skill-clip-export",
-      "version": "0.3.0",
+      "version": "0.3.1",
+    },
+    "packages/skills/convax-plugin-authoring": {
+      "name": "@microvoid/convax-skill-convax-plugin-authoring",
+      "version": "0.1.1",
     },
     "packages/skills/ecommerce-image": {
       "name": "@microvoid/convax-skill-ecommerce-image",
-      "version": "0.2.0",
+      "version": "0.2.1",
     },
     "packages/skills/ffmpeg-canvas": {
       "name": "@microvoid/convax-skill-ffmpeg-canvas",
-      "version": "0.3.2",
+      "version": "0.3.3",
     },
     "packages/skills/film-shot": {
       "name": "@microvoid/convax-skill-film-shot",
-      "version": "0.3.0",
+      "version": "0.3.1",
     },
     "packages/skills/hello-convax-guide": {
       "name": "@microvoid/convax-skill-hello-convax-guide",
-      "version": "0.2.0",
+      "version": "0.2.2",
     },
     "packages/skills/image-remix": {
       "name": "@microvoid/convax-skill-image-remix",
-      "version": "0.2.0",
+      "version": "0.2.1",
     },
     "packages/skills/jianying-editor": {
       "name": "@microvoid/convax-skill-jianying-editor",
-      "version": "2.0.0",
+      "version": "2.0.1",
+    },
+    "packages/skills/relight-studio": {
+      "name": "@microvoid/convax-skill-relight-studio",
+      "version": "0.1.0",
     },
     "packages/skills/short-drama-screenwriter": {
       "name": "@microvoid/convax-skill-short-drama-screenwriter",
-      "version": "0.3.0",
+      "version": "0.3.1",
     },
     "packages/skills/skill-creator": {
       "name": "@microvoid/convax-skill-skill-creator",
-      "version": "0.3.0",
+      "version": "0.3.1",
     },
     "packages/skills/skill-reviewer": {
       "name": "@microvoid/convax-skill-skill-reviewer",
-      "version": "0.3.0",
+      "version": "0.3.1",
+    },
+    "packages/skills/storyai-3d-director-desk": {
+      "name": "@microvoid/convax-skill-storyai-3d-director-desk",
+      "version": "0.1.1",
     },
     "packages/skills/storyboard-studio": {
       "name": "@microvoid/convax-skill-storyboard-studio",
-      "version": "0.1.0",
+      "version": "0.1.1",
     },
     "packages/skills/video-prompting": {
       "name": "@microvoid/convax-skill-video-prompting",
-      "version": "0.3.0",
+      "version": "0.3.1",
     },
     "packages/tools/chatcut-media-import-mcp": {
       "name": "@microvoid/convax-chatcut-media-import-mcp",
@@ -229,11 +277,48 @@
         "typescript": "5.9.3",
       },
     },
+    "vendor/host-packages/marketplace": {
+      "name": "@convax/marketplace",
+      "version": "0.2.0",
+      "dependencies": {
+        "ajv": "8.20.0",
+      },
+    },
+    "vendor/host-packages/marketplace-kit": {
+      "name": "@convax/marketplace-kit",
+      "version": "0.2.0",
+      "bin": {
+        "convax-marketplace": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@convax/marketplace": "workspace:*",
+        "@convax/plugin-api": "workspace:*",
+        "@convax/plugin-sdk": "workspace:*",
+      },
+    },
+    "vendor/host-packages/plugin-api": {
+      "name": "@convax/plugin-api",
+      "version": "1.0.0",
+      "bin": {
+        "convax-plugin-api": "./dist/cli.js",
+      },
+    },
+    "vendor/host-packages/plugin-sdk": {
+      "name": "@convax/plugin-sdk",
+      "version": "0.1.0",
+      "dependencies": {
+        "@convax/plugin-api": "workspace:*",
+      },
+    },
   },
   "packages": {
-    "@convax/marketplace": ["@convax/marketplace@0.1.1", "", { "dependencies": { "ajv": "8.20.0" } }, "sha512-FHrcTrHlmywDbWfm8N5LndUQLuYpHohw2eqGaQBrnevOHNmoOQ/sgSIAUm8QvSWdn2cZ/HKl1IdT1VtJMT4wAg=="],
+    "@convax/marketplace": ["@convax/marketplace@workspace:vendor/host-packages/marketplace"],
 
-    "@convax/marketplace-kit": ["@convax/marketplace-kit@0.1.1", "", { "dependencies": { "@convax/marketplace": "^0.1.1" }, "bin": { "convax-marketplace": "dist/cli.js" } }, "sha512-+XZynFr4B2lRLA8ZFVUiA9MFbAplhXdIzgd3+mmz8/HWfvHVW0jWt5zeVLVIjUVMvIJbrlUmQp2pjSkJyWaD+g=="],
+    "@convax/marketplace-kit": ["@convax/marketplace-kit@workspace:vendor/host-packages/marketplace-kit"],
+
+    "@convax/plugin-api": ["@convax/plugin-api@workspace:vendor/host-packages/plugin-api"],
+
+    "@convax/plugin-sdk": ["@convax/plugin-sdk@workspace:vendor/host-packages/plugin-sdk"],
 
     "@floating-ui/core": ["@floating-ui/core@1.8.0", "", { "dependencies": { "@floating-ui/utils": "^0.2.12" } }, "sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ=="],
 
@@ -294,6 +379,8 @@
 
     "@microvoid/convax-skill-clip-export": ["@microvoid/convax-skill-clip-export@workspace:packages/skills/clip-export"],
 
+    "@microvoid/convax-skill-convax-plugin-authoring": ["@microvoid/convax-skill-convax-plugin-authoring@workspace:packages/skills/convax-plugin-authoring"],
+
     "@microvoid/convax-skill-ecommerce-image": ["@microvoid/convax-skill-ecommerce-image@workspace:packages/skills/ecommerce-image"],
 
     "@microvoid/convax-skill-ffmpeg-canvas": ["@microvoid/convax-skill-ffmpeg-canvas@workspace:packages/skills/ffmpeg-canvas"],
@@ -306,11 +393,15 @@
 
     "@microvoid/convax-skill-jianying-editor": ["@microvoid/convax-skill-jianying-editor@workspace:packages/skills/jianying-editor"],
 
+    "@microvoid/convax-skill-relight-studio": ["@microvoid/convax-skill-relight-studio@workspace:packages/skills/relight-studio"],
+
     "@microvoid/convax-skill-short-drama-screenwriter": ["@microvoid/convax-skill-short-drama-screenwriter@workspace:packages/skills/short-drama-screenwriter"],
 
     "@microvoid/convax-skill-skill-creator": ["@microvoid/convax-skill-skill-creator@workspace:packages/skills/skill-creator"],
 
     "@microvoid/convax-skill-skill-reviewer": ["@microvoid/convax-skill-skill-reviewer@workspace:packages/skills/skill-reviewer"],
+
+    "@microvoid/convax-skill-storyai-3d-director-desk": ["@microvoid/convax-skill-storyai-3d-director-desk@workspace:packages/skills/storyai-3d-director-desk"],
 
     "@microvoid/convax-skill-storyboard-studio": ["@microvoid/convax-skill-storyboard-studio@workspace:packages/skills/storyboard-studio"],
 
@@ -439,7 +530,7 @@
 
     "@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
 
-    "@types/node": ["@types/node@26.1.1", "", { "dependencies": { "undici-types": "~8.3.0" } }, "sha512-nxAkRSVkN1Y0JC1W8ky/fTfkGsMmcrRsbx+3XoZE+rMOX71kLYTV7fLXpqud1GpbpP5TuffXFqfX7fH2GgZREw=="],
+    "@types/node": ["@types/node@26.1.2", "", { "dependencies": { "undici-types": "~8.3.0" } }, "sha512-Vu4a5UFA9rIIFJ7rB/Vaafh9lrCQszopTCx6KjFboXTGQbPNasehVR5TEiithSDGyd1DEiUByggTZsg8jukeIg=="],
 
     "@types/react": ["@types/react@19.2.14", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w=="],
 

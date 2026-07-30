@@ -14,9 +14,14 @@ describe("JianYing Plugin package", () => {
     const manifest = JSON.parse(await read("manifest.json"))
     expect(manifest).toMatchObject({
       capabilities: ["canvas.connectedInputs.read", "generation.execute"],
+      hostApi: {
+        major: 1,
+        optional: [],
+        required: ["canvas.inputs.list", "generation.execute", "host.context.get"],
+      },
       id: "jianying-editor",
-      schema: "convax.plugin/6",
-      version: "2.1.1",
+      schema: "convax.plugin/8",
+      version: "2.1.2",
       runtime: {
         command: "convax-jianying-editor-mcp",
         type: "mcp-stdio",
@@ -67,7 +72,13 @@ describe("JianYing Plugin package", () => {
       },
     ])
     expect(manifest.contributes.skills).toEqual([
-      { name: "jianying-editor", path: "skills/jianying-editor" },
+      {
+        name: "jianying-editor",
+        path: "skills/jianying-editor",
+        uses: {
+          pluginTools: ["export_connected_media", "get_draft_status"],
+        },
+      },
     ])
   })
 
@@ -81,8 +92,8 @@ describe("JianYing Plugin package", () => {
       "utf8",
     ))
 
-    expect(metadata.version).toBe("2.1.1")
-    expect(workspace.version).toBe("2.1.1")
+    expect(metadata.version).toBe("2.1.2")
+    expect(workspace.version).toBe("2.1.2")
     expect(metadata.companions).toEqual([
       expect.objectContaining({
         command: "convax-jianying-editor-mcp",
@@ -94,19 +105,45 @@ describe("JianYing Plugin package", () => {
   test("keeps the iframe offline and delegates native work through host capabilities", async () => {
     const html = await read("index.html")
     const application = await read("assets/app.js")
+    const sdkClient = await read("assets/plugin-host-client.js")
     const readme = await read("README.md")
 
     expect(html).toContain('src="assets/app.js"')
+    expect(html).toContain('type="module"')
     expect(html).not.toMatch(/(?:src|href)=["'](?:https?:|\/\/|\/)/u)
-    expect(application).toContain('PROTOCOL = "convax.plugin-capability/1"')
-    expect(application).toContain('PLUGIN_ID = "jianying-editor"')
-    expect(application).toContain('request("canvas.connectedInputs.list")')
-    expect(application).toContain('request("generation.canvas.execute"')
+    expect(application).toContain(
+      'import { acceptPluginHostConnection } from "./plugin-host-client.js"',
+    )
+    expect(sdkClient).toContain("@convax/plugin-sdk/client:createPluginHostClient")
+    expect(sdkClient).toContain("convax.plugin-host/8")
+    expect(sdkClient).toContain("jianying-editor")
+    expect([
+      ...new Set([...application.matchAll(/request\("([^"]+)"/gu)].map((match) => match[1])),
+    ]).toEqual(["canvas.inputs.list", "generation.execute", "host.context.get"])
+    expect(application).toContain('"canvas.inputs.changed"')
+    expect(application).toMatch(
+      /function receiveCommand\(message\)[\s\S]+?message\.command === INPUTS_CHANGED_COMMAND[\s\S]+?void loadInputs\(\)/u,
+    )
+    expect(application).toContain("hostClient.onCommand(receiveCommand)")
+    expect(application).toContain("hostClient.callHostApi(method, params)")
+    expect(application).toContain("value.inputKey")
+    expect(application).toContain("nodeId: input.inputKey")
+    expect(application).not.toContain('type: "request"')
+    expect(application).not.toContain("postMessage")
+    expect(application).not.toContain("new Map")
+    for (const legacyWireValue of [
+      "convax.plugin-capability/1",
+      "convax.plugin-capability/3",
+      "canvas.connectedInputs.changed",
+      "canvas.connectedInputs.list",
+      "generation.canvas.execute",
+    ]) {
+      expect(application).not.toContain(legacyWireValue)
+    }
     expect(application).toContain('resultMode: "return"')
     expect(application).not.toMatch(/\bfetch\s*\(/u)
     expect(application).not.toContain("XMLHttpRequest")
     expect(application).not.toContain("localStorage")
-    expect(() => new Function(application)).not.toThrow()
     expect(readme).toContain("不会随")
     expect(readme).toContain("主动安装")
     expect(readme).toContain("不包含 Canvas、Project、IPC")

@@ -8,9 +8,9 @@ describe("Cutout Studio package", () => {
   test("declares one headless local operation and one immediate adjacent-image action", async () => {
     const manifest = JSON.parse(await readFile(path.join(root, "package", "manifest.json"), "utf8"))
     expect(manifest).toMatchObject({
-      schema: "convax.plugin/7",
+      schema: "convax.plugin/8",
       id: "cutout-studio",
-      version: "0.2.0",
+      version: "0.2.1",
       runtime: { type: "mcp-stdio", command: "convax-cutout-mcp" },
       contributes: {
         generation: {
@@ -25,6 +25,11 @@ describe("Cutout Studio package", () => {
     })
     expect(manifest).not.toHaveProperty("entry")
     expect(manifest).not.toHaveProperty("capabilities")
+    expect(manifest.hostApi).toEqual({
+      major: 1,
+      required: [],
+      optional: [],
+    })
     expect(manifest.contributes.canvas).toEqual({
       selectionActions: [
         {

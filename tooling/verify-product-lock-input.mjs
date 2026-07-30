@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { constants as fsConstants } from "node:fs"
 import { promises as fs } from "node:fs"
 import path from "node:path"
+import { assertOfficialMarketplaceDescriptor } from "./official-marketplace.mjs"
 
 const releaseBase = "https://github.com/microvoid/convax-plugins/releases/download/"
 const digestPattern = /^[a-f0-9]{64}$/
@@ -428,14 +429,7 @@ export async function verifyProductLockInput(inputFile) {
     ),
     "Marketplace descriptor",
   )
-  if (
-    descriptor?.id !== "convax-official" ||
-    descriptor.registry?.v2?.url !== "https://microvoid.github.io/convax-plugins/registry/v2/index.json" ||
-    descriptor.registry?.v1?.url !== "https://microvoid.github.io/convax-plugins/registry/v1/index.json" ||
-    descriptor.showcase?.v2?.url !== "https://microvoid.github.io/convax-plugins/showcase/v2/index.json"
-  ) {
-    throw new Error("Official descriptor public endpoints differ from the approved contract")
-  }
+  assertOfficialMarketplaceDescriptor(descriptor)
 
   const preinstalled = lock.packages[0]
   exactKeys(

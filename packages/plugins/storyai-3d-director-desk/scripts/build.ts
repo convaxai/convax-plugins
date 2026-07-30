@@ -1,11 +1,33 @@
 import { createHash } from "node:crypto"
 import path from "node:path"
+import { buildPluginHostClient } from "../../../../tooling/build-plugin-host-client.mjs"
 
 const packageRoot = path.resolve(import.meta.dir, "..")
 const vendorPath = path.join(packageRoot, "vendor", "app.js")
 const outputPath = path.join(packageRoot, "package", "assets", "app.js")
-const expectedVendorSha256 = "a98fa137c6917ec77a1f957826cefcb70fccb749d8a46868cd4c2457d701eec4"
+const check = process.argv.includes("--check")
+const expectedVendorSha256 = "ca87a7d8f2666eaf728dd5ea9ae7078821996d032140c4437ce5047e7bba65a1"
 const expectedFetchCount = 4
+const expectedRendererMessageCount = 1
+const expectedHostTokenCounts = new Map([
+  ["canvas.node.state.replace", 2],
+  ["canvas.resource.image.create", 1],
+  ["./plugin-host-client.js", 1],
+  ["callHostApi", 2],
+  ["onCommand", 1],
+])
+
+async function writeOrCheck(pathname: string, source: string, label: string) {
+  if (check) {
+    if (!(await Bun.file(pathname).exists()) || (await Bun.file(pathname).text()) !== source) {
+      throw new Error(`${label} is stale`)
+    }
+    return
+  }
+  await Bun.write(pathname, source)
+}
+
+await buildPluginHostClient({ check, packageRoot })
 
 const vendor = await Bun.file(vendorPath).text()
 const vendorSha256 = createHash("sha256").update(vendor).digest("hex")
@@ -17,7 +39,28 @@ const fetchCount = vendor.match(/\bfetch\(/gu)?.length ?? 0
 if (fetchCount !== expectedFetchCount) {
   throw new Error(`3D Director Desk vendor bundle fetch count changed: ${fetchCount}`)
 }
+const rendererMessageCount = vendor.match(/"renderer\.scene\.play"/gu)?.length ?? 0
+if (rendererMessageCount !== expectedRendererMessageCount) {
+  throw new Error(`3D Director Desk vendor renderer-message count changed: ${rendererMessageCount}`)
+}
+for (const [token, expectedCount] of expectedHostTokenCounts) {
+  const actualCount = vendor.split(token).length - 1
+  if (actualCount !== expectedCount) {
+    throw new Error(`3D Director Desk vendor Host token count changed for ${token}: ${actualCount}`)
+  }
+}
+if (
+  vendor.includes("convax.plugin-host/") ||
+  vendor.includes('type:"request"') ||
+  /\.postMessage\(\{[^}]*\bmethod:/u.test(vendor)
+) {
+  throw new Error(
+    "3D Director Desk vendor contains a handwritten Plugin Host request transport",
+  )
+}
 
+// The pinned vendor bundle consumes the repository-built SDK client. This build
+// step only removes upstream network surfaces forbidden in a Plugin iframe.
 let source = vendor
   // React/renderer diagnostics and license references are inert, but public
   // Plugin packages fail closed on every literal remote URL. Keep them local.
@@ -54,4 +97,4 @@ if (/\b(?:fetch|WebSocket|XMLHttpRequest|EventSource)\s*\(/u.test(source)) {
   throw new Error("3D Director Desk bundle contains a browser network API")
 }
 
-await Bun.write(outputPath, source)
+await writeOrCheck(outputPath, source, "3D Director Desk application bundle")

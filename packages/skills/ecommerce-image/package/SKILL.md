@@ -1,5 +1,6 @@
 ---
 name: ecommerce-image
+version: 0.2.1
 description: Plan, prompt, or generate ecommerce product image sets for listings, storefronts, and campaigns. Use when the user needs hero images, gallery views, detail shots, lifestyle scenes, or channel-specific product creatives from supplied product references.
 ---
 

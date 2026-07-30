@@ -1,9 +1,9 @@
 {
-  "schema": "convax.plugin/7",
+  "schema": "convax.plugin/8",
   "id": "video-timeline",
   "name": "Video Timeline",
   "description": "Creates a live Composition video card whose connected media can be edited in a dedicated Timeline tool.",
-  "version": "0.1.3",
+  "version": "0.1.5",
   "entry": "index.html",
   "capabilities": [
     "canvas.connectedInputs.read",
@@ -38,5 +38,17 @@
         }
       ]
     }
+  },
+  "hostApi": {
+    "major": 1,
+    "required": [
+      "canvas.inputs.close",
+      "canvas.inputs.list",
+      "canvas.inputs.open",
+      "canvas.node.get",
+      "canvas.node.state.replace",
+      "host.context.get"
+    ],
+    "optional": []
   }
 }

@@ -1,11 +1,19 @@
 {
   "name": "@microvoid/convax-plugin-storyai-3d-director-desk",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "private": true,
   "type": "module",
+  "dependencies": {
+    "@microvoid/convax-skill-storyai-3d-director-desk": "workspace:*"
+  },
+  "devDependencies": {
+    "@convax/plugin-sdk": "0.1.0"
+  },
   "scripts": {
     "build": "bun scripts/build.ts",
+    "build:check": "bun scripts/build.ts --check",
+    "test": "bun test test",
     "validate": "bun ../../../tooling/validate.mjs --kind plugin --id storyai-3d-director-desk",
-    "pack": "bun ../../../tooling/pack.mjs --kind plugin --id storyai-3d-director-desk"
+    "pack": "bun ../../../tooling/pack.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-../../../node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" --kind plugin --id storyai-3d-director-desk"
   }
 }

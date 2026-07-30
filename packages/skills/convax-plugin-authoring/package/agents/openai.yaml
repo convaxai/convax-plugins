@@ -1,0 +1,4 @@
+interface:
+  display_name: "Convax Plugin Authoring"
+  short_description: "Author Plugins against verified Host capabilities"
+  default_prompt: "Use $convax-plugin-authoring to create, modify, or debug this Convax Plugin without crossing the Host boundary."

@@ -1,14 +1,10 @@
 {
-  "schema": "convax.package/1",
+  "schema": "convax.package/2",
   "kind": "skill",
   "id": "ecommerce-image",
   "name": "Ecommerce Image",
   "description": "Plan and produce product-focused ecommerce image sets with channel-specific composition and fidelity controls.",
-  "version": "0.2.0",
-  "license": "MIT",
-  "compatibility": {
-    "skillSchema": "opencode.skill/1"
-  },
+  "version": "0.2.1",
   "showcase": {
     "poster": {
       "path": "showcase/poster.png",

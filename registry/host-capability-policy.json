@@ -1,0 +1,74 @@
+{
+  "schema": "convax.host-capability-policy/1",
+  "requests": [
+    {
+      "id": "verified-companion-toolchain",
+      "document": "docs/host-capability-requests/verified-companion-toolchain.md",
+      "status": "pending",
+      "humanDecision": null,
+      "affected": [
+        {
+          "kind": "plugin",
+          "id": "chatcut",
+          "version": "0.3.2",
+          "blocker": {
+            "code": "unverified-runtime-dependency",
+            "note": "The companion resolves ffmpeg and ffprobe from ambient PATH instead of an immutable host-verified dependency. Human review is tracked in docs/host-capability-requests/verified-companion-toolchain.md."
+          }
+        }
+      ]
+    },
+    {
+      "id": "web-plugin-image-input-read",
+      "document": "docs/host-capability-requests/web-plugin-image-input-read.md",
+      "status": "pending",
+      "humanDecision": null,
+      "affected": [
+        {
+          "kind": "plugin",
+          "id": "multi-angle",
+          "version": "0.1.3",
+          "blocker": {
+            "code": "host-capability-review-required",
+            "note": "The generated v8 Catalog does not define an approved image-input read contract; canvas.inputs.open does not specify image decoding. Human review is tracked in docs/host-capability-requests/web-plugin-image-input-read.md."
+          }
+        },
+        {
+          "kind": "plugin",
+          "id": "panorama-viewer",
+          "version": "0.2.4",
+          "blocker": {
+            "code": "host-capability-review-required",
+            "note": "The generated v8 Catalog does not define an approved image-input read contract; canvas.inputs.open does not specify image decoding. Human review is tracked in docs/host-capability-requests/web-plugin-image-input-read.md."
+          }
+        },
+        {
+          "kind": "plugin",
+          "id": "relight-studio",
+          "version": "0.1.4",
+          "blocker": {
+            "code": "host-capability-review-required",
+            "note": "The generated v8 Catalog does not define an approved image-input read contract; canvas.inputs.open does not specify image decoding. Human review is tracked in docs/host-capability-requests/web-plugin-image-input-read.md."
+          }
+        }
+      ]
+    },
+    {
+      "id": "sdk-owned-pet-surface-client",
+      "document": "docs/host-capability-requests/sdk-owned-pet-surface-client.md",
+      "status": "pending",
+      "humanDecision": null,
+      "affected": [
+        {
+          "kind": "plugin",
+          "id": "convax-pet",
+          "version": "0.2.3",
+          "blocker": {
+            "code": "host-capability-review-required",
+            "note": "No published @convax/plugin-sdk Pet surface client owns the convax.pet-host/1 request transport, so this package still contains a handwritten request state machine. Human review is tracked in docs/host-capability-requests/sdk-owned-pet-surface-client.md."
+          }
+        }
+      ]
+    }
+  ]
+}

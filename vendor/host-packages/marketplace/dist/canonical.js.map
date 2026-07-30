@@ -1,0 +1,10 @@
+{
+  "version": 3,
+  "sources": ["../src/canonical.ts"],
+  "sourcesContent": [
+    "import { createHash } from \"node:crypto\"\n\nexport function canonicalJson(value: unknown): string {\n  const visit = (candidate: unknown): unknown => {\n    if (candidate === null || typeof candidate === \"string\" || typeof candidate === \"boolean\") return candidate\n    if (typeof candidate === \"number\") {\n      if (!Number.isFinite(candidate)) throw new TypeError(\"canonical JSON rejects non-finite numbers\")\n      return Object.is(candidate, -0) ? 0 : candidate\n    }\n    if (Array.isArray(candidate)) return candidate.map(visit)\n    if (typeof candidate === \"object\") {\n      const source = candidate as Record<string, unknown>\n      return Object.fromEntries(\n        Object.keys(source)\n          .sort()\n          .map((key) => {\n            if (source[key] === undefined) throw new TypeError(\"canonical JSON rejects undefined\")\n            return [key, visit(source[key])]\n          }),\n      )\n    }\n    throw new TypeError(`canonical JSON rejects ${typeof candidate}`)\n  }\n  return JSON.stringify(visit(value))\n}\n\nexport function sha256Hex(value: string | Uint8Array): string {\n  return createHash(\"sha256\").update(value).digest(\"hex\")\n}\n"
+  ],
+  "mappings": "AAAA,qBAAS,oBAEF,SAAS,CAAa,CAAC,EAAwB,CACpD,IAAM,EAAQ,CAAC,IAAgC,CAC7C,GAAI,IAAc,MAAQ,OAAO,IAAc,UAAY,OAAO,IAAc,UAAW,OAAO,EAClG,GAAI,OAAO,IAAc,SAAU,CACjC,GAAI,CAAC,OAAO,SAAS,CAAS,EAAG,MAAU,UAAU,2CAA2C,EAChG,OAAO,OAAO,GAAG,EAAW,EAAE,EAAI,EAAI,EAExC,GAAI,MAAM,QAAQ,CAAS,EAAG,OAAO,EAAU,IAAI,CAAK,EACxD,GAAI,OAAO,IAAc,SAAU,CACjC,IAAM,EAAS,EACf,OAAO,OAAO,YACZ,OAAO,KAAK,CAAM,EACf,KAAK,EACL,IAAI,CAAC,IAAQ,CACZ,GAAI,EAAO,KAAS,OAAW,MAAU,UAAU,kCAAkC,EACrF,MAAO,CAAC,EAAK,EAAM,EAAO,EAAI,CAAC,EAChC,CACL,EAEF,MAAU,UAAU,0BAA0B,OAAO,GAAW,GAElE,OAAO,KAAK,UAAU,EAAM,CAAK,CAAC,EAG7B,SAAS,CAAS,CAAC,EAAoC,CAC5D,OAAO,EAAW,QAAQ,EAAE,OAAO,CAAK,EAAE,OAAO,KAAK",
+  "debugId": "D2F975F289D0941764756E2164756E21",
+  "names": []
+}

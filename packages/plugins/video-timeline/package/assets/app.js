@@ -68,7 +68,7 @@ let durationProbeGeneration = 0
 const saver = new TimelineSaveController(async (snapshot) => {
   const prepared = prepareStateSave(snapshot, MAX_STATE_BYTES)
   if (!prepared.ok) throw new Error(prepared.error)
-  await host.request("canvas.node.updateState", { state: prepared.state })
+  await host.request("canvas.node.state.replace", { state: prepared.state })
 }, {
   onStatus(status, error) {
     elements["save-state"].dataset.state = status
@@ -85,13 +85,13 @@ window.setTimeout(() => {
   if (!state) {
     readOnly = true
     state = openState(undefined).state
-    addDiagnostic("incompatible-host", "This Convax host does not support convax.plugin-capability/2. Timeline is read-only.", "error")
+    addDiagnostic("incompatible-host", "This Convax host does not support @convax/plugin-sdk client ABI (convax.plugin-host/8). Timeline is read-only.", "error")
     render()
   }
 }, 5000)
 
 host.onCommand((command) => {
-  if (command === "canvas.connectedInputs.changed") void reconcileInputs()
+  if (command === "canvas.inputs.changed") void reconcileInputs()
 })
 
 async function initialize() {
@@ -127,7 +127,7 @@ async function initialize() {
 async function reconcileInputs() {
   if (!state || readOnly) return
   try {
-    const result = await reconciler.refresh(() => host.request("canvas.connectedInputs.list"), state)
+    const result = await reconciler.refresh(() => host.request("canvas.inputs.list"), state)
     if (result.stale) return
     diagnostics = diagnostics.filter((entry) => !["unsupported-input", "source-out-of-range", "estimated-duration", "inputs-failed"].includes(entry.code))
     result.diagnostics.forEach((entry) => addDiagnostic(entry.code, entry.message))
@@ -432,8 +432,8 @@ function formatClock(value) {
   return hours > 0 ? `${String(hours).padStart(2, "0")}:${clock}` : clock
 }
 
-function openConnectedMedia(nodeId) {
-  const opened = connectedMediaOpenQueue.then(() => host.request("canvas.connectedMedia.open", { nodeId }))
+function openConnectedMedia(inputKey) {
+  const opened = connectedMediaOpenQueue.then(() => host.request("canvas.inputs.open", { inputKey }))
   connectedMediaOpenQueue = opened.catch(() => undefined)
   return opened
 }
@@ -496,7 +496,7 @@ async function resolveEstimatedDurations(nodeIds, generation) {
         media.load()
       }
       if (opened?.sessionId) {
-        await host.request("canvas.connectedMedia.close", { sessionId: opened.sessionId }).catch(() => undefined)
+        await host.request("canvas.inputs.close", { sessionId: opened.sessionId }).catch(() => undefined)
       }
     }
   }
@@ -896,7 +896,7 @@ async function disposeMediaSessions(sessions) {
     media.load()
     media.remove()
   }
-  await Promise.all(sessions.map((session) => host.request("canvas.connectedMedia.close", { sessionId: session.id }).catch(() => undefined)))
+  await Promise.all(sessions.map((session) => host.request("canvas.inputs.close", { sessionId: session.id }).catch(() => undefined)))
 }
 
 function playbackItemsAt(at) {
@@ -946,7 +946,7 @@ async function refreshPlaybackMedia(generation, autoplay = false) {
     if (openIds.has(activeItem.id)) continue
     const opened = await openConnectedMedia(activeItem.sourceRef.nodeId)
     if (generation !== playbackGeneration || !playbackItemsAt(playhead).some((item) => item.id === activeItem.id)) {
-      await host.request("canvas.connectedMedia.close", { sessionId: opened.sessionId }).catch(() => undefined)
+      await host.request("canvas.inputs.close", { sessionId: opened.sessionId }).catch(() => undefined)
       continue
     }
     const track = state.composition.tracksById[activeItem.trackId]

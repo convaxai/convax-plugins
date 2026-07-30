@@ -1,11 +1,14 @@
 {
-  "schema": "convax.plugin/1",
+  "schema": "convax.plugin/8",
   "id": "storyai-3d-director-desk",
   "name": "3D Director Desk",
   "description": "An open-source browser-based 3D blocking surface for characters, props, cameras, panoramas, and shot previews.",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "entry": "index.html",
-  "capabilities": ["canvas.node.write", "canvas.image.write"],
+  "capabilities": [
+    "canvas.node.write",
+    "canvas.image.write"
+  ],
   "contributes": {
     "canvas": {
       "renderer": {
@@ -13,14 +16,42 @@
         "width": 1100,
         "height": 700
       },
+      "commands": [
+        {
+          "id": "scene.play",
+          "title": {
+            "default": "Link current frame",
+            "zh-CN": "关联当前帧"
+          },
+          "icon": "play",
+          "target": {
+            "type": "renderer-message",
+            "message": "renderer.scene.play"
+          }
+        }
+      ],
       "toolbar": [
         {
-          "id": "play",
-          "title": "关联当前帧",
-          "command": "scene.play"
+          "id": "scene-play-toolbar",
+          "command": "scene.play",
+          "order": 10
         }
       ]
-    }
+    },
+    "skills": [
+      {
+        "name": "storyai-3d-director-desk",
+        "path": "skills/storyai-3d-director-desk"
+      }
+    ]
   },
-  "skill": "SKILL.md"
+  "hostApi": {
+    "major": 1,
+    "required": [
+      "canvas.node.state.replace",
+      "canvas.resource.image.create",
+      "host.context.get"
+    ],
+    "optional": []
+  }
 }

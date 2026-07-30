@@ -1,10 +1,10 @@
 import { cloneState, compareTime, createId, time, timeFromMilliseconds, timeEnd } from "./model.js"
 
 function descriptor(input) {
-  if (!input || typeof input.id !== "string" || !input.id) return null
+  if (!input || typeof input.inputKey !== "string" || !input.inputKey) return null
   const kind = input.kind === "video" || input.kind === "audio" ? input.kind : "unsupported"
   return {
-    id: input.id,
+    id: input.inputKey,
     kind,
     label: typeof input.name === "string" && input.name ? input.name : typeof input.label === "string" && input.label ? input.label : "Untitled source",
     ...(typeof input.mimeType === "string" ? { mimeType: input.mimeType } : {}),

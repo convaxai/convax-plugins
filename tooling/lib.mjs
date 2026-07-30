@@ -3,12 +3,21 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseJavaScriptModule } from "acorn";
+import {
+  createDeterministicZip as createMarketplaceZip,
+  discoverMarketplacePackages,
+} from "@convax/marketplace-kit";
+import {
+  parsePluginManifestV8,
+  parsePortablePluginId,
+  parsePortablePluginRelativePath,
+  parsePortablePluginVersion,
+  validatePortablePluginSegment,
+} from "@convax/plugin-sdk";
+import { validateHostCapabilityRequestDocument } from "./host-capability-request.mjs";
 
 export const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 export const repository = "microvoid/convax-plugins";
-export const registrySchema = "convax.registry/1";
-export const showcaseSchema = "convax.showcase/1";
-export const showcaseEntrySchema = "convax.showcase-entry/1";
 export const maxFileBytes = 2 * 1024 * 1024;
 export const maxPackageBytes = 10 * 1024 * 1024;
 export const maxPluginEntries = 2_000;
@@ -17,65 +26,6 @@ export const maxPosterBytes = 5 * 1024 * 1024;
 export const maxAnimationBytes = 20 * 1024 * 1024;
 export const maxCompanionBytes = 128 * 1024 * 1024;
 
-const semverPattern =
-  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
-const idPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const windowsReservedName =
-  /^(CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³]|CONIN\$|CONOUT\$)$/i;
-const pluginCapabilitiesV4 = new Set([
-  "canvas.connectedImages.read",
-  "canvas.image.write",
-  "canvas.node.read",
-  "canvas.node.write",
-  "project.files.read",
-  "agent.prompt",
-  "generation.execute",
-  "ui.fullscreen",
-]);
-const pluginProjectCanvasCapabilities = new Set([
-  "projects.read",
-  "canvas.catalog.read",
-  "canvas.document.read",
-  "canvas.document.write",
-  "canvas.events.subscribe",
-]);
-const pluginPetCapabilities = new Set([
-  "pet.activity.read",
-  "pet.activity.open",
-  "pet.preferences.write",
-  "pet.custom.manage",
-]);
-const pluginCapabilitiesV5 = new Set([
-  ...pluginCapabilitiesV4,
-  ...pluginProjectCanvasCapabilities,
-  ...pluginPetCapabilities,
-]);
-const pluginCapabilitiesV6 = new Set([
-  ...pluginCapabilitiesV4,
-  "canvas.resources.write",
-  ...pluginProjectCanvasCapabilities,
-  "canvas.connectedInputs.read",
-]);
-const pluginCapabilitiesV7 = new Set([
-  ...pluginCapabilitiesV6,
-  "canvas.connectedMedia.stream",
-]);
-const pluginCapabilities = pluginCapabilitiesV5;
-const pluginV5Capabilities = new Set([
-  ...pluginProjectCanvasCapabilities,
-  ...pluginPetCapabilities,
-]);
-const generationModalities = new Set(["text", "image", "video", "audio"]);
-const generationInputRoles = new Set([
-  "reference_image",
-  "reference_video",
-  "first_frame",
-  "last_frame",
-  "audio",
-  "text",
-]);
-const companionPlatforms = new Set(["darwin", "linux", "win32"]);
-const companionArchitectures = new Set(["arm64", "x64"]);
 const nativeExtensions = new Set([
   ".app",
   ".bat",
@@ -211,1826 +161,341 @@ function cleanString(value, label, maxLength) {
   return value;
 }
 
-export function parseId(value, label = "id") {
-  const result = cleanString(value, label, 80);
-  if (!idPattern.test(result)) error(label, "must use kebab-case");
-  validatePortableSegment(result, label);
-  return result;
-}
+export const parseId = parsePortablePluginId;
+export const parseSemver = parsePortablePluginVersion;
+export const parseRelativePath = parsePortablePluginRelativePath;
+export const validatePortableSegment = validatePortablePluginSegment;
 
-export function parseSemver(value, label = "version") {
-  const result = cleanString(value, label, 128);
-  if (!semverPattern.test(result)) error(label, "must be valid SemVer");
-  return result;
-}
-
-function parseShowcaseSourceMedia(value, role, label) {
-  exactKeys(
-    value,
-    ["alt", "height", "mime", "path", "width"],
-    ["alt", "height", "mime", "path", "width"],
-    label,
-  );
-  const relativePath = parseRelativePath(value.path, `${label} path`);
-  if (
-    !relativePath.startsWith("showcase/") ||
-    relativePath.split("/").length !== 2
-  ) {
-    error(label, "path must name one file directly below showcase/");
-  }
-  const mime = cleanString(value.mime, `${label} mime`, 80);
-  const extension = showcaseMimes[role].get(mime);
-  if (!extension) error(label, `unsupported ${role} MIME type ${mime}`);
-  if (!relativePath.endsWith(extension))
-    error(label, `path extension must be ${extension}`);
-  return {
-    path: relativePath,
-    alt: cleanString(value.alt, `${label} alt`, 500),
-    mime,
-    width: dimension(value.width, `${label} width`),
-    height: dimension(value.height, `${label} height`),
-  };
-}
-
-function parseShowcaseSource(value, label) {
-  if (value === undefined) return undefined;
-  exactKeys(value, ["animation", "poster"], ["poster"], label);
-  const poster = parseShowcaseSourceMedia(
-    value.poster,
-    "poster",
-    `${label} poster`,
-  );
-  const animation =
-    value.animation === undefined
-      ? undefined
-      : parseShowcaseSourceMedia(
-          value.animation,
-          "animation",
-          `${label} animation`,
-        );
-  if (animation?.path === poster.path)
-    error(label, "poster and animation must use different files");
-  return { poster, ...(animation ? { animation } : {}) };
-}
-
-export function validatePortableSegment(value, label = "path") {
-  const stem = value.split(".")[0] ?? "";
-  if (
-    !value ||
-    value.length > 255 ||
-    value === "." ||
-    value === ".." ||
-    /[\\/:*?"<>|\u0000-\u001f\u007f]/.test(value) ||
-    /[. ]$/.test(value) ||
-    windowsReservedName.test(stem)
-  )
-    error(label, `invalid portable segment ${value}`);
-  return value;
-}
-
-export function parseRelativePath(value, label = "path") {
-  const result = cleanString(value, label, 1024);
-  if (
-    result.startsWith("/") ||
-    result.startsWith("//") ||
-    /^[A-Za-z]:/.test(result) ||
-    result.includes("\\")
-  ) {
-    error(label, "must be a portable relative path");
-  }
-  const segments = result.split("/");
-  if (
-    segments.some((segment) => !segment || segment === "." || segment === "..")
-  ) {
-    error(label, "must not contain empty or traversal segments");
-  }
-  segments.forEach((segment) => validatePortableSegment(segment, label));
-  return result;
-}
-
-function parseHookModule(value, label) {
-  if (value === undefined) return undefined;
-  const result = parseRelativePath(value, label);
-  if (!/\.(?:js|mjs)$/.test(result))
-    error(label, "must be a JavaScript ESM module");
-  return result;
-}
-
-function parseCompatibility(value, kind, label) {
-  if (kind === "plugin") {
-    exactKeys(
-      value,
-      ["pluginSchema", "pluginHost"],
-      ["pluginSchema", "pluginHost"],
-      label,
-    );
-    const v1 =
-      value.pluginSchema === "convax.plugin/1" &&
-      value.pluginHost === "convax.plugin-host/1";
-    const v2 =
-      value.pluginSchema === "convax.plugin/2" &&
-      value.pluginHost === "convax.plugin-host/2";
-    const v3 =
-      value.pluginSchema === "convax.plugin/3" &&
-      value.pluginHost === "convax.plugin-host/3";
-    const v4 =
-      value.pluginSchema === "convax.plugin/4" &&
-      value.pluginHost === "convax.plugin-host/4";
-    const v5 =
-      value.pluginSchema === "convax.plugin/5" &&
-      value.pluginHost === "convax.plugin-capability/1";
-    const v6 =
-      value.pluginSchema === "convax.plugin/6" &&
-      value.pluginHost === "convax.plugin-capability/1";
-    const v7 =
-      value.pluginSchema === "convax.plugin/7" &&
-      value.pluginHost === "convax.plugin-capability/2";
-    if (!v1 && !v2 && !v3 && !v4 && !v5 && !v6 && !v7) {
-      error(
-        label,
-        "must pair matching convax.plugin and convax.plugin-host major versions 1-4, convax.plugin/5-6 with convax.plugin-capability/1, or convax.plugin/7 with convax.plugin-capability/2",
-      );
-    }
-    return { pluginSchema: value.pluginSchema, pluginHost: value.pluginHost };
-  }
-  exactKeys(value, ["skillSchema"], ["skillSchema"], label);
-  if (value.skillSchema !== "opencode.skill/1")
-    error(label, "must target opencode.skill/1");
-  return { skillSchema: "opencode.skill/1" };
-}
-
-function parseCompanionCommand(value, label) {
-  const command = cleanString(value, label, 128);
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(command)) {
-    error(label, "must be a bare executable name");
-  }
-  validatePortableSegment(command, label);
-  return command;
-}
-
-function parseCompanionTargetIdentity(value, label) {
-  const platform = cleanString(value.platform, `${label} platform`, 16);
-  const arch = cleanString(value.arch, `${label} arch`, 16);
-  if (!companionPlatforms.has(platform))
-    error(label, `unsupported platform ${platform}`);
-  if (!companionArchitectures.has(arch))
-    error(label, `unsupported architecture ${arch}`);
-  return { platform, arch };
-}
-
-function parseSourceCompanions(value, label) {
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value) || value.length < 1 || value.length > 16) {
-    error(label, "must be a non-empty array with at most 16 items");
-  }
-  const companions = value.map((item, index) => {
-    const itemLabel = `${label} item ${index}`;
-    exactKeys(
-      item,
-      ["command", "source", "targets", "version"],
-      ["command", "source", "targets", "version"],
-      itemLabel,
-    );
-    const source = parseRelativePath(item.source, `${itemLabel} source`);
-    if (!/^packages\/tools\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(source)) {
-      error(
-        itemLabel,
-        "source must name one reviewed workspace directly below packages/tools/",
-      );
-    }
-    if (
-      !Array.isArray(item.targets) ||
-      item.targets.length < 1 ||
-      item.targets.length > 16
-    ) {
-      error(
-        itemLabel,
-        "targets must be a non-empty array with at most 16 items",
-      );
-    }
-    const targets = item.targets.map((target, targetIndex) => {
-      const targetLabel = `${itemLabel} target ${targetIndex}`;
-      exactKeys(
-        target,
-        ["arch", "path", "platform"],
-        ["arch", "path", "platform"],
-        targetLabel,
-      );
-      return {
-        ...parseCompanionTargetIdentity(target, targetLabel),
-        path: parseRelativePath(target.path, `${targetLabel} path`),
-      };
-    });
-    const identities = targets.map(
-      (target) => `${target.platform}/${target.arch}`,
-    );
-    if (new Set(identities).size !== identities.length)
-      error(itemLabel, "contains a duplicate platform/architecture target");
-    return {
-      command: parseCompanionCommand(item.command, `${itemLabel} command`),
-      version: parseSemver(item.version, `${itemLabel} version`),
-      source,
-      targets,
-    };
-  });
-  if (
-    new Set(companions.map((item) => item.command)).size !== companions.length
-  ) {
-    error(label, "contains duplicate commands");
-  }
-  return companions;
-}
-
-export function parseSourceMetadata(value, label = "convax-package.json") {
-  const required = [
-    "schema",
-    "kind",
-    "id",
-    "name",
-    "description",
-    "version",
-    "license",
-    "compatibility",
-    "yanked",
-  ];
-  exactKeys(
-    value,
-    [...required, "companions", "ownerPluginId", "showcase"],
-    required,
-    label,
-  );
-  if (value.schema !== "convax.package/1") error(label, "unsupported schema");
-  if (value.kind !== "plugin" && value.kind !== "skill")
-    error(label, "kind must be plugin or skill");
-  if (typeof value.yanked !== "boolean")
-    error(label, "yanked must be a boolean");
-  const kind = value.kind;
-  const id = parseId(value.id, `${label} id`);
-  if (kind === "skill" && id.length > 64)
-    error(label, "Skill id must be at most 64 characters");
-  if (kind === "skill" && value.companions !== undefined)
-    error(label, "companions are available only to Plugins");
-  if (kind === "plugin" && value.ownerPluginId !== undefined)
-    error(label, "ownerPluginId is available only to Skills");
-  const ownerPluginId =
-    value.ownerPluginId === undefined
-      ? undefined
-      : parseId(value.ownerPluginId, `${label} ownerPluginId`);
-  const compatibility = parseCompatibility(
-    value.compatibility,
-    kind,
-    `${label} compatibility`,
-  );
-  const companions = parseSourceCompanions(
-    value.companions,
-    `${label} companions`,
-  );
-  if (
-    companions &&
-    compatibility.pluginSchema !== "convax.plugin/2" &&
-    compatibility.pluginSchema !== "convax.plugin/3" &&
-    compatibility.pluginSchema !== "convax.plugin/4" &&
-    compatibility.pluginSchema !== "convax.plugin/5" &&
-    compatibility.pluginSchema !== "convax.plugin/6" &&
-    compatibility.pluginSchema !== "convax.plugin/7"
-  ) {
-    error(label, "companions require convax.plugin/2 or later compatibility");
-  }
-  return {
-    schema: "convax.package/1",
-    kind,
-    id,
-    name: cleanString(value.name, `${label} name`, 120),
-    description: cleanString(value.description, `${label} description`, 2000),
-    version: parseSemver(value.version, `${label} version`),
-    license: cleanString(value.license, `${label} license`, 120),
-    compatibility,
-    yanked: value.yanked,
-    ...(companions === undefined ? {} : { companions }),
-    ...(ownerPluginId === undefined ? {} : { ownerPluginId }),
-    ...(value.showcase === undefined
-      ? {}
-      : { showcase: parseShowcaseSource(value.showcase, `${label} showcase`) }),
-  };
-}
-
-function stringArray(value, label, validate) {
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value) || value.length > 64)
-    error(label, "must be an array with at most 64 items");
-  const result = value.map((item) => validate(cleanString(item, label, 128)));
-  if (new Set(result).size !== result.length)
-    error(label, "contains duplicate values");
-  return result;
-}
-
-function dimension(value, label) {
-  if (value === undefined) return undefined;
-  if (!Number.isSafeInteger(value) || value < 1 || value > 8192)
-    error(label, "must be an integer from 1 to 8192");
-  return value;
-}
-
-function parseRenderer(value, label) {
-  exactKeys(
-    value,
-    ["create", "extensions", "height", "mimeTypes", "nodeKinds", "width"],
-    [],
-    label,
-  );
-  if (value.create !== undefined && typeof value.create !== "boolean")
-    error(label, "create must be a boolean");
-  const extensions = stringArray(
-    value.extensions,
-    `${label} extensions`,
-    (item) => {
-      if (
-        item !== item.toLowerCase() ||
-        !/^\.[a-z0-9][a-z0-9._+-]{0,31}$/.test(item)
-      )
-        error(label, `invalid extension ${item}`);
-      return item;
-    },
-  );
-  const mimeTypes = stringArray(
-    value.mimeTypes,
-    `${label} mimeTypes`,
-    (item) => {
-      if (
-        item !== item.toLowerCase() ||
-        !/^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/.test(item)
-      )
-        error(label, `invalid MIME type ${item}`);
-      return item;
-    },
-  );
-  const nodeKinds = stringArray(
-    value.nodeKinds,
-    `${label} nodeKinds`,
-    (item) => {
-      if (!/^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/.test(item))
-        error(label, `invalid node kind ${item}`);
-      return item;
-    },
-  );
-  if (
-    value.create !== true &&
-    !extensions?.length &&
-    !mimeTypes?.length &&
-    !nodeKinds?.length
-  ) {
-    error(
-      label,
-      "must be creatable or match an extension, MIME type, or node kind",
-    );
-  }
-  return {
-    ...(value.create === undefined ? {} : { create: value.create }),
-    ...(extensions === undefined ? {} : { extensions }),
-    ...(value.height === undefined
-      ? {}
-      : { height: dimension(value.height, `${label} height`) }),
-    ...(mimeTypes === undefined ? {} : { mimeTypes }),
-    ...(nodeKinds === undefined ? {} : { nodeKinds }),
-    ...(value.width === undefined
-      ? {}
-      : { width: dimension(value.width, `${label} width`) }),
-  };
-}
-
-function parseToolbar(value, label) {
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value) || value.length > 32)
-    error(label, "must be an array with at most 32 items");
-  const result = value.map((item, index) => {
-    const itemLabel = `${label} item ${index}`;
-    exactKeys(
-      item,
-      ["command", "id", "title"],
-      ["command", "id", "title"],
-      itemLabel,
-    );
-    const id = cleanString(item.id, `${itemLabel} id`, 80);
-    if (!/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/.test(id))
-      error(itemLabel, "invalid id");
-    return {
-      command: cleanString(item.command, `${itemLabel} command`, 256),
-      id,
-      title: cleanString(item.title, `${itemLabel} title`, 120),
-    };
-  });
-  if (new Set(result.map((item) => item.id)).size !== result.length)
-    error(label, "contains duplicate ids");
-  return result;
-}
-
-function parseLegacyPluginManifest(value, label) {
-  if (
-    !isObject(value) ||
-    (value.schema !== "convax.plugin/1" && value.schema !== "convax.plugin/2")
-  ) {
-    error(label, "unsupported schema");
-  }
-  const v2 = value.schema === "convax.plugin/2";
-  const required = [
-    "contributes",
-    "description",
-    "id",
-    "name",
-    "schema",
-    "version",
-  ];
-  exactKeys(
-    value,
-    [
-      "capabilities",
-      "contributes",
-      "description",
-      "entry",
-      "hooks",
-      "id",
-      "name",
-      ...(v2 ? ["runtime"] : []),
-      "schema",
-      "skill",
-      "version",
-    ],
-    [...required, ...(v2 ? [] : ["capabilities", "entry"])],
-    label,
-  );
-
-  const capabilities = value.capabilities ?? [];
-  if (
-    !Array.isArray(capabilities) ||
-    capabilities.length > pluginCapabilitiesV4.size ||
-    capabilities.some(
-      (item) => typeof item !== "string" || !pluginCapabilitiesV4.has(item),
-    ) ||
-    new Set(capabilities).size !== capabilities.length
-  )
-    error(label, "invalid or duplicate capability");
-  if (!v2 && capabilities.includes("generation.execute")) {
-    error(label, "generation.execute is available only to convax.plugin/2");
-  }
-
-  exactKeys(
-    value.contributes,
-    ["canvas", ...(v2 ? ["generation", "service"] : [])],
-    v2 ? [] : ["canvas"],
-    `${label} contributes`,
-  );
-  const hasEntry = value.entry !== undefined;
-  const hasCanvas = value.contributes.canvas !== undefined;
-  if (hasEntry !== hasCanvas)
-    error(label, "entry and Canvas contribution must appear together");
-  if (!v2 && !hasCanvas)
-    error(label, "convax.plugin/1 requires a static Canvas surface");
-  if (capabilities.includes("generation.execute") && !hasCanvas) {
-    error(label, "generation.execute requires a sandboxed Canvas surface");
-  }
-
-  let entry;
-  let canvas;
-  if (hasEntry) {
-    entry = parseRelativePath(value.entry, `${label} entry`);
-    if (!entry.toLowerCase().endsWith(".html"))
-      error(label, "entry must be an HTML file");
-    exactKeys(
-      value.contributes.canvas,
-      ["renderer", "toolbar"],
-      ["renderer"],
-      `${label} canvas`,
-    );
-    const toolbar = parseToolbar(
-      value.contributes.canvas.toolbar,
-      `${label} toolbar`,
-    );
-    canvas = {
-      renderer: parseRenderer(
-        value.contributes.canvas.renderer,
-        `${label} renderer`,
-      ),
-      ...(toolbar === undefined ? {} : { toolbar }),
-    };
-  }
-
-  const hasRuntime = value.runtime !== undefined;
-  const hooks = parseHookModule(value.hooks, `${label} hooks`);
-  const hasGeneration = value.contributes.generation !== undefined;
-  const hasService = value.contributes.service !== undefined;
-  const hasExecutableContribution = hasGeneration || hasService;
-  if (v2 && hasRuntime !== hasExecutableContribution) {
-    error(label, "runtime and executable contribution must appear together");
-  }
-  if (
-    v2 &&
-    !hasRuntime &&
-    hooks === undefined &&
-    !capabilities.includes("generation.execute")
-  ) {
-    error(
-      label,
-      "convax.plugin/2 must declare an executable contribution or request generation.execute",
-    );
-  }
-  const generation = hasGeneration
-    ? parseGeneration(value.contributes.generation, `${label} generation`)
-    : undefined;
-  const service = hasService
-    ? parseService(value.contributes.service, `${label} service`)
-    : undefined;
-  const runtime = hasRuntime
-    ? parseMcpStdioRuntime(value.runtime, `${label} runtime`)
-    : undefined;
-
-  return {
-    capabilities: [...capabilities],
-    contributes: {
-      ...(canvas === undefined ? {} : { canvas }),
-      ...(generation === undefined ? {} : { generation }),
-      ...(service === undefined ? {} : { service }),
-    },
-    description: cleanString(value.description, `${label} description`, 2000),
-    ...(entry === undefined ? {} : { entry }),
-    ...(hooks === undefined ? {} : { hooks }),
-    id: parseId(value.id, `${label} id`),
-    name: cleanString(value.name, `${label} name`, 120),
-    schema: value.schema,
-    ...(value.skill === undefined
-      ? {}
-      : { skill: parseRelativePath(value.skill, `${label} skill`) }),
-    ...(runtime === undefined ? {} : { runtime }),
-    version: parseSemver(value.version, `${label} version`),
-  };
-}
-
-const selectionActionEditors = new Set([
-  "time-point",
-  "time-range",
-  "crop-region",
-  "confirmation",
+const publicationBlockerCodes = new Set([
+  "host-capability-review-required",
+  "release-test-failed",
+  "security-review-required",
+  "unsupported-target",
+  "unverified-runtime-dependency",
 ]);
 
-function parsePluginReferenceId(value, label) {
-  const id = cleanString(value, label, 80);
-  if (!/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/.test(id)) error(label, "invalid id");
-  return id;
-}
-
-function parseLocalizedText(value, label, maxLength) {
-  exactKeys(value, ["default", "zh-CN"], ["default"], label);
-  return {
-    default: cleanString(value.default, `${label} default`, maxLength),
-    ...(value["zh-CN"] === undefined
-      ? {}
-      : { "zh-CN": cleanString(value["zh-CN"], `${label} zh-CN`, maxLength) }),
-  };
-}
-
-function parseGenerationV3(value, label, options = {}) {
-  exactKeys(value, ["models", "tools"], ["models", "tools"], label);
-  const { tools } = parseGeneration({ tools: value.tools }, label, options);
-  if (!Array.isArray(value.models) || value.models.length > 64) {
-    error(label, "models must be an array with at most 64 items");
+function parsePublication(value, label) {
+  exactKeys(value, ["blockers", "status"], ["blockers", "status"], label);
+  if (value.status !== "ready" && value.status !== "blocked") {
+    error(label, "status must be ready or blocked");
   }
-  const models = value.models.map((item, index) => {
-    const itemLabel = `${label} model ${index}`;
-    exactKeys(item, ["name", "tool"], ["name", "tool"], itemLabel);
+  if (!Array.isArray(value.blockers) || value.blockers.length > 16) {
+    error(label, "blockers must be an array with at most 16 items");
+  }
+  const blockers = value.blockers.map((item, index) => {
+    const itemLabel = `${label} blocker ${index}`;
+    exactKeys(item, ["code", "note"], ["code", "note"], itemLabel);
+    const code = cleanString(item.code, `${itemLabel} code`, 80);
+    if (!publicationBlockerCodes.has(code)) {
+      error(itemLabel, `unsupported blocker code ${code}`);
+    }
     return {
-      name: cleanString(item.name, `${itemLabel} name`, 120),
-      tool: parsePluginReferenceId(item.tool, `${itemLabel} tool`),
+      code,
+      note: cleanString(item.note, `${itemLabel} note`, 500),
     };
   });
-  if (new Set(models.map((model) => model.name)).size !== models.length) {
-    error(label, "models contain duplicate names");
+  if (new Set(blockers.map((item) => item.code)).size !== blockers.length) {
+    error(label, "contains duplicate blocker codes");
   }
-  if (new Set(models.map((model) => model.tool)).size !== models.length) {
-    error(label, "models contain duplicate tool references");
+  if (value.status === "ready" && blockers.length !== 0) {
+    error(label, "ready packages must not declare blockers");
   }
-  const toolIds = new Set(tools.map((tool) => tool.id));
-  const missing = models.find((model) => !toolIds.has(model.tool));
-  if (missing)
-    error(
-      label,
-      `model ${missing.name} references unknown generation tool ${missing.tool}`,
-    );
-  const returnedModel = models.find(
-    (model) =>
-      tools.find((tool) => tool.id === model.tool)?.delivery === "return",
-  );
-  if (returnedModel) {
-    error(
-      label,
-      `model ${returnedModel.name} cannot reference return-delivery operation ${returnedModel.tool}`,
-    );
+  if (value.status === "blocked" && blockers.length === 0) {
+    error(label, "blocked packages must declare at least one blocker");
   }
-  const inputBoundModel = models.find(
-    (model) =>
-      tools.find((tool) => tool.id === model.tool)?.inputBinding ===
-      "direct-incoming",
-  );
-  if (inputBoundModel) {
-    error(
-      label,
-      `model ${inputBoundModel.name} cannot reference direct-incoming operation ${inputBoundModel.tool}`,
-    );
-  }
-  return { models, tools };
+  return { status: value.status, blockers };
 }
 
-function parseAgentV3(value, generation, label) {
-  exactKeys(value, ["tools"], ["tools"], label);
-  if (
-    !Array.isArray(value.tools) ||
-    value.tools.length < 1 ||
-    value.tools.length > 32
-  ) {
-    error(label, "tools must be a non-empty array with at most 32 items");
-  }
-  const tools = value.tools.map((item, index) => {
-    const itemLabel = `${label} tool ${index}`;
-    exactKeys(item, ["id", "tool"], ["id", "tool"], itemLabel);
-    return {
-      id: cleanString(item.id, `${itemLabel} id`, 64),
-      tool: parsePluginReferenceId(item.tool, `${itemLabel} tool`),
-    };
-  });
-  const invalidId = tools.find(
-    (tool) => !/^[a-z][a-z0-9_]{0,63}$/.test(tool.id),
-  );
-  if (invalidId)
-    error(
-      label,
-      `agent tool id ${invalidId.id} must use lowercase letters, digits, and underscores`,
-    );
-  if (new Set(tools.map((tool) => tool.id)).size !== tools.length)
-    error(label, "tools contain duplicate ids");
-  if (new Set(tools.map((tool) => tool.tool)).size !== tools.length) {
-    error(label, "tools contain duplicate generation tool references");
-  }
-  const generationToolIds = new Set(generation.tools.map((tool) => tool.id));
-  const modelToolIds = new Set(generation.models.map((model) => model.tool));
-  const missing = tools.find((tool) => !generationToolIds.has(tool.tool));
-  if (missing)
-    error(
-      label,
-      `agent tool ${missing.id} references unknown generation tool ${missing.tool}`,
-    );
-  const model = tools.find((tool) => modelToolIds.has(tool.tool));
-  if (model)
-    error(
-      label,
-      `agent tool ${model.id} must reference a non-model generation tool`,
-    );
-  return { tools };
+const pendingRequestStatus = "pending";
+const pendingRequestDocumentStatus = "Status: pending human review";
+
+export function requiresSdkOwnedPetSurfaceClient(manifest, _files) {
+  return manifest?.contributes?.pet?.protocol === "convax.pet-host/1";
 }
 
-function parseSelectionActionsV3(
-  value,
-  generation,
-  label,
-  {
-    allowImmediateImageOutput = false,
-    allowReturnSelectionActions = false,
-  } = {},
+export function assertPluginHostCapabilityDeclarations(
+  manifest,
+  _files,
+  declarations,
+  label = "Plugin",
 ) {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 32) {
-    error(label, "must be a non-empty array with at most 32 items");
+  const declared = new Set(declarations ?? []);
+  const requiredRequests = [[
+    requiresSdkOwnedPetSurfaceClient(manifest),
+    "sdk-owned-pet-surface-client",
+    "contains a handwritten Pet Host request transport instead of an SDK-owned client",
+  ]];
+  for (const [required, requestId, reason] of requiredRequests) {
+    if (required && !declared.has(requestId)) {
+      error(
+        label,
+        `${reason}; declare ${requestId} and remain publication-blocked pending human review`,
+      );
+    }
   }
-  const actions = value.map((item, index) => {
-    const itemLabel = `${label} item ${index}`;
-    exactKeys(
-      item,
-      [
-        "description",
-        "editor",
-        "id",
-        ...(allowImmediateImageOutput ? ["presentation"] : []),
-        "steps",
-        "target",
-        "title",
-      ],
-      ["description", "editor", "id", "steps", "target", "title"],
-      itemLabel,
-    );
-    if (
-      item.target !== "video" &&
-      !(allowReturnSelectionActions && item.target === "image")
-    ) {
-      error(
-        itemLabel,
-        allowReturnSelectionActions
-          ? "target must be image or video"
-          : "target must be video",
-      );
-    }
-    const target = item.target;
-    if (
-      !selectionActionEditors.has(item.editor) &&
-      !(allowImmediateImageOutput && item.editor === "immediate")
-    )
-      error(itemLabel, "unsupported editor");
-    if (
-      !Array.isArray(item.steps) ||
-      item.steps.length < 1 ||
-      item.steps.length > 16
-    ) {
-      error(itemLabel, "steps must be a non-empty array with at most 16 items");
-    }
-    if (item.editor !== "confirmation" && item.steps.length !== 1) {
-      error(itemLabel, "non-confirmation editors require exactly one step");
-    }
-    const steps = item.steps.map((step, stepIndex) => {
-      const stepLabel = `${itemLabel} step ${stepIndex}`;
-      exactKeys(step, ["tool"], ["tool"], stepLabel);
-      return { tool: parsePluginReferenceId(step.tool, `${stepLabel} tool`) };
-    });
-    if (new Set(steps.map((step) => step.tool)).size !== steps.length) {
-      error(itemLabel, "steps contain duplicate tool references");
-    }
-    const generationTools = new Map(
-      generation.tools.map((tool) => [tool.id, tool]),
-    );
-    const modelToolIds = new Set(generation.models.map((model) => model.tool));
-    const missing = steps.find((step) => !generationTools.has(step.tool));
-    if (missing)
-      error(itemLabel, `references unknown generation tool ${missing.tool}`);
-    const model = steps.find((step) => modelToolIds.has(step.tool));
-    if (model)
-      error(
-        itemLabel,
-        `must reference a non-model generation tool, not ${model.tool}`,
-      );
-    const returned = steps.find(
-      (step) => generationTools.get(step.tool).delivery === "return",
-    );
-    if (returned && !allowReturnSelectionActions) {
-      error(
-        itemLabel,
-        `cannot reference return-delivery operation ${returned.tool}`,
-      );
-    }
-    if (allowReturnSelectionActions) {
-      const inputBound = steps.find(
-        (step) => generationTools.get(step.tool).inputBinding !== undefined,
-      );
-      if (inputBound) {
-        error(
-          itemLabel,
-          `cannot reference an input-bound operation ${inputBound.tool}`,
-        );
-      }
-    }
-    if (returned && allowReturnSelectionActions) {
-      if (item.editor !== "confirmation") {
-        error(
-          itemLabel,
-          `return-delivery operation ${returned.tool} requires a confirmation editor`,
-        );
-      }
-      if (steps.length !== 1) {
-        error(
-          itemLabel,
-          `return-delivery operation ${returned.tool} requires exactly one step`,
-        );
-      }
-      if (generationTools.get(returned.tool).output !== "text") {
-        error(
-          itemLabel,
-          `return-delivery operation ${returned.tool} must return text`,
-        );
-      }
-    } else if (allowReturnSelectionActions && target === "image") {
-      if (!allowImmediateImageOutput) {
-        error(itemLabel, "image selection action requires a return-delivery operation");
-      }
-      const tool = generationTools.get(steps[0]?.tool);
-      if (
-        item.editor !== "immediate" ||
-        item.presentation !== "cutout-scan" ||
-        steps.length !== 1 ||
-        tool?.output !== "image"
-      ) {
-        error(
-          itemLabel,
-          "image Canvas output requires one immediate image operation with cutout-scan presentation",
-        );
-      }
-    }
-    if (item.editor === "immediate" && target !== "image") {
-      error(itemLabel, "immediate editor target must be image");
-    }
-    if (
-      item.presentation !== undefined &&
-      (item.editor !== "immediate" || item.presentation !== "cutout-scan")
-    ) {
-      error(itemLabel, "unsupported selection action presentation");
-    }
-    const referenceRole =
-      target === "image" ? "reference_image" : "reference_video";
-    const incompatible = steps.find(
-      (step) =>
-        !generationTools
-          .get(step.tool)
-          .acceptedInputs.includes(referenceRole),
-    );
-    if (incompatible)
-      error(itemLabel, `tool ${incompatible.tool} must accept ${referenceRole}`);
-    return {
-      description: parseLocalizedText(
-        item.description,
-        `${itemLabel} description`,
-        2000,
-      ),
-      editor: item.editor,
-      id: parsePluginReferenceId(item.id, `${itemLabel} id`),
-      ...(item.presentation === undefined
-        ? {}
-        : { presentation: item.presentation }),
-      steps,
-      target,
-      title: parseLocalizedText(item.title, `${itemLabel} title`, 120),
-    };
-  });
-  if (new Set(actions.map((action) => action.id)).size !== actions.length)
-    error(label, "contains duplicate ids");
-  return actions;
 }
 
-function parseSelectionActionsV7(value, generation, label) {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 32) {
-    error(label, "must be a non-empty array with at most 32 items");
+export function parseHostCapabilityPolicy(
+  value,
+  label = "registry/host-capability-policy.json",
+) {
+  exactKeys(value, ["requests", "schema"], ["requests", "schema"], label);
+  if (value.schema !== "convax.host-capability-policy/1") {
+    error(label, "unsupported schema");
   }
-  const actions = value.map((item, index) => {
-    const itemLabel = `${label} item ${index}`;
-    if (isObject(item) && item.action !== undefined) {
+  if (
+    !Array.isArray(value.requests) ||
+    value.requests.length > 1_000
+  ) {
+    error(label, "requests must be an array with at most 1000 items");
+  }
+  const requests = value.requests.map((request, requestIndex) => {
+    const requestLabel = `${label} request ${requestIndex}`;
+    exactKeys(
+      request,
+      ["affected", "document", "humanDecision", "id", "status"],
+      ["affected", "document", "humanDecision", "id", "status"],
+      requestLabel,
+    );
+    const id = cleanString(request.id, `${requestLabel} id`, 128);
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) {
+      error(requestLabel, "id must be a lowercase kebab-case identifier");
+    }
+    const document = parseRelativePath(
+      request.document,
+      `${requestLabel} document`,
+    );
+    if (document !== `docs/host-capability-requests/${id}.md`) {
+      error(
+        requestLabel,
+        `document must equal docs/host-capability-requests/${id}.md`,
+      );
+    }
+    if (request.status !== pendingRequestStatus) {
+      error(
+        requestLabel,
+        "only pending requests are accepted; approval requires a trusted, externally verified human decision receipt",
+      );
+    }
+    if (request.humanDecision !== null) {
+      error(
+        requestLabel,
+        "humanDecision must remain null until a trusted receipt verifier is introduced",
+      );
+    }
+    if (
+      !Array.isArray(request.affected) ||
+      request.affected.length < 1 ||
+      request.affected.length > 1_000
+    ) {
+      error(requestLabel, "affected must contain from 1 to 1000 package versions");
+    }
+    const affected = request.affected.map((item, itemIndex) => {
+      const itemLabel = `${requestLabel} affected ${itemIndex}`;
       exactKeys(
         item,
-        ["action", "description", "id", "target", "title"],
-        ["action", "description", "id", "target", "title"],
+        ["blocker", "id", "kind", "version"],
+        ["blocker", "id", "kind", "version"],
         itemLabel,
       );
-      if (item.target !== "video") error(itemLabel, "target must be video");
+      if (item.kind !== "plugin" && item.kind !== "skill") {
+        error(itemLabel, "kind must be plugin or skill");
+      }
       exactKeys(
-        item.action,
-        ["connect", "type"],
-        ["connect", "type"],
-        `${itemLabel} action`,
+        item.blocker,
+        ["code", "note"],
+        ["code", "note"],
+        `${itemLabel} blocker`,
       );
-      if (item.action.type !== "materialize-own-plugin-node")
-        error(itemLabel, "action type must be materialize-own-plugin-node");
-      if (item.action.connect !== "selection-to-created")
-        error(itemLabel, "action connect must be selection-to-created");
-      return {
-        action: {
-          connect: "selection-to-created",
-          type: "materialize-own-plugin-node",
-        },
-        description: parseLocalizedText(
-          item.description,
-          `${itemLabel} description`,
-          2000,
-        ),
-        id: parsePluginReferenceId(item.id, `${itemLabel} id`),
-        target: "video",
-        title: parseLocalizedText(item.title, `${itemLabel} title`, 120),
-      };
-    }
-    if (generation === undefined)
-      error(
-        itemLabel,
-        "generation-backed selection action requires a generation contribution",
+      const publication = parsePublication(
+        { status: "blocked", blockers: [item.blocker] },
+        `${itemLabel} publication`,
       );
-    return parseSelectionActionsV3([item], generation, itemLabel, {
-      allowImmediateImageOutput: true,
-      allowReturnSelectionActions: true,
-    })[0];
-  });
-  if (new Set(actions.map((action) => action.id)).size !== actions.length)
-    error(label, "contains duplicate ids");
-  return actions;
-}
-
-function parseCanvasV7(value, generation, label) {
-  exactKeys(value, ["renderer", "selectionActions", "toolbar"], [], label);
-  if (value.toolbar !== undefined && value.renderer === undefined)
-    error(label, "toolbar requires a renderer");
-  if (value.renderer === undefined && value.selectionActions === undefined)
-    error(label, "must declare a renderer or selectionActions");
-  const renderer =
-    value.renderer === undefined
-      ? undefined
-      : parseRenderer(value.renderer, `${label} renderer`);
-  const selectionActions =
-    value.selectionActions === undefined
-      ? undefined
-      : parseSelectionActionsV7(
-          value.selectionActions,
-          generation,
-          `${label} selectionActions`,
-        );
-  if (
-    selectionActions?.some(
-      (action) => action.action?.type === "materialize-own-plugin-node",
-    ) &&
-    renderer === undefined
-  ) {
-    error(
-      label,
-      "materialize-own-plugin-node requires the contributing Plugin renderer",
-    );
-  }
-  const toolbar = parseToolbar(value.toolbar, `${label} toolbar`);
-  return {
-    ...(renderer === undefined ? {} : { renderer }),
-    ...(selectionActions === undefined ? {} : { selectionActions }),
-    ...(toolbar === undefined ? {} : { toolbar }),
-  };
-}
-
-function parseCanvasV3(
-  value,
-  generation,
-  label,
-  { allowReturnSelectionActions = false } = {},
-) {
-  exactKeys(value, ["renderer", "selectionActions", "toolbar"], [], label);
-  if (value.toolbar !== undefined && value.renderer === undefined) {
-    error(label, "toolbar requires a renderer");
-  }
-  if (value.renderer === undefined && value.selectionActions === undefined) {
-    error(label, "must declare a renderer or selectionActions");
-  }
-  const renderer =
-    value.renderer === undefined
-      ? undefined
-      : parseRenderer(value.renderer, `${label} renderer`);
-  const selectionActions =
-    value.selectionActions === undefined
-      ? undefined
-      : parseSelectionActionsV3(
-          value.selectionActions,
-          generation,
-          `${label} selectionActions`,
-          { allowReturnSelectionActions },
-        );
-  const toolbar = parseToolbar(value.toolbar, `${label} toolbar`);
-  return {
-    ...(renderer === undefined ? {} : { renderer }),
-    ...(selectionActions === undefined ? {} : { selectionActions }),
-    ...(toolbar === undefined ? {} : { toolbar }),
-  };
-}
-
-function parsePluginManifestV3(value, label) {
-  const required = [
-    "contributes",
-    "description",
-    "id",
-    "name",
-    "schema",
-    "version",
-  ];
-  exactKeys(
-    value,
-    [
-      "capabilities",
-      "contributes",
-      "description",
-      "entry",
-      "hooks",
-      "id",
-      "name",
-      "runtime",
-      "schema",
-      "skill",
-      "version",
-    ],
-    required,
-    label,
-  );
-  exactKeys(
-    value.contributes,
-    ["agent", "canvas", "generation", "service"],
-    [],
-    `${label} contributes`,
-  );
-
-  const capabilities = value.capabilities ?? [];
-  if (
-    !Array.isArray(capabilities) ||
-    capabilities.length > pluginCapabilitiesV4.size ||
-    capabilities.some(
-      (item) => typeof item !== "string" || !pluginCapabilitiesV4.has(item),
-    ) ||
-    new Set(capabilities).size !== capabilities.length
-  )
-    error(label, "invalid or duplicate capability");
-
-  const hasRuntime = value.runtime !== undefined;
-  const hooks = parseHookModule(value.hooks, `${label} hooks`);
-  const hasGeneration = value.contributes.generation !== undefined;
-  const hasService = value.contributes.service !== undefined;
-  if (hasRuntime !== (hasGeneration || hasService)) {
-    error(label, "runtime and executable contribution must appear together");
-  }
-  if (
-    !hasRuntime &&
-    hooks === undefined &&
-    !capabilities.includes("generation.execute")
-  ) {
-    error(
-      label,
-      "convax.plugin/3 must declare an executable contribution or request generation.execute",
-    );
-  }
-
-  const generation = hasGeneration
-    ? parseGenerationV3(value.contributes.generation, `${label} generation`)
-    : undefined;
-  if (value.contributes.agent !== undefined && generation === undefined) {
-    error(label, "agent tools require a generation contribution");
-  }
-  const agent =
-    value.contributes.agent === undefined
-      ? undefined
-      : parseAgentV3(value.contributes.agent, generation, `${label} agent`);
-
-  const hasCanvas = value.contributes.canvas !== undefined;
-  if (
-    hasCanvas &&
-    value.contributes.canvas.selectionActions !== undefined &&
-    generation === undefined
-  ) {
-    error(label, "selectionActions require a generation contribution");
-  }
-  const canvas = hasCanvas
-    ? parseCanvasV3(value.contributes.canvas, generation, `${label} canvas`)
-    : undefined;
-  const hasRenderer = canvas?.renderer !== undefined;
-  const hasEntry = value.entry !== undefined;
-  if (hasEntry !== hasRenderer)
-    error(label, "entry and Canvas renderer must appear together");
-  if (capabilities.includes("generation.execute") && !hasRenderer) {
-    error(label, "generation.execute requires a sandboxed Canvas renderer");
-  }
-
-  let entry;
-  if (hasEntry) {
-    entry = parseRelativePath(value.entry, `${label} entry`);
-    if (!entry.toLowerCase().endsWith(".html"))
-      error(label, "entry must be an HTML file");
-  }
-
-  const service = hasService
-    ? parseService(value.contributes.service, `${label} service`)
-    : undefined;
-  const runtime = hasRuntime
-    ? parseMcpStdioRuntime(value.runtime, `${label} runtime`)
-    : undefined;
-  return {
-    capabilities: [...capabilities],
-    contributes: {
-      ...(agent === undefined ? {} : { agent }),
-      ...(canvas === undefined ? {} : { canvas }),
-      ...(generation === undefined ? {} : { generation }),
-      ...(service === undefined ? {} : { service }),
-    },
-    description: cleanString(value.description, `${label} description`, 2000),
-    ...(entry === undefined ? {} : { entry }),
-    ...(hooks === undefined ? {} : { hooks }),
-    id: parseId(value.id, `${label} id`),
-    name: cleanString(value.name, `${label} name`, 120),
-    schema: "convax.plugin/3",
-    ...(value.skill === undefined
-      ? {}
-      : { skill: parseRelativePath(value.skill, `${label} skill`) }),
-    ...(runtime === undefined ? {} : { runtime }),
-    version: parseSemver(value.version, `${label} version`),
-  };
-}
-
-function parseOwnedSkillsV4(value, label) {
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value) || value.length < 1 || value.length > 32) {
-    error(label, "must be a non-empty array with at most 32 items");
-  }
-  const skills = value.map((item, index) => {
-    const itemLabel = `${label} item ${index}`;
-    exactKeys(item, ["name", "path"], ["name", "path"], itemLabel);
-    const name = parseId(item.name, `${itemLabel} name`);
-    if (name.length > 64)
-      error(itemLabel, "name must be at most 64 characters");
-    const skillPath = parseRelativePath(item.path, `${itemLabel} path`);
-    if (skillPath !== `skills/${name}`)
-      error(itemLabel, `path must equal skills/${name}`);
-    return { name, path: skillPath };
-  });
-  if (new Set(skills.map((skill) => skill.name)).size !== skills.length) {
-    error(label, "contains duplicate names");
-  }
-  if (new Set(skills.map((skill) => skill.path)).size !== skills.length) {
-    error(label, "contains duplicate paths");
-  }
-  return skills;
-}
-
-function parseAgentRemoteMcpV6(value, label) {
-  exactKeys(value, ["headers", "oauth", "type", "url"], ["type", "url"], label);
-  if (value.type !== "remote") error(label, "type must be remote");
-  const url = cleanString(value.url, `${label} url`, 2048);
-  try {
-    const parsed = new URL(url);
-    if (
-      parsed.protocol !== "https:" ||
-      parsed.username !== "" ||
-      parsed.password !== "" ||
-      parsed.hash !== ""
-    ) {
-      throw new Error();
-    }
-  } catch {
-    error(
-      label,
-      "url must be an absolute HTTPS URL without credentials or a fragment",
-    );
-  }
-  if (
-    value.oauth !== undefined &&
-    value.oauth !== "auto" &&
-    value.oauth !== "none"
-  ) {
-    error(label, "oauth must be auto or none");
-  }
-  let headers;
-  if (value.headers !== undefined) {
-    if (!isObject(value.headers))
-      error(`${label} headers`, "must be an object");
-    const entries = Object.entries(value.headers);
-    if (entries.length > 16)
-      error(`${label} headers`, "must contain at most 16 entries");
-    const normalizedNames = new Set();
-    headers = {};
-    for (const [name, rawValue] of entries) {
-      if (!/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(name)) {
-        error(`${label} headers`, `invalid header name ${name}`);
-      }
-      const normalizedName = name.toLowerCase();
-      if (normalizedNames.has(normalizedName)) {
-        error(`${label} headers`, `contains duplicate header name ${name}`);
-      }
       if (
-        normalizedName === "authorization" ||
-        normalizedName === "cookie" ||
-        normalizedName === "proxy-authorization"
-      ) {
-        error(`${label} headers`, `header ${name} is not allowed`);
-      }
-      const literal = cleanString(rawValue, `${label} header ${name}`, 2048);
-      if (/\{(?:env|file):/i.test(literal) || /\$\{[^}]*\}/.test(literal)) {
-        error(`${label} header ${name}`, "must be a literal value");
-      }
-      normalizedNames.add(normalizedName);
-      headers[name] = literal;
-    }
-  }
-  return {
-    ...(headers === undefined ? {} : { headers }),
-    oauth: value.oauth === "none" ? "none" : "auto",
-    type: "remote",
-    url,
-  };
-}
-
-function parseAgentV6(value, generation, label) {
-  exactKeys(value, ["mcp", "tools"], [], label);
-  if (value.mcp === undefined && value.tools === undefined) {
-    error(label, "must declare tools or mcp");
-  }
-  if (value.tools !== undefined && generation === undefined) {
-    error(label, "agent tools require a generation contribution");
-  }
-  const tools =
-    value.tools === undefined
-      ? undefined
-      : parseAgentV3({ tools: value.tools }, generation, label).tools;
-  const mcp =
-    value.mcp === undefined
-      ? undefined
-      : parseAgentRemoteMcpV6(value.mcp, `${label} mcp`);
-  return {
-    ...(mcp === undefined ? {} : { mcp }),
-    ...(tools === undefined ? {} : { tools }),
-  };
-}
-
-function parsePluginManifestV4Plus(value, label) {
-  const schema = value.schema;
-  const v5OrLater =
-    schema === "convax.plugin/5" ||
-    schema === "convax.plugin/6" ||
-    schema === "convax.plugin/7";
-  const v6OrLater =
-    schema === "convax.plugin/6" || schema === "convax.plugin/7";
-  const v6 = schema === "convax.plugin/6";
-  const v7 = schema === "convax.plugin/7";
-  const required = [
-    "contributes",
-    "description",
-    "id",
-    "name",
-    "schema",
-    "version",
-  ];
-  exactKeys(
-    value,
-    [
-      "capabilities",
-      "contributes",
-      "description",
-      "entry",
-      "hooks",
-      "id",
-      "name",
-      "runtime",
-      "schema",
-      "version",
-    ],
-    required,
-    label,
-  );
-  exactKeys(
-    value.contributes,
-    [
-      "agent",
-      "canvas",
-      "generation",
-      ...(v5OrLater ? ["llm"] : []),
-      "service",
-      "skills",
-    ],
-    [],
-    `${label} contributes`,
-  );
-
-  const capabilities = value.capabilities ?? [];
-  const allowedCapabilities = v7
-    ? pluginCapabilitiesV7
-    : v6
-      ? pluginCapabilitiesV6
-      : v5OrLater
-        ? pluginCapabilitiesV5
-        : pluginCapabilitiesV4;
-  if (
-    !Array.isArray(capabilities) ||
-    capabilities.length > allowedCapabilities.size ||
-    capabilities.some(
-      (item) => typeof item !== "string" || !allowedCapabilities.has(item),
-    ) ||
-    new Set(capabilities).size !== capabilities.length
-  )
-    error(label, "invalid or duplicate capability");
-
-  const hasRuntime = value.runtime !== undefined;
-  const hooks = parseHookModule(value.hooks, `${label} hooks`);
-  const hasGeneration = value.contributes.generation !== undefined;
-  const hasService = value.contributes.service !== undefined;
-  const hasLlm = value.contributes.llm !== undefined;
-  if (hasRuntime !== (hasGeneration || hasService || hasLlm)) {
-    error(label, "runtime and executable contribution must appear together");
-  }
-
-  const generation = hasGeneration
-    ? parseGenerationV3(value.contributes.generation, `${label} generation`, {
-        allowReturnDelivery: v6OrLater,
-      })
-    : undefined;
-  if (!v6OrLater && value.contributes.agent !== undefined) {
-    exactKeys(value.contributes.agent, ["tools"], ["tools"], `${label} agent`);
-  }
-  if (
-    !v6OrLater &&
-    value.contributes.agent !== undefined &&
-    generation === undefined
-  ) {
-    error(label, "agent tools require a generation contribution");
-  }
-  const agent =
-    value.contributes.agent === undefined
-      ? undefined
-      : v6OrLater
-        ? parseAgentV6(value.contributes.agent, generation, `${label} agent`)
-        : parseAgentV3(value.contributes.agent, generation, `${label} agent`);
-
-  const hasCanvas = value.contributes.canvas !== undefined;
-  if (
-    hasCanvas &&
-    !v7 &&
-    value.contributes.canvas.selectionActions !== undefined &&
-    generation === undefined
-  ) {
-    error(label, "selectionActions require a generation contribution");
-  }
-  const canvas = hasCanvas
-    ? v7
-      ? parseCanvasV7(value.contributes.canvas, generation, `${label} canvas`)
-      : parseCanvasV3(
-          value.contributes.canvas,
-          generation,
-          `${label} canvas`,
-          { allowReturnSelectionActions: v6 },
-        )
-    : undefined;
-  const hasRenderer = canvas?.renderer !== undefined;
-  const hasProjectCanvasCapability = capabilities.some((capability) =>
-    pluginProjectCanvasCapabilities.has(capability),
-  );
-  if (
-    !hasRuntime &&
-    hooks === undefined &&
-    !hasRenderer &&
-    !capabilities.includes("generation.execute") &&
-    !hasProjectCanvasCapability &&
-    agent?.mcp === undefined
-  ) {
-    error(
-      label,
-      `${schema} must declare a Plugin capability beyond owned Skills`,
-    );
-  }
-  const hasEntry = value.entry !== undefined;
-  if (hasEntry !== hasRenderer)
-    error(label, "entry and Canvas renderer must appear together");
-  if (capabilities.includes("generation.execute") && !hasRenderer) {
-    error(label, "generation.execute requires a sandboxed Canvas renderer");
-  }
-  if (capabilities.includes("canvas.resources.write") && !hasRenderer) {
-    error(label, "canvas.resources.write requires a sandboxed Canvas renderer");
-  }
-  if (capabilities.includes("canvas.connectedMedia.stream") && !hasRenderer) {
-    error(
-      label,
-      "canvas.connectedMedia.stream requires a sandboxed Canvas renderer",
-    );
-  }
-
-  let entry;
-  if (hasEntry) {
-    entry = parseRelativePath(value.entry, `${label} entry`);
-    if (!entry.toLowerCase().endsWith(".html"))
-      error(label, "entry must be an HTML file");
-  }
-
-  const service = hasService
-    ? parseService(value.contributes.service, `${label} service`)
-    : undefined;
-  const llm = hasLlm
-    ? parseLlmV5(value.contributes.llm, `${label} llm`)
-    : undefined;
-  const skills = parseOwnedSkillsV4(
-    value.contributes.skills,
-    `${label} skills`,
-  );
-  const runtime = hasRuntime
-    ? parseMcpStdioRuntime(value.runtime, `${label} runtime`)
-    : undefined;
-  return {
-    capabilities: [...capabilities],
-    contributes: {
-      ...(agent === undefined ? {} : { agent }),
-      ...(canvas === undefined ? {} : { canvas }),
-      ...(generation === undefined ? {} : { generation }),
-      ...(llm === undefined ? {} : { llm }),
-      ...(service === undefined ? {} : { service }),
-      ...(skills === undefined ? {} : { skills }),
-    },
-    description: cleanString(value.description, `${label} description`, 2000),
-    ...(entry === undefined ? {} : { entry }),
-    ...(hooks === undefined ? {} : { hooks }),
-    id: parseId(value.id, `${label} id`),
-    name: cleanString(value.name, `${label} name`, 120),
-    schema,
-    ...(runtime === undefined ? {} : { runtime }),
-    version: parseSemver(value.version, `${label} version`),
-  };
-}
-
-function parseLlmV5(value, label) {
-  exactKeys(
-    value,
-    ["modelCatalog", "models", "provider"],
-    ["models", "provider"],
-    label,
-  );
-  exactKeys(
-    value.provider,
-    ["id", "name"],
-    ["id", "name"],
-    `${label} provider`,
-  );
-  const providerId = parseId(value.provider.id, `${label} provider id`);
-  if (value.modelCatalog !== undefined && value.modelCatalog !== "runtime") {
-    error(label, "modelCatalog must equal runtime");
-  }
-  if (
-    !Array.isArray(value.models) ||
-    value.models.length < 1 ||
-    value.models.length > 32
-  ) {
-    error(label, "models must be a non-empty array with at most 32 items");
-  }
-  const models = value.models.map((item, index) => {
-    const itemLabel = `${label} model ${index}`;
-    exactKeys(item, ["id", "name"], ["id", "name"], itemLabel);
-    const id = cleanString(item.id, `${itemLabel} id`, 128);
-    if (!/^~?[a-z0-9]+(?:[._/:-][a-z0-9]+)*$/.test(id))
-      error(itemLabel, "invalid id");
-    return { id, name: cleanString(item.name, `${itemLabel} name`, 120) };
-  });
-  if (new Set(models.map((model) => model.id)).size !== models.length)
-    error(label, "models contain duplicate ids");
-  return {
-    ...(value.modelCatalog === undefined
-      ? {}
-      : { modelCatalog: value.modelCatalog }),
-    models,
-    provider: {
-      id: providerId,
-      name: cleanString(value.provider.name, `${label} provider name`, 120),
-    },
-  };
-}
-
-function parsePetV5(value, label) {
-  exactKeys(
-    value,
-    ["library", "overlay", "protocol", "settings"],
-    ["library", "overlay", "protocol", "settings"],
-    label,
-  );
-  const library = parseRelativePath(value.library, `${label} library`);
-  const overlay = parseRelativePath(value.overlay, `${label} overlay`);
-  const settings = parseRelativePath(value.settings, `${label} settings`);
-  if (!library.toLowerCase().endsWith(".json"))
-    error(label, "library must be a JSON file");
-  if (!overlay.toLowerCase().endsWith(".html"))
-    error(label, "overlay must be an HTML file");
-  if (!settings.toLowerCase().endsWith(".html"))
-    error(label, "settings must be an HTML file");
-  if (value.protocol !== "convax.pet-host/1")
-    error(label, "protocol must equal convax.pet-host/1");
-  return { library, overlay, protocol: "convax.pet-host/1", settings };
-}
-
-function parsePluginManifestV5(value, label) {
-  const required = [
-    "contributes",
-    "description",
-    "id",
-    "name",
-    "schema",
-    "version",
-  ];
-  exactKeys(
-    value,
-    [
-      "capabilities",
-      "contributes",
-      "description",
-      "entry",
-      "hooks",
-      "id",
-      "name",
-      "runtime",
-      "schema",
-      "version",
-    ],
-    required,
-    label,
-  );
-  exactKeys(
-    value.contributes,
-    ["agent", "canvas", "generation", "llm", "pet", "service", "skills"],
-    [],
-    `${label} contributes`,
-  );
-
-  const capabilities = value.capabilities ?? [];
-  if (
-    !Array.isArray(capabilities) ||
-    capabilities.length > pluginCapabilities.size ||
-    capabilities.some(
-      (item) => typeof item !== "string" || !pluginCapabilities.has(item),
-    ) ||
-    new Set(capabilities).size !== capabilities.length
-  )
-    error(label, "invalid or duplicate capability");
-
-  const hasGeneration = value.contributes.generation !== undefined;
-  const hasService = value.contributes.service !== undefined;
-  const hasLlm = value.contributes.llm !== undefined;
-  const hasRuntime = value.runtime !== undefined;
-  const hooks = parseHookModule(value.hooks, `${label} hooks`);
-  if (hasRuntime !== (hasGeneration || hasService || hasLlm)) {
-    error(label, "runtime and executable contribution must appear together");
-  }
-
-  const generation = hasGeneration
-    ? parseGenerationV3(value.contributes.generation, `${label} generation`)
-    : undefined;
-  if (value.contributes.agent !== undefined) {
-    exactKeys(value.contributes.agent, ["tools"], ["tools"], `${label} agent`);
-  }
-  if (value.contributes.agent !== undefined && generation === undefined) {
-    error(label, "agent tools require a generation contribution");
-  }
-  const agent =
-    value.contributes.agent === undefined
-      ? undefined
-      : parseAgentV3(value.contributes.agent, generation, `${label} agent`);
-
-  const hasCanvas = value.contributes.canvas !== undefined;
-  if (
-    hasCanvas &&
-    value.contributes.canvas.selectionActions !== undefined &&
-    generation === undefined
-  ) {
-    error(label, "selectionActions require a generation contribution");
-  }
-  const canvas = hasCanvas
-    ? parseCanvasV3(value.contributes.canvas, generation, `${label} canvas`)
-    : undefined;
-  const hasRenderer = canvas?.renderer !== undefined;
-  const hasEntry = value.entry !== undefined;
-  if (hasEntry !== hasRenderer)
-    error(label, "entry and Canvas renderer must appear together");
-  if (capabilities.includes("generation.execute") && !hasRenderer) {
-    error(label, "generation.execute requires a sandboxed Canvas renderer");
-  }
-
-  const skills = parseOwnedSkillsV4(
-    value.contributes.skills,
-    `${label} skills`,
-  );
-  const pet =
-    value.contributes.pet === undefined
-      ? undefined
-      : parsePetV5(value.contributes.pet, `${label} pet`);
-  if (pet !== undefined) {
-    const requiredPetCapabilities = [
-      "pet.activity.read",
-      "pet.activity.open",
-      "pet.preferences.write",
-    ];
-    const allowedPetCapabilities = new Set([
-      ...requiredPetCapabilities,
-      "pet.custom.manage",
-    ]);
-    if (
-      capabilities.length < requiredPetCapabilities.length ||
-      capabilities.length > allowedPetCapabilities.size ||
-      requiredPetCapabilities.some(
-        (capability) => !capabilities.includes(capability),
-      ) ||
-      capabilities.some((capability) => !allowedPetCapabilities.has(capability))
-    ) {
-      error(
-        label,
-        "pet capabilities must be exactly pet.activity.read, pet.activity.open, and pet.preferences.write, with optional pet.custom.manage",
-      );
-    }
-    if (hasRuntime)
-      error(label, "pet feature cannot declare an executable runtime");
-  }
-  const hasProjectCapability = capabilities.some((capability) =>
-    pluginV5Capabilities.has(capability),
-  );
-  if (
-    !hasRuntime &&
-    !hasRenderer &&
-    !canvas?.selectionActions?.length &&
-    hooks === undefined &&
-    !capabilities.includes("generation.execute") &&
-    !hasProjectCapability &&
-    pet === undefined
-  ) {
-    error(
-      label,
-      "convax.plugin/5 must declare a Plugin capability beyond owned Skills",
-    );
-  }
-
-  let entry;
-  if (hasEntry) {
-    entry = parseRelativePath(value.entry, `${label} entry`);
-    if (!entry.toLowerCase().endsWith(".html"))
-      error(label, "entry must be an HTML file");
-  }
-  const llm = hasLlm
-    ? parseLlmV5(value.contributes.llm, `${label} llm`)
-    : undefined;
-  const service = hasService
-    ? parseService(value.contributes.service, `${label} service`)
-    : undefined;
-  const runtime = hasRuntime
-    ? parseMcpStdioRuntime(value.runtime, `${label} runtime`)
-    : undefined;
-  return {
-    capabilities: [...capabilities],
-    contributes: {
-      ...(agent === undefined ? {} : { agent }),
-      ...(canvas === undefined ? {} : { canvas }),
-      ...(generation === undefined ? {} : { generation }),
-      ...(llm === undefined ? {} : { llm }),
-      ...(pet === undefined ? {} : { pet }),
-      ...(service === undefined ? {} : { service }),
-      ...(skills === undefined ? {} : { skills }),
-    },
-    description: cleanString(value.description, `${label} description`, 2_000),
-    ...(entry === undefined ? {} : { entry }),
-    ...(hooks === undefined ? {} : { hooks }),
-    id: parseId(value.id, `${label} id`),
-    name: cleanString(value.name, `${label} name`, 120),
-    schema: "convax.plugin/5",
-    ...(runtime === undefined ? {} : { runtime }),
-    version: parseSemver(value.version, `${label} version`),
-  };
-}
-
-export function parsePluginManifest(value, label = "manifest.json") {
-  if (
-    !isObject(value) ||
-    (value.schema !== "convax.plugin/1" &&
-      value.schema !== "convax.plugin/2" &&
-      value.schema !== "convax.plugin/3" &&
-      value.schema !== "convax.plugin/4" &&
-      value.schema !== "convax.plugin/5" &&
-      value.schema !== "convax.plugin/6" &&
-      value.schema !== "convax.plugin/7")
-  ) {
-    error(label, "unsupported schema");
-  }
-  if (
-    value.schema === "convax.plugin/4" ||
-    value.schema === "convax.plugin/6" ||
-    value.schema === "convax.plugin/7"
-  ) {
-    return parsePluginManifestV4Plus(value, label);
-  }
-  if (value.schema === "convax.plugin/5")
-    return parsePluginManifestV5(value, label);
-  if (value.schema === "convax.plugin/3")
-    return parsePluginManifestV3(value, label);
-  return parseLegacyPluginManifest(value, label);
-}
-
-const serviceActions = new Set([
-  "authorize",
-  "reauthorize",
-  "authorization.cancel",
-  "checkout",
-  "sign_out",
-]);
-
-function parseService(value, label) {
-  exactKeys(value, ["actions"], ["actions"], label);
-  if (
-    !Array.isArray(value.actions) ||
-    value.actions.length > serviceActions.size ||
-    value.actions.some(
-      (action) => typeof action !== "string" || !serviceActions.has(action),
-    ) ||
-    new Set(value.actions).size !== value.actions.length
-  ) {
-    error(
-      label,
-      "actions contains an unsupported or duplicate fixed host action",
-    );
-  }
-  return { actions: [...value.actions] };
-}
-
-function parseMcpStdioRuntime(value, label) {
-  exactKeys(value, ["args", "command", "type"], ["command", "type"], label);
-  if (value.type !== "mcp-stdio") error(label, "type must be mcp-stdio");
-  const command = cleanString(value.command, `${label} command`, 128);
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(command))
-    error(label, "command must be a bare executable name");
-  validatePortableSegment(command, `${label} command`);
-  let args;
-  if (value.args !== undefined) {
-    if (!Array.isArray(value.args) || value.args.length > 64)
-      error(label, "args must contain at most 64 items");
-    args = value.args.map((item, index) => {
-      const argument = cleanString(item, `${label} arg ${index}`, 1024);
-      if (
-        /[\s"'`;|&`$(){}[\]<>]/.test(argument) ||
-        argument.includes("\\") ||
-        /(^|=)(?:\/|[A-Za-z]:)/.test(argument) ||
-        /(^|[=/])\.{1,2}(?:\/|$)/.test(argument)
+        item.blocker.code !== "host-capability-review-required" &&
+        item.blocker.code !== "unverified-runtime-dependency"
       ) {
         error(
-          label,
-          `arg ${index} must be a static CLI token without code, native paths, or traversal`,
+          `${itemLabel} blocker`,
+          "pending Host requests must use a Host-governance blocker code",
         );
       }
-      return argument;
+      if (!item.blocker.note.includes(document)) {
+        error(
+          `${itemLabel} blocker`,
+          `note must link ${document}`,
+        );
+      }
+      return {
+        kind: item.kind,
+        id: parseId(item.id, `${itemLabel} id`),
+        version: parseSemver(item.version, `${itemLabel} version`),
+        status: publication.status,
+        blockers: publication.blockers,
+      };
     });
+    return {
+      id,
+      document,
+      status: pendingRequestStatus,
+      humanDecision: null,
+      affected,
+    };
+  });
+  const requestIds = requests.map((request) => request.id);
+  if (new Set(requestIds).size !== requestIds.length) {
+    error(label, "contains duplicate request ids");
+  }
+  const documents = requests.map((request) => request.document);
+  if (new Set(documents).size !== documents.length) {
+    error(label, "contains duplicate request documents");
+  }
+  const packages = requests.flatMap((request) => request.affected);
+  const packageIdentities = packages.map(
+    (item) => `${item.kind}/${item.id}@${item.version}`,
+  );
+  if (new Set(packageIdentities).size !== packageIdentities.length) {
+    error(label, "binds one package version to more than one pending request");
   }
   return {
-    ...(args === undefined ? {} : { args }),
-    command,
-    type: "mcp-stdio",
+    schema: "convax.host-capability-policy/1",
+    requests,
+    packages,
   };
 }
 
-function parseGeneration(value, label, options = {}) {
-  exactKeys(value, ["tools"], ["tools"], label);
-  if (
-    !Array.isArray(value.tools) ||
-    value.tools.length < 1 ||
-    value.tools.length > 64
-  ) {
-    error(label, "tools must be a non-empty array with at most 64 items");
+export async function loadPublicationPolicy(workspaceRoot = root) {
+  const label = "Host capability publication policy";
+  const policy = parseHostCapabilityPolicy(
+    await readJson(
+      path.join(workspaceRoot, "registry", "host-capability-policy.json"),
+      label,
+    ),
+    label,
+  );
+  const requirementsLabel = "Host capability workspace declarations";
+  const declarationsByRequest = new Map();
+  for (const [kind, directoryName] of [
+    ["plugin", "plugins"],
+    ["skill", "skills"],
+  ]) {
+    const directory = path.join(workspaceRoot, "packages", directoryName);
+    for (const entry of await fs.readdir(directory, {
+      withFileTypes: true,
+    }).catch((cause) => {
+      if (cause?.code === "ENOENT") return [];
+      throw cause;
+    })) {
+      if (!entry.isDirectory()) continue;
+      const packageJson = await readJson(
+        path.join(directory, entry.name, "package.json"),
+        `${kind}/${entry.name} package.json`,
+      );
+      const declarations =
+        packageJson["convax.hostCapabilityRequests"] ?? [];
+      if (
+        !Array.isArray(declarations) ||
+        declarations.length > 16 ||
+        new Set(declarations).size !== declarations.length
+      ) {
+        error(
+          `${kind}/${entry.name} package.json`,
+          "convax.hostCapabilityRequests must contain at most 16 unique request ids",
+        );
+      }
+      const identity =
+        `${kind}/${parseId(entry.name, `${kind} directory id`)}@` +
+        parseSemver(packageJson.version, `${kind}/${entry.name} version`);
+      for (const value of declarations) {
+        const requestId = cleanString(
+          value,
+          `${kind}/${entry.name} Host capability request`,
+          128,
+        );
+        if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(requestId)) {
+          error(
+            `${kind}/${entry.name} package.json`,
+            "Host capability request ids must be lowercase kebab-case",
+          );
+        }
+        const affected = declarationsByRequest.get(requestId) ?? [];
+        affected.push(identity);
+        declarationsByRequest.set(requestId, affected);
+      }
+    }
   }
-  const tools = value.tools.map((item, index) => {
-    const itemLabel = `${label} tool ${index}`;
-    exactKeys(
-      item,
-      [
-        "acceptedInputs",
-        ...(options.allowReturnDelivery ? ["delivery", "inputBinding"] : []),
-        "description",
-        "id",
-        "output",
-        "title",
-      ],
-      ["acceptedInputs", "description", "id", "output", "title"],
-      itemLabel,
+  const policyByRequest = new Map(
+    policy.requests.map((request) => [
+      request.id,
+      request.affected
+        .map((item) => `${item.kind}/${item.id}@${item.version}`)
+        .sort(),
+    ]),
+  );
+  for (const requestId of new Set([
+    ...declarationsByRequest.keys(),
+    ...policyByRequest.keys(),
+  ])) {
+    const declared = (declarationsByRequest.get(requestId) ?? []).sort();
+    const affected = policyByRequest.get(requestId);
+    if (!affected) {
+      error(
+        requirementsLabel,
+        `required pending request ${requestId} is missing from publication policy`,
+      );
+    }
+    if (
+      declared.length !== affected.length ||
+      declared.some((identity, index) => identity !== affected[index])
+    ) {
+      error(
+        requirementsLabel,
+        `pending request ${requestId} must exactly match workspace declarations and policy affected versions`,
+      );
+    }
+  }
+  const requestDirectory = path.join(
+    workspaceRoot,
+    "docs",
+    "host-capability-requests",
+  );
+  const requestDocuments = [];
+  for (const entry of await fs.readdir(requestDirectory, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+    const relativePath = `docs/host-capability-requests/${entry.name}`;
+    const source = await fs.readFile(path.join(requestDirectory, entry.name), "utf8");
+    if (!source.includes(pendingRequestDocumentStatus)) {
+      error(
+        label,
+        `${relativePath} is not pending and has no trusted machine-verifiable resolution`,
+      );
+    }
+    requestDocuments.push(relativePath);
+  }
+  requestDocuments.sort();
+  const policyDocuments = policy.requests
+    .map((request) => request.document)
+    .sort();
+  if (
+    requestDocuments.length !== policyDocuments.length ||
+    requestDocuments.some((document, index) => document !== policyDocuments[index])
+  ) {
+    error(
+      label,
+      "pending request documents and policy requests must match exactly",
     );
-    const id = cleanString(item.id, `${itemLabel} id`, 80);
-    if (!/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/.test(id))
-      error(itemLabel, "invalid id");
-    if (!generationModalities.has(item.output))
-      error(itemLabel, "unsupported output");
-    if (
-      item.delivery !== undefined &&
-      item.delivery !== "canvas" &&
-      item.delivery !== "return"
-    ) {
-      error(itemLabel, "unsupported delivery");
-    }
-    if (item.delivery === "return" && item.output !== "text") {
-      error(itemLabel, "return delivery requires text output");
-    }
-    if (
-      item.inputBinding !== undefined &&
-      item.inputBinding !== "direct-incoming"
-    ) {
-      error(itemLabel, "unsupported input binding");
-    }
-    if (
-      !Array.isArray(item.acceptedInputs) ||
-      item.acceptedInputs.length > generationInputRoles.size ||
-      item.acceptedInputs.some(
-        (role) => typeof role !== "string" || !generationInputRoles.has(role),
-      ) ||
-      new Set(item.acceptedInputs).size !== item.acceptedInputs.length
-    ) {
-      error(
-        itemLabel,
-        "acceptedInputs contains an unsupported or duplicate role",
-      );
-    }
-    if (
-      item.inputBinding === "direct-incoming" &&
-      item.acceptedInputs.length === 0
-    ) {
-      error(
-        itemLabel,
-        "direct-incoming input binding requires accepted inputs",
-      );
-    }
-    return {
-      acceptedInputs: [...item.acceptedInputs],
-      ...(item.delivery === undefined ? {} : { delivery: item.delivery }),
-      description: cleanString(
-        item.description,
-        `${itemLabel} description`,
-        2000,
-      ),
-      id,
-      ...(item.inputBinding === undefined
-        ? {}
-        : { inputBinding: item.inputBinding }),
-      output: item.output,
-      title: cleanString(item.title, `${itemLabel} title`, 120),
-    };
-  });
-  if (new Set(tools.map((tool) => tool.id)).size !== tools.length)
-    error(label, "tools contain duplicate ids");
-  return { tools };
+  }
+  for (const request of policy.requests) {
+    const source = await fs.readFile(
+      path.join(workspaceRoot, request.document),
+      "utf8",
+    );
+    validateHostCapabilityRequestDocument(source, request.document);
+  }
+  return policy;
 }
+
+export const parsePluginManifest = parsePluginManifestV8;
 
 export function parseSkill(markdown, expectedName, label = "SKILL.md") {
   if (typeof markdown !== "string" || !markdown.startsWith("---\n"))
@@ -2155,7 +620,100 @@ function assertPackageInventory(files, kind, label) {
   }
 }
 
+function assertPortableWebReference(reference, sourcePath, packagePaths, label) {
+  const value = reference.trim();
+  if (
+    value.length === 0 ||
+    value.startsWith("#") ||
+    value.startsWith("data:") ||
+    value.startsWith("blob:")
+  ) {
+    return;
+  }
+  if (
+    value.startsWith("/") ||
+    value.startsWith("\\") ||
+    value.includes("\\") ||
+    /^[a-z][a-z0-9+.-]*:/i.test(value)
+  ) {
+    error(label, `Web subresource URL must be portable and relative: ${value}`);
+  }
+  const pathPart = value.split(/[?#]/, 1)[0];
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathPart);
+  } catch {
+    error(label, `Web subresource URL is not valid UTF-8: ${value}`);
+  }
+  const resolved = path.posix.normalize(
+    path.posix.join(path.posix.dirname(sourcePath), decoded),
+  );
+  if (
+    resolved === "." ||
+    resolved === ".." ||
+    resolved.startsWith("../") ||
+    path.posix.isAbsolute(resolved)
+  ) {
+    error(label, `Web subresource URL escapes the Plugin package: ${value}`);
+  }
+  parseRelativePath(resolved, `${label} Web subresource URL`);
+  if (!packagePaths.has(resolved)) {
+    error(label, `Web subresource URL does not resolve to a package file: ${value}`);
+  }
+}
+
+function assertPortableWebReferences(text, file, packagePaths, label) {
+  const extension = path.posix.extname(file.relativePath).toLowerCase();
+  const references = [];
+  if (extension === ".html") {
+    for (const match of text.matchAll(
+      /\b(?:src|href|poster)\s*=\s*(["'])(.*?)\1/gi,
+    )) {
+      references.push(match[2]);
+    }
+    for (const match of text.matchAll(/\bsrcset\s*=\s*(["'])(.*?)\1/gi)) {
+      for (const candidate of match[2].split(",")) {
+        const reference = candidate.trim().split(/\s+/, 1)[0];
+        if (reference) references.push(reference);
+      }
+    }
+  }
+  if (extension === ".css" || extension === ".html") {
+    for (const match of text.matchAll(
+      /(?:url\(\s*|@import\s+)(?:["']([^"']+)["']|([^"')\s;]+))/gi,
+    )) {
+      references.push(match[1] ?? match[2]);
+    }
+  }
+  if (extension === ".js" || extension === ".mjs") {
+    for (const match of text.matchAll(
+      /\b(?:import|export)\s+(?:[^"'()]*?\s+from\s+)?["']([^"']+)["']/g,
+    )) {
+      references.push(match[1]);
+    }
+    for (const match of text.matchAll(
+      /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
+    )) {
+      references.push(match[1]);
+    }
+    for (const match of text.matchAll(
+      /\bnew\s+(?:SharedWorker|Worker)\s*\(\s*["']([^"']+)["']/g,
+    )) {
+      references.push(match[1]);
+    }
+  }
+  for (const reference of references) {
+    assertPortableWebReference(
+      reference,
+      file.relativePath,
+      packagePaths,
+      label,
+    );
+  }
+}
+
 export function assertPluginStatic(files, label, hookPath) {
+  const packagePaths = new Set(files.map((file) => file.relativePath));
   if (
     hookPath !== undefined &&
     !files.some((file) => file.relativePath === hookPath)
@@ -2228,6 +786,7 @@ export function assertPluginStatic(files, label, hookPath) {
           `Node or executable runtime is forbidden: ${file.relativePath}`,
         );
       }
+      assertPortableWebReferences(text, file, packagePaths, label);
     }
   }
 }
@@ -2659,18 +1218,38 @@ export async function discoverPackages(options = {}) {
   ) {
     error("package selection", "kind and id must select one Plugin or Skill");
   }
-  const candidates = [
-    ...(await listCollection("plugin", workspaceRoot)),
-    ...(await listCollection("skill", workspaceRoot)),
-  ].sort((left, right) =>
-    `${left.kind}/${left.id}`.localeCompare(`${right.kind}/${right.id}`, "en"),
-  );
+  const candidates = (await discoverMarketplacePackages(workspaceRoot))
+    .filter((candidate) => candidate.kind === "plugin" || candidate.kind === "skill")
+    .map((candidate) => ({
+      ...candidate,
+      directory: candidate.root,
+      packageRoot: candidate.contentRoot,
+    }))
+    .sort((left, right) =>
+      `${left.kind}/${left.id}`.localeCompare(`${right.kind}/${right.id}`, "en"),
+    );
   const candidatesByIdentity = new Map(
     candidates.map((candidate) => [
       `${candidate.kind}/${candidate.id}`,
       candidate,
     ]),
   );
+  const publicationPolicy = await loadPublicationPolicy(workspaceRoot);
+  const publicationByVersion = new Map(
+    publicationPolicy.packages.map((item) => [
+      `${item.kind}/${item.id}@${item.version}`,
+      { status: item.status, blockers: item.blockers },
+    ]),
+  );
+  for (const item of publicationPolicy.packages) {
+    const candidate = candidatesByIdentity.get(`${item.kind}/${item.id}`);
+    if (!candidate || candidate.version !== item.version) {
+      error(
+        "publication blockers",
+        `stale or unknown package ${item.kind}/${item.id}@${item.version}`,
+      );
+    }
+  }
   if (
     selection &&
     !candidatesByIdentity.has(`${selection.kind}/${selection.id}`)
@@ -2682,18 +1261,20 @@ export async function discoverPackages(options = {}) {
     const identity = `${candidate.kind}/${candidate.id}`;
     const existing = loaded.get(identity);
     if (existing) return existing;
-    parseId(candidate.id, `${candidate.kind} directory`);
-    const metadata = parseSourceMetadata(
-      await readJson(path.join(candidate.directory, "convax-package.json")),
-      `${candidate.kind}/${candidate.id}`,
-    );
+    const metadata = {
+      ...candidate.authoring,
+      publication:
+        publicationByVersion.get(
+          `${candidate.kind}/${candidate.id}@${candidate.version}`,
+        ) ?? { status: "ready", blockers: [] },
+    };
     if (metadata.kind !== candidate.kind || metadata.id !== candidate.id)
       error(
         `${candidate.kind}/${candidate.id}`,
         "directory and metadata identity differ",
       );
     const packageJson = await validatePackageWorkspace(candidate, metadata);
-    const packageRoot = path.join(candidate.directory, "package");
+    const packageRoot = candidate.packageRoot;
     const files = await collectFiles(
       packageRoot,
       `${candidate.kind}/${candidate.id}`,
@@ -2706,20 +1287,15 @@ export async function discoverPackages(options = {}) {
     const showcase = await loadShowcaseAssets(metadata, candidate.directory);
     let manifest;
     if (candidate.kind === "plugin") {
-      manifest = parsePluginManifest(
-        await readJson(path.join(packageRoot, "manifest.json")),
-        `${candidate.kind}/${candidate.id} manifest`,
-      );
+      manifest = candidate.manifest;
+      if (!manifest) error(`${candidate.kind}/${candidate.id}`, "missing canonical SDK manifest");
       assertPluginStatic(
         files,
         `${candidate.kind}/${candidate.id}`,
         manifest.hooks,
       );
-      if (metadata.compatibility.pluginSchema !== manifest.schema) {
-        error(
-          `${candidate.kind}/${candidate.id}`,
-          "metadata compatibility must match manifest schema",
-        );
+      if (manifest.schema !== "convax.plugin/8") {
+        error(`${candidate.kind}/${candidate.id}`, "only convax.plugin/8 is publishable");
       }
       for (const key of ["id", "name", "description", "version"]) {
         if (metadata[key] !== manifest[key])
@@ -2742,6 +1318,12 @@ export async function discoverPackages(options = {}) {
       validatePetPackageLibrary(
         manifest,
         files,
+        `${candidate.kind}/${candidate.id}`,
+      );
+      assertPluginHostCapabilityDeclarations(
+        manifest,
+        files,
+        packageJson["convax.hostCapabilityRequests"],
         `${candidate.kind}/${candidate.id}`,
       );
       if (manifest.runtime && names.has(manifest.runtime.command)) {
@@ -2870,6 +1452,60 @@ export async function discoverPackages(options = {}) {
   return packages;
 }
 
+export function blockedPackagePublications(packages, label = "publication") {
+  if (!Array.isArray(packages)) error(label, "packages must be an array");
+  const admitted = packages.map((pkg, index) => {
+    const packageLabel = `${label} package ${index}`;
+    if (!isObject(pkg) || !isObject(pkg.metadata)) {
+      error(packageLabel, "must contain parsed source metadata");
+    }
+    const metadata = {
+      ...pkg.metadata,
+      publication: parsePublication(
+        pkg.metadata.publication,
+        `${packageLabel} publication`,
+      ),
+    };
+    if (metadata.kind === "plugin") {
+      const manifest = parsePluginManifest(
+        pkg.manifest,
+        `${packageLabel} manifest`,
+      );
+      for (const key of ["id", "name", "description", "version"]) {
+        if (metadata[key] !== manifest[key]) {
+          error(packageLabel, `${key} must match the Plugin manifest`);
+        }
+      }
+    } else if (pkg.manifest !== undefined) {
+      error(packageLabel, "Skills must not contain a Plugin manifest");
+    }
+    return { metadata };
+  });
+  const blocked = admitted.filter(
+    (pkg) => pkg.metadata.publication.status === "blocked",
+  );
+  return blocked.map(({ metadata }) => ({
+    kind: metadata.kind,
+    id: metadata.id,
+    version: metadata.version,
+    publication: metadata.publication,
+  }));
+}
+
+export function assertPackagesPublishable(packages, label = "publication") {
+  const blocked = blockedPackagePublications(packages, label);
+  if (blocked.length === 0) return;
+  const details = blocked
+    .map((pkg) => {
+      const blockers = pkg.publication.blockers
+        .map((item) => `${item.code}: ${item.note}`)
+        .join("; ");
+      return `${pkg.kind}/${pkg.id}@${pkg.version} (${blockers})`;
+    })
+    .join(", ");
+  error(label, `blocked packages cannot be published: ${details}`);
+}
+
 export function composeOwnedSkillPackages(packages) {
   const standaloneSkills = new Map(
     packages
@@ -2976,78 +1612,12 @@ export function showcaseAssetNameFor(metadata, role, mime) {
   return `convax-showcase-${metadata.kind}-${metadata.id}-${metadata.version}-${role}${extension}`;
 }
 
-let crcTable;
-function crc32(data) {
-  if (!crcTable) {
-    crcTable = Array.from({ length: 256 }, (_, value) => {
-      let result = value;
-      for (let bit = 0; bit < 8; bit += 1)
-        result = result & 1 ? 0xedb88320 ^ (result >>> 1) : result >>> 1;
-      return result >>> 0;
-    });
-  }
-  let crc = 0xffffffff;
-  for (const byte of data) crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8);
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
 export function createDeterministicZip(inputFiles) {
-  const files = [...inputFiles].sort((left, right) =>
-    Buffer.compare(
-      Buffer.from(left.relativePath),
-      Buffer.from(right.relativePath),
-    ),
-  );
-  const localParts = [];
-  const centralParts = [];
-  let offset = 0;
-  for (const file of files) {
-    const name = Buffer.from(parseRelativePath(file.relativePath));
-    const data = Buffer.from(file.data);
-    const crc = crc32(data);
-    const local = Buffer.alloc(30);
-    local.writeUInt32LE(0x04034b50, 0);
-    local.writeUInt16LE(20, 4);
-    local.writeUInt16LE(0x0800, 6);
-    local.writeUInt16LE(0, 8);
-    local.writeUInt16LE(0, 10);
-    local.writeUInt16LE(33, 12);
-    local.writeUInt32LE(crc, 14);
-    local.writeUInt32LE(data.length, 18);
-    local.writeUInt32LE(data.length, 22);
-    local.writeUInt16LE(name.length, 26);
-    local.writeUInt16LE(0, 28);
-    localParts.push(local, name, data);
-
-    const central = Buffer.alloc(46);
-    central.writeUInt32LE(0x02014b50, 0);
-    central.writeUInt16LE(0x0314, 4);
-    central.writeUInt16LE(20, 6);
-    central.writeUInt16LE(0x0800, 8);
-    central.writeUInt16LE(0, 10);
-    central.writeUInt16LE(0, 12);
-    central.writeUInt16LE(33, 14);
-    central.writeUInt32LE(crc, 16);
-    central.writeUInt32LE(data.length, 20);
-    central.writeUInt32LE(data.length, 24);
-    central.writeUInt16LE(name.length, 28);
-    central.writeUInt16LE(0, 30);
-    central.writeUInt16LE(0, 32);
-    central.writeUInt16LE(0, 34);
-    central.writeUInt16LE(0, 36);
-    central.writeUInt32LE((0o100644 << 16) >>> 0, 38);
-    central.writeUInt32LE(offset, 42);
-    centralParts.push(central, name);
-    offset += local.length + name.length + data.length;
-  }
-  const centralDirectory = Buffer.concat(centralParts);
-  const end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0);
-  end.writeUInt16LE(files.length, 8);
-  end.writeUInt16LE(files.length, 10);
-  end.writeUInt32LE(centralDirectory.length, 12);
-  end.writeUInt32LE(offset, 16);
-  return Buffer.concat([...localParts, centralDirectory, end]);
+  return Buffer.from(createMarketplaceZip(inputFiles.map((file) => ({
+    path: file.relativePath,
+    bytes: file.data,
+    mode: file.mode & 0o111 ? 0o755 : 0o644,
+  }))));
 }
 
 export function readStoredZip(zip) {
@@ -3172,498 +1742,6 @@ export async function loadCompanionArtifacts(
     });
   }
   return companions;
-}
-
-export function createRegistryEntry(pkg, zip, companionArtifacts = []) {
-  const metadata = pkg.metadata;
-  const tag = tagFor(metadata);
-  const assetName = assetNameFor(metadata);
-  return {
-    kind: metadata.kind,
-    id: metadata.id,
-    name: metadata.name,
-    description: metadata.description,
-    version: metadata.version,
-    compatibility: metadata.compatibility,
-    artifact: {
-      url: `https://github.com/${repository}/releases/download/${tag}/${assetName}`,
-      size: zip.length,
-      sha256: sha256(zip),
-    },
-    yanked: metadata.yanked,
-    ...(metadata.kind === "skill" && metadata.ownerPluginId
-      ? { ownerPluginId: metadata.ownerPluginId }
-      : {}),
-    ...(metadata.kind === "plugin"
-      ? {
-          manifest: pkg.manifest,
-          ...(companionArtifacts.length > 0
-            ? {
-                companions: companionArtifacts.map((companion) => ({
-                  command: companion.command,
-                  version: companion.version,
-                  targets: companion.targets.map((target) => ({
-                    platform: target.platform,
-                    arch: target.arch,
-                    artifact: target.artifact,
-                  })),
-                })),
-              }
-            : {}),
-        }
-      : {}),
-  };
-}
-
-function createShowcaseMediaArtifact(metadata, media, role) {
-  const assetName = showcaseAssetNameFor(metadata, role, media.mime);
-  return {
-    url: `https://github.com/${repository}/releases/download/${tagFor(metadata)}/${assetName}`,
-    mime: media.mime,
-    size: media.data.length,
-    sha256: sha256(media.data),
-    width: media.width,
-    height: media.height,
-    alt: media.alt,
-  };
-}
-
-export function createShowcaseEntry(pkg) {
-  if (!pkg.showcase) return undefined;
-  const metadata = pkg.metadata;
-  return {
-    schema: showcaseEntrySchema,
-    kind: metadata.kind,
-    id: metadata.id,
-    version: metadata.version,
-    poster: createShowcaseMediaArtifact(
-      metadata,
-      pkg.showcase.poster,
-      "poster",
-    ),
-    ...(pkg.showcase.animation
-      ? {
-          animation: createShowcaseMediaArtifact(
-            metadata,
-            pkg.showcase.animation,
-            "animation",
-          ),
-        }
-      : {}),
-  };
-}
-
-function parseShowcaseIdentity(value, label) {
-  if (value.kind !== "plugin" && value.kind !== "skill")
-    error(label, "kind must be plugin or skill");
-  const id = parseId(value.id, `${label} id`);
-  if (value.kind === "skill" && id.length > 64)
-    error(label, "Skill id must be at most 64 characters");
-  return {
-    kind: value.kind,
-    id,
-    version: parseSemver(value.version, `${label} version`),
-  };
-}
-
-function parseShowcaseMediaArtifact(value, metadata, role, label) {
-  exactKeys(
-    value,
-    ["alt", "height", "mime", "sha256", "size", "url", "width"],
-    ["alt", "height", "mime", "sha256", "size", "url", "width"],
-    label,
-  );
-  const mime = cleanString(value.mime, `${label} mime`, 80);
-  if (!showcaseMimes[role].has(mime))
-    error(label, `unsupported ${role} MIME type ${mime}`);
-  const assetName = showcaseAssetNameFor(metadata, role, mime);
-  const expectedUrl = `https://github.com/${repository}/releases/download/${tagFor(metadata)}/${assetName}`;
-  if (value.url !== expectedUrl) error(label, `url must equal ${expectedUrl}`);
-  const maximum = role === "poster" ? maxPosterBytes : maxAnimationBytes;
-  if (
-    !Number.isSafeInteger(value.size) ||
-    value.size < 1 ||
-    value.size > maximum
-  )
-    error(label, "invalid size");
-  if (typeof value.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(value.sha256))
-    error(label, "invalid sha256");
-  const width = dimension(value.width, `${label} width`);
-  const height = dimension(value.height, `${label} height`);
-  if (width === undefined || height === undefined)
-    error(label, "width and height are required");
-  return {
-    url: value.url,
-    mime,
-    size: value.size,
-    sha256: value.sha256,
-    width,
-    height,
-    alt: cleanString(value.alt, `${label} alt`, 500),
-  };
-}
-
-function parseShowcasePackage(value, label) {
-  const required = ["kind", "id", "version", "poster"];
-  exactKeys(value, [...required, "animation"], required, label);
-  const metadata = parseShowcaseIdentity(value, label);
-  return {
-    ...metadata,
-    poster: parseShowcaseMediaArtifact(
-      value.poster,
-      metadata,
-      "poster",
-      `${label} poster`,
-    ),
-    ...(value.animation === undefined
-      ? {}
-      : {
-          animation: parseShowcaseMediaArtifact(
-            value.animation,
-            metadata,
-            "animation",
-            `${label} animation`,
-          ),
-        }),
-  };
-}
-
-export function parseShowcaseEntry(value, label = "Showcase entry") {
-  exactKeys(
-    value,
-    ["animation", "id", "kind", "poster", "schema", "version"],
-    ["id", "kind", "poster", "schema", "version"],
-    label,
-  );
-  if (value.schema !== showcaseEntrySchema) error(label, "unsupported schema");
-  return {
-    schema: showcaseEntrySchema,
-    ...parseShowcasePackage(
-      {
-        kind: value.kind,
-        id: value.id,
-        version: value.version,
-        poster: value.poster,
-        ...(value.animation === undefined
-          ? {}
-          : { animation: value.animation }),
-      },
-      label,
-    ),
-  };
-}
-
-export function parseShowcase(value, label = "Showcase") {
-  exactKeys(
-    value,
-    ["packages", "revision", "schema", "sequence"],
-    ["packages", "revision", "schema", "sequence"],
-    label,
-  );
-  if (value.schema !== showcaseSchema) error(label, "unsupported schema");
-  if (!Number.isSafeInteger(value.sequence) || value.sequence < 1)
-    error(label, "sequence must be a positive integer");
-  const revision = cleanString(value.revision, `${label} revision`, 40);
-  if (!/^[a-f0-9]{40}$/.test(revision))
-    error(label, "revision must be a lowercase 40-character Git SHA");
-  if (!Array.isArray(value.packages) || value.packages.length > 10_000)
-    error(label, "packages must be an array with at most 10000 items");
-  const packages = value.packages.map((entry, index) =>
-    parseShowcasePackage(entry, `${label} package ${index}`),
-  );
-  const identities = packages.map((entry) => `${entry.kind}/${entry.id}`);
-  if (new Set(identities).size !== identities.length)
-    error(label, "contains more than one version for a package");
-  const urls = packages.flatMap((entry) => [
-    entry.poster.url,
-    ...(entry.animation ? [entry.animation.url] : []),
-  ]);
-  if (new Set(urls).size !== urls.length) error(label, "reuses a media URL");
-  return {
-    schema: showcaseSchema,
-    sequence: value.sequence,
-    revision,
-    packages,
-  };
-}
-
-function parseArtifact(value, metadata, label) {
-  exactKeys(value, ["url", "size", "sha256"], ["url", "size", "sha256"], label);
-  const expected = `https://github.com/${repository}/releases/download/${tagFor(metadata)}/${assetNameFor(metadata)}`;
-  if (value.url !== expected) error(label, `url must equal ${expected}`);
-  if (
-    !Number.isSafeInteger(value.size) ||
-    value.size < 1 ||
-    value.size > maxPackageBytes
-  )
-    error(label, "invalid size");
-  if (typeof value.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(value.sha256))
-    error(label, "invalid sha256");
-  return { url: value.url, size: value.size, sha256: value.sha256 };
-}
-
-function parseCompanionArtifact(value, metadata, companion, target, label) {
-  exactKeys(value, ["sha256", "size", "url"], ["sha256", "size", "url"], label);
-  const assetName = companionAssetNameFor(metadata, companion, target);
-  const expected = `https://github.com/${repository}/releases/download/${tagFor(metadata)}/${assetName}`;
-  if (value.url !== expected) error(label, `url must equal ${expected}`);
-  if (
-    !Number.isSafeInteger(value.size) ||
-    value.size < 1 ||
-    value.size > maxCompanionBytes
-  ) {
-    error(label, "invalid size");
-  }
-  if (
-    typeof value.sha256 !== "string" ||
-    !/^[a-f0-9]{64}$/.test(value.sha256)
-  ) {
-    error(label, "invalid sha256");
-  }
-  return { url: value.url, size: value.size, sha256: value.sha256 };
-}
-
-function parseRegistryCompanions(value, metadata, manifest, label) {
-  if (value === undefined) return undefined;
-  if (
-    (manifest.schema !== "convax.plugin/2" &&
-      manifest.schema !== "convax.plugin/3" &&
-      manifest.schema !== "convax.plugin/4" &&
-      manifest.schema !== "convax.plugin/5" &&
-      manifest.schema !== "convax.plugin/6" &&
-      manifest.schema !== "convax.plugin/7") ||
-    !manifest.runtime
-  ) {
-    error(
-      label,
-      "companions require a convax.plugin/2 or later external runtime",
-    );
-  }
-  if (!Array.isArray(value) || value.length < 1 || value.length > 16) {
-    error(label, "must be a non-empty array with at most 16 items");
-  }
-  const companions = value.map((item, index) => {
-    const itemLabel = `${label} item ${index}`;
-    exactKeys(
-      item,
-      ["command", "targets", "version"],
-      ["command", "targets", "version"],
-      itemLabel,
-    );
-    const companion = {
-      command: parseCompanionCommand(item.command, `${itemLabel} command`),
-      version: parseSemver(item.version, `${itemLabel} version`),
-    };
-    if (
-      !Array.isArray(item.targets) ||
-      item.targets.length < 1 ||
-      item.targets.length > 16
-    ) {
-      error(
-        itemLabel,
-        "targets must be a non-empty array with at most 16 items",
-      );
-    }
-    const targets = item.targets.map((target, targetIndex) => {
-      const targetLabel = `${itemLabel} target ${targetIndex}`;
-      exactKeys(
-        target,
-        ["arch", "artifact", "platform"],
-        ["arch", "artifact", "platform"],
-        targetLabel,
-      );
-      const identity = parseCompanionTargetIdentity(target, targetLabel);
-      return {
-        ...identity,
-        artifact: parseCompanionArtifact(
-          target.artifact,
-          metadata,
-          companion,
-          identity,
-          `${targetLabel} artifact`,
-        ),
-      };
-    });
-    const identities = targets.map(
-      (target) => `${target.platform}/${target.arch}`,
-    );
-    if (new Set(identities).size !== identities.length)
-      error(itemLabel, "contains a duplicate platform/architecture target");
-    return { ...companion, targets };
-  });
-  if (
-    new Set(companions.map((item) => item.command)).size !== companions.length
-  ) {
-    error(label, "contains duplicate commands");
-  }
-  if (
-    companions.length !== 1 ||
-    companions[0].command !== manifest.runtime.command
-  ) {
-    error(label, "must contain exactly the declared external runtime command");
-  }
-  return companions;
-}
-
-export function parseRegistryEntry(value, label = "Registry entry") {
-  if (!isObject(value) || (value.kind !== "plugin" && value.kind !== "skill"))
-    error(label, "invalid kind");
-  const required = [
-    "kind",
-    "id",
-    "name",
-    "description",
-    "version",
-    "compatibility",
-    "artifact",
-    "yanked",
-    ...(value.kind === "plugin" ? ["manifest"] : []),
-  ];
-  const allowed = [
-    ...required,
-    ...(value.kind === "plugin" ? ["companions"] : ["ownerPluginId"]),
-  ];
-  exactKeys(value, allowed, required, label);
-  const metadata = parseSourceMetadata(
-    {
-      schema: "convax.package/1",
-      kind: value.kind,
-      id: value.id,
-      name: value.name,
-      description: value.description,
-      version: value.version,
-      license: "registry",
-      compatibility: value.compatibility,
-      yanked: value.yanked,
-      ...(value.kind === "skill" && value.ownerPluginId !== undefined
-        ? { ownerPluginId: value.ownerPluginId }
-        : {}),
-    },
-    label,
-  );
-  const result = {
-    kind: metadata.kind,
-    id: metadata.id,
-    name: metadata.name,
-    description: metadata.description,
-    version: metadata.version,
-    compatibility: metadata.compatibility,
-    artifact: parseArtifact(value.artifact, metadata, `${label} artifact`),
-    yanked: metadata.yanked,
-    ...(metadata.ownerPluginId === undefined
-      ? {}
-      : { ownerPluginId: metadata.ownerPluginId }),
-  };
-  if (metadata.kind === "plugin") {
-    const manifest = parsePluginManifest(value.manifest, `${label} manifest`);
-    if (metadata.compatibility.pluginSchema !== manifest.schema) {
-      error(label, "compatibility must match manifest schema");
-    }
-    for (const key of ["id", "name", "description", "version"]) {
-      if (metadata[key] !== manifest[key])
-        error(label, `${key} must equal manifest`);
-    }
-    const companions = parseRegistryCompanions(
-      value.companions,
-      metadata,
-      manifest,
-      `${label} companions`,
-    );
-    return {
-      ...result,
-      manifest,
-      ...(companions === undefined ? {} : { companions }),
-    };
-  }
-  return result;
-}
-
-export function parseRegistry(value, label = "Registry") {
-  exactKeys(
-    value,
-    ["schema", "sequence", "revision", "packages"],
-    ["schema", "sequence", "revision", "packages"],
-    label,
-  );
-  if (value.schema !== registrySchema) error(label, "unsupported schema");
-  if (!Number.isSafeInteger(value.sequence) || value.sequence < 1)
-    error(label, "sequence must be a positive integer");
-  const revision = cleanString(value.revision, `${label} revision`, 40);
-  if (!/^[a-f0-9]{40}$/.test(revision))
-    error(label, "revision must be a lowercase 40-character Git SHA");
-  if (!Array.isArray(value.packages) || value.packages.length > 10_000)
-    error(label, "packages must be an array with at most 10000 items");
-  const packages = value.packages.map((entry, index) =>
-    parseRegistryEntry(entry, `${label} package ${index}`),
-  );
-  const identities = packages.map((entry) => `${entry.kind}/${entry.id}`);
-  if (new Set(identities).size !== identities.length)
-    error(label, "contains more than one version for a package");
-  const pluginsById = new Map(
-    packages
-      .filter((entry) => entry.kind === "plugin")
-      .map((entry) => [entry.id, entry]),
-  );
-  const skillsById = new Map(
-    packages
-      .filter((entry) => entry.kind === "skill")
-      .map((entry) => [entry.id, entry]),
-  );
-  for (const skill of packages.filter(
-    (entry) => entry.kind === "skill" && entry.ownerPluginId,
-  )) {
-    const owner = pluginsById.get(skill.ownerPluginId);
-    const contribution =
-      owner &&
-      (owner.manifest.schema === "convax.plugin/4" ||
-        owner.manifest.schema === "convax.plugin/5" ||
-        owner.manifest.schema === "convax.plugin/6" ||
-        owner.manifest.schema === "convax.plugin/7")
-        ? owner.manifest.contributes.skills?.find(
-            (item) => item.name === skill.id,
-          )
-        : undefined;
-    if (!owner || !contribution) {
-      error(
-        label,
-        `Skill ${skill.id} ownerPluginId ${skill.ownerPluginId} does not match a Plugin-owned Skill contribution`,
-      );
-    }
-  }
-  for (const plugin of packages.filter(
-    (entry) =>
-      entry.kind === "plugin" &&
-      (entry.manifest.schema === "convax.plugin/4" ||
-        entry.manifest.schema === "convax.plugin/5" ||
-        entry.manifest.schema === "convax.plugin/6" ||
-        entry.manifest.schema === "convax.plugin/7"),
-  )) {
-    for (const contribution of plugin.manifest.contributes.skills ?? []) {
-      const skill = skillsById.get(contribution.name);
-      if (!skill || skill.ownerPluginId !== plugin.id) {
-        error(
-          label,
-          `Plugin ${plugin.id} owned Skill ${contribution.name} does not match a Skill ownerPluginId`,
-        );
-      }
-    }
-  }
-  const artifactUrls = packages.flatMap((entry) => [
-    entry.artifact.url,
-    ...(entry.kind === "plugin" && entry.companions
-      ? entry.companions.flatMap((companion) =>
-          companion.targets.map((target) => target.artifact.url),
-        )
-      : []),
-  ]);
-  if (new Set(artifactUrls).size !== artifactUrls.length)
-    error(label, "reuses an artifact URL");
-  return {
-    schema: registrySchema,
-    sequence: value.sequence,
-    revision,
-    packages,
-  };
 }
 
 export function parseArgs(argv) {

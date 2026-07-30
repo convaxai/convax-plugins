@@ -13,8 +13,9 @@ Hub assets or code.
 
 The Convax build differs from upstream in eight deliberate ways:
 
-1. it uses the existing `convax.plugin-host/1` MessageChannel instead of wildcard
-   parent-window messages;
+1. it bundles `createPluginHostClient` from `@convax/plugin-sdk/client` and uses
+   its `convax.plugin-host/8` MessageChannel instead of handwritten request,
+   response, pending-map, or wildcard parent-window messaging;
 2. portable scene state and the director viewport camera are kept separate inside
    one owning Canvas-node snapshot, with schema-v1 migration, schema-v2 hydration,
    early host connection, bounded snapshots, gesture-end flush (including a final
@@ -42,26 +43,28 @@ through the ordinary Convax Registry lifecycle. Convax Desktop does not carry a
 second static bundle or reserve this package as a built-in id. The iframe never
 executes code from a development dependency or Node module.
 
+The consolidated `UPSTREAM.patch` makes the application import a build-external
+`./plugin-host-client.js` module and use only its `callHostApi` and `onCommand`
+surface. The repository build supplies that module from the pinned
+`@convax/plugin-sdk/client`; the standalone upstream demo uses an inert adapter.
 The upstream-generated JavaScript is preserved byte-for-byte as `vendor/app.js`.
-The trusted `scripts/build.ts` step replaces inert remote documentation literals,
-splits XML namespace identifiers, and replaces the four bundled generic `fetch`
-loaders with an explicit local rejection before publishing `package/assets/app.js`.
-Do not hand-edit either generated file. The checked-in inputs and outputs are pinned
-by these SHA-256 hashes:
+The trusted `scripts/build.ts` step builds the SDK client, replaces inert remote
+documentation literals, splits XML namespace identifiers, and replaces the four
+bundled generic `fetch` loaders with an explicit local rejection before publishing
+`package/assets/app.js`. Do not hand-edit generated files. The checked-in inputs
+and outputs are pinned by these SHA-256 hashes:
 
-- `vendor/app.js`: `a98fa137c6917ec77a1f957826cefcb70fccb749d8a46868cd4c2457d701eec4`
-- `package/assets/app.js`: `262c9dbfa7fd4685181a79a8eb288ea76860e029e13f117e6a98a4353f21b540`
+- `vendor/app.js`: `ca87a7d8f2666eaf728dd5ea9ae7078821996d032140c4437ce5047e7bba65a1`
+- `package/assets/app.js`: `6e25840733a4f39fca753039f2e80ea59185e696b515fdaaf10d371f0ee97671`
+- `package/assets/plugin-host-client.js`: `4832ec6bcc4a9720dc8c27cd5a01d793026171d828370a7af4c2b0f8f4910316`
 - `assets/styles.css`: `6cce301d037ab3483cda7a5d1587fcd6258e59e7baee4ed6d8b17fc080ac8620`
 - `index.html`: `cca741699d677bb752288d02a61e11228cdcd810787bfb06f6d96e2deab9e646`
-- `UPSTREAM.patch`: `9b25fa03c69f346d46a33d82e295a04c22bf8f80146aeda21e08430a103bf287`
-- `UPSTREAM.state.patch`: `04732e1e1d711ffddd0ccafc044c8fa4114a3e4808c9cb75cdab3eb621619124`
-- `UPSTREAM.view.patch`: `326188b1fd0d45f7cd9b59645a7bdbc5c0f60c0efd0d0b33623b762c055aa49e`
-- `UPSTREAM.frame.patch`: `bda62e3d18a7d0718a9dd37dc30c8736990cae8ce6b2b621c7d552392d05735e`
+- `UPSTREAM.patch`: `e3d10db792f0dd5d020bad84a60cb5f393451a0cbdd8d598c84ee17be3cd07bd`
 
-To rebuild, check out the pinned commit and apply `UPSTREAM.patch`,
-`UPSTREAM.state.patch`, `UPSTREAM.view.patch`, then `UPSTREAM.frame.patch`. Remove
-`public/models/` so Vite cannot copy the non-open mannequin, run `npm ci` from the
-upstream lockfile, and run `npm run build`. Review the output, replace
-`vendor/app.js`, and run `bun run build` in this package to produce the offline
-Registry asset. Update every hash above only after reviewing both stages; toolchain
-differences can change minified bytes even when behavior is unchanged.
+To rebuild, check out the pinned commit and apply the consolidated
+`UPSTREAM.patch`. Remove `public/models/` so Vite cannot copy the non-open
+mannequin, run `npm ci` from the upstream lockfile, and run `npm test -- --run
+src/editor/io/hostBridge.convax.test.ts` plus `npm run build`. Review the output,
+replace `vendor/app.js`, and run `bun run build` in this package to produce the
+offline Registry assets. Update every hash above only after reviewing both stages;
+toolchain differences can change minified bytes even when behavior is unchanged.

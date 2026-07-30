@@ -1,5 +1,6 @@
 ---
 name: skill-creator
+version: 0.3.1
 description: Create or revise a portable agent Skill from concrete user workflows. Use when the user asks to design SKILL.md, scaffold a Skill bundle, improve triggering instructions, or package reusable references, scripts, or assets.
 ---
 

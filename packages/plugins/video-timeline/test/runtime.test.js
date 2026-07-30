@@ -45,7 +45,7 @@ const ids = (() => {
   return (prefix) => `${prefix}-${++value}`
 })()
 
-function connectedState(inputs = [{ id: "video-one", kind: "video", label: "One", durationMs: 10000 }]) {
+function connectedState(inputs = [{ inputKey: "video-one", kind: "video", label: "One", durationMs: 10000 }]) {
   return reconcileConnectedInputs(createEmptyState({ compositionId: "composition-test" }), inputs, { createId: ids }).state
 }
 
@@ -72,7 +72,7 @@ describe("Composition runtime", () => {
       createEmptyState({ compositionId: "composition-large" }),
       Array.from({ length: 700 }, (_, index) => ({
         durationMs: 10_000,
-        id: `video-${index}`,
+        inputKey: `video-${index}`,
         kind: "video",
         label: `Source ${index} ${"x".repeat(180)}`,
       })),
@@ -140,17 +140,17 @@ describe("Timeline viewport", () => {
 describe("connected input reconciliation", () => {
   test("materializes one track per unique video/audio node and ignores duplicate events", () => {
     const first = reconcileConnectedInputs(createEmptyState({ compositionId: "composition-reconcile" }), [
-      { id: "video-a", kind: "video", label: "A", durationMs: 5000 },
-      { id: "video-a", kind: "video", label: "A duplicate", durationMs: 5000 },
-      { id: "audio-a", kind: "audio", label: "Music", durationMs: 6000 },
-      { id: "text-a", kind: "text", label: "Notes" },
+      { inputKey: "video-a", kind: "video", label: "A", durationMs: 5000 },
+      { inputKey: "video-a", kind: "video", label: "A duplicate", durationMs: 5000 },
+      { inputKey: "audio-a", kind: "audio", label: "Music", durationMs: 6000 },
+      { inputKey: "text-a", kind: "text", label: "Notes" },
     ], { createId: ids })
     expect(first.state.composition.trackOrder).toHaveLength(2)
     expect(Object.values(first.state.composition.tracksById).map((track) => track.kind)).toEqual(["video", "audio"])
     expect(first.diagnostics).toEqual([expect.objectContaining({ code: "unsupported-input", nodeId: "text-a" })])
     const repeated = reconcileConnectedInputs(first.state, [
-      { id: "video-a", kind: "video", label: "A", durationMs: 5000 },
-      { id: "audio-a", kind: "audio", label: "Music", durationMs: 6000 },
+      { inputKey: "video-a", kind: "video", label: "A", durationMs: 5000 },
+      { inputKey: "audio-a", kind: "audio", label: "Music", durationMs: 6000 },
     ], { createId: ids })
     expect(repeated.state.composition.trackOrder).toEqual(first.state.composition.trackOrder)
     expect(Object.keys(repeated.state.composition.itemsById)).toEqual(Object.keys(first.state.composition.itemsById))
@@ -163,7 +163,7 @@ describe("connected input reconciliation", () => {
     const disconnected = reconcileConnectedInputs(moved, []).state
     expect(disconnected.sourceBindingsByNodeId["video-one"].status).toBe("offline")
     expect(disconnected.composition.itemsById[item.id].timelineRange).toEqual(moved.composition.itemsById[item.id].timelineRange)
-    const reconnected = reconcileConnectedInputs(disconnected, [{ id: "video-one", kind: "video", label: "Replacement", durationMs: 1000 }]).state
+    const reconnected = reconcileConnectedInputs(disconnected, [{ inputKey: "video-one", kind: "video", label: "Replacement", durationMs: 1000 }]).state
     expect(reconnected.sourceBindingsByNodeId["video-one"]).toMatchObject({ label: "Replacement", status: "online" })
     expect(reconnected.composition.itemsById[item.id].timelineRange).toEqual(moved.composition.itemsById[item.id].timelineRange)
   })
@@ -171,7 +171,7 @@ describe("connected input reconciliation", () => {
   test("replaces the one-second placeholder with detected media duration and keeps it across edge refreshes", () => {
     const initial = reconcileConnectedInputs(
       createEmptyState({ compositionId: "composition-duration" }),
-      [{ id: "video-metadata", kind: "video", label: "Metadata pending" }],
+      [{ inputKey: "video-metadata", kind: "video", label: "Metadata pending" }],
       { createId: ids },
     ).state
     const initialItem = Object.values(initial.composition.itemsById)[0]
@@ -186,7 +186,7 @@ describe("connected input reconciliation", () => {
 
     const refreshed = reconcileConnectedInputs(
       detected.state,
-      [{ id: "video-metadata", kind: "video", label: "Metadata pending" }],
+      [{ inputKey: "video-metadata", kind: "video", label: "Metadata pending" }],
       { createId: ids },
     ).state
     expect(seconds(refreshed.sourceBindingsByNodeId["video-metadata"].duration)).toBe(8.4)
@@ -198,8 +198,8 @@ describe("connected input reconciliation", () => {
     const state = createEmptyState({ compositionId: "composition-stale" })
     let release
     const first = reconciler.refresh(() => new Promise((resolve) => { release = resolve }), state, { createId: ids })
-    const second = await reconciler.refresh(async () => ({ inputs: [{ id: "new", kind: "video", durationMs: 1000 }] }), state, { createId: ids })
-    release({ inputs: [{ id: "old", kind: "video", durationMs: 1000 }] })
+    const second = await reconciler.refresh(async () => ({ inputs: [{ inputKey: "new", kind: "video", durationMs: 1000 }] }), state, { createId: ids })
+    release({ inputs: [{ inputKey: "old", kind: "video", durationMs: 1000 }] })
     expect(await first).toMatchObject({ stale: true })
     expect(second.state.sourceBindingsByNodeId.new).toBeDefined()
     expect(second.state.sourceBindingsByNodeId.old).toBeUndefined()
@@ -236,9 +236,9 @@ describe("Timeline edits and playback", () => {
 
   test("selects stable simultaneous video/audio layers and advances through their longest enabled range", () => {
     const state = connectedState([
-      { id: "video-bottom", kind: "video", label: "Bottom", durationMs: 5000 },
-      { id: "video-top", kind: "video", label: "Top", durationMs: 3000 },
-      { id: "audio-mix", kind: "audio", label: "Mix", durationMs: 7000 },
+      { inputKey: "video-bottom", kind: "video", label: "Bottom", durationMs: 5000 },
+      { inputKey: "video-top", kind: "video", label: "Top", durationMs: 3000 },
+      { inputKey: "audio-mix", kind: "audio", label: "Mix", durationMs: 7000 },
     ])
     const atOneSecond = timeFromSeconds(1, state.composition.settings.editRate)
     expect(activePlaybackItems(state, atOneSecond).map((item) => item.sourceRef.nodeId)).toEqual([
@@ -256,8 +256,8 @@ describe("Timeline edits and playback", () => {
 
   test("starts card playback from the first enabled online Clip without requiring editor selection", () => {
     const state = connectedState([
-      { id: "video-late", kind: "video", label: "Late", durationMs: 5000 },
-      { id: "audio-first", kind: "audio", label: "First", durationMs: 3000 },
+      { inputKey: "video-late", kind: "video", label: "Late", durationMs: 5000 },
+      { inputKey: "audio-first", kind: "audio", label: "First", durationMs: 3000 },
     ])
     const videoItem = Object.values(state.composition.itemsById).find((item) => item.sourceRef.nodeId === "video-late")
     const audioItem = Object.values(state.composition.itemsById).find((item) => item.sourceRef.nodeId === "audio-first")

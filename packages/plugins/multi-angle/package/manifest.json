@@ -1,17 +1,44 @@
 {
-  "schema": "convax.plugin/3",
+  "schema": "convax.plugin/8",
   "id": "multi-angle",
   "name": "多角度",
   "description": "通过已安装的统一图片生成工具，一次生成一张多宫格图片，每个格子展示同一主体的一个一致视角。",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "entry": "index.html",
   "capabilities": [
-    "canvas.connectedImages.read",
+    "canvas.connectedInputs.read",
+    "canvas.connectedMedia.stream",
     "canvas.node.write",
     "generation.execute"
   ],
   "contributes": {
     "canvas": {
+      "commands": [
+        {
+          "id": "multi-angle.generate",
+          "title": {
+            "default": "Generate multi-angle grid",
+            "zh-CN": "生成多角度宫格图"
+          },
+          "icon": "sparkles",
+          "target": {
+            "type": "renderer-message",
+            "message": "renderer.multi-angle.generate"
+          }
+        },
+        {
+          "id": "multi-angle.refresh",
+          "title": {
+            "default": "Refresh image and models",
+            "zh-CN": "刷新参考图与模型"
+          },
+          "icon": "refresh",
+          "target": {
+            "type": "renderer-message",
+            "message": "renderer.multi-angle.refresh"
+          }
+        }
+      ],
       "renderer": {
         "create": true,
         "width": 1080,
@@ -20,15 +47,28 @@
       "toolbar": [
         {
           "id": "generate",
-          "title": "生成多角度宫格图",
-          "command": "multi-angle.generate"
+          "command": "multi-angle.generate",
+          "order": 10
         },
         {
           "id": "refresh",
-          "title": "刷新参考图与模型",
-          "command": "multi-angle.refresh"
+          "command": "multi-angle.refresh",
+          "order": 20
         }
       ]
     }
+  },
+  "hostApi": {
+    "major": 1,
+    "required": [
+      "canvas.inputs.close",
+      "canvas.inputs.list",
+      "canvas.inputs.open",
+      "canvas.node.state.replace",
+      "generation.execute",
+      "generation.tools.list",
+      "host.context.get"
+    ],
+    "optional": []
   }
 }

@@ -10,49 +10,60 @@ import {
 import {
   officialBuildArgs,
   officialBuildInvocation,
+  runOfficialBuild,
 } from "./official-marketplace-build.mjs"
 import { fetchPreviousRegistry } from "./fetch-marketplace-previous.mjs"
-import { root, sha256 } from "./lib.mjs"
+import { root } from "./lib.mjs"
 
-describe("Official and Builtin marketplace source", () => {
-  const strictRegistryParser = (version) => (value) => {
-    const topLevel = version === 2
-      ? ["schema", "marketplaceId", "sequence", "revision", "packages"]
-      : ["schema", "sequence", "revision", "packages"]
-    const unknown = Object.keys(value).find((key) => !topLevel.includes(key))
-    if (unknown) throw new Error(`unknown field ${unknown}`)
-    const identities = new Set()
-    for (const entry of value.packages) {
-      if (typeof entry?.kind !== "string" || typeof entry.id !== "string") {
-        throw new Error("bad package")
-      }
-      const identity = `${entry.kind}/${entry.id}`
-      if (identities.has(identity)) throw new Error(`duplicate ${identity}`)
-      identities.add(identity)
-    }
-    return value
+const registryUrl = "https://microvoid.github.io/convax-plugins/registry/v2/index.json"
+const showcaseUrl = "https://microvoid.github.io/convax-plugins/showcase/v2/index.json"
+const emptyRegistryRevision = "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+
+function officialDescriptor() {
+  return {
+    schema: "convax.marketplace/1",
+    id: "convax-official",
+    name: "Convax Official",
+    publisher: {
+      name: "Microvoid",
+    },
+    repository: { owner: "microvoid", name: "convax-plugins" },
+    registry: {
+      v2: { url: registryUrl },
+    },
+    showcase: {
+      v2: { url: showcaseUrl },
+    },
+    compatibility: { convax: ">=0.1.0" },
+    delivery: { kind: "github-pages-releases" },
   }
+}
 
-  test("owns the approved descriptor, Builtin member, and preinstalled closure", async () => {
+function registryFixture(overrides = {}) {
+  return {
+    schema: "convax.registry/2",
+    marketplaceId: "convax-official",
+    sequence: 45,
+    revision: emptyRegistryRevision,
+    packages: [],
+    ...overrides,
+  }
+}
+
+function showcaseFixture(overrides = {}) {
+  return {
+    schema: "convax.showcase/2",
+    marketplaceId: "convax-official",
+    revision: emptyRegistryRevision,
+    packages: [],
+    ...overrides,
+  }
+}
+
+describe("Official Marketplace tooling", () => {
+  test("owns the v2-only descriptor, Builtin member, and preinstalled closure", async () => {
     const source = await loadOfficialMarketplaceSource(root)
-    expect(source.descriptor).toEqual({
-      schema: "convax.marketplace/1",
-      id: "convax-official",
-      name: "Convax Official",
-      publisher: {
-        name: "Microvoid",
-      },
-      repository: { owner: "microvoid", name: "convax-plugins" },
-      registry: {
-        v1: { url: "https://microvoid.github.io/convax-plugins/registry/v1/index.json" },
-        v2: { url: "https://microvoid.github.io/convax-plugins/registry/v2/index.json" },
-      },
-      showcase: {
-        v2: { url: "https://microvoid.github.io/convax-plugins/showcase/v2/index.json" },
-      },
-      compatibility: { convax: ">=0.1.0" },
-      delivery: { kind: "github-pages-releases" },
-    })
+    expect(source.descriptor).toEqual(officialDescriptor())
     expect(source.builtin.members).toEqual([
       { kind: "skill", id: "canvas-storyboard" },
     ])
@@ -66,14 +77,17 @@ describe("Official and Builtin marketplace source", () => {
       },
     ])
     expect(() => assertOfficialMarketplaceSource(source)).not.toThrow()
-  })
 
-  test("keeps the approved standalone Storyboard Skill bytes fixed in its sole source", async () => {
-    const sourceSkill = await fs.readFile(path.join(
-      root,
-      "packages/skills/canvas-storyboard/package/SKILL.md",
-    ))
-    expect(sha256(sourceSkill)).toBe("76efa86e73ae8ca0581f3000ec6a622ee8479ec42a6d1e15892ec0051506b9d8")
+    expect(() => assertOfficialMarketplaceSource({
+      ...source,
+      descriptor: {
+        ...source.descriptor,
+        registry: {
+          ...source.descriptor.registry,
+          unexpected: { url: registryUrl },
+        },
+      },
+    })).toThrow("unsupported field unexpected")
   })
 
   test("publishes HTTP and managed-stdio MCP Server fixtures without mixing profiles", async () => {
@@ -104,15 +118,12 @@ describe("Official and Builtin marketplace source", () => {
     expect(extension).not.toHaveProperty("version")
   })
 
-  test("uses an explicit production snapshot in CI and an explicit initial candidate locally", () => {
+  test("passes only a complete v2 closure or an initial marker to Marketplace Kit", () => {
     expect(officialBuildArgs({
       changed: "dist/release-plan.json",
       previousDescriptor: "dist/production/marketplace.json",
       previous: "dist/production/registry-v2.json",
-      previousV1: "dist/production/registry-v1.json",
       previousShowcase: "dist/production/showcase-v2.json",
-      previousShowcaseV1: "dist/production/showcase-v1.json",
-      v1Revision: "a".repeat(40),
     })).toEqual([
       "build-index",
       ".",
@@ -127,268 +138,289 @@ describe("Official and Builtin marketplace source", () => {
       "dist/production/registry-v2.json",
       "--previous-showcase",
       "dist/production/showcase-v2.json",
-      "--previous-v1",
-      "dist/production/registry-v1.json",
-      "--previous-showcase-v1",
-      "dist/production/showcase-v1.json",
-      "--v1-revision",
-      "a".repeat(40),
     ])
-    expect(officialBuildArgs({
-      bootstrapPreviousV1: "dist/production/registry-v1.json",
-      previousDescriptor: "marketplace.json",
-      previousShowcaseV1: "dist/production/showcase-v1.json",
-      v1Revision: "a".repeat(40),
-    })).toEqual([
-      "build-index",
-      ".",
-      "--out",
-      "dist/catalog",
-      "--official",
-      "--previous-descriptor",
-      "marketplace.json",
-      "--bootstrap-previous-v1",
-      "dist/production/registry-v1.json",
-      "--previous-showcase-v1",
-      "dist/production/showcase-v1.json",
-      "--v1-revision",
-      "a".repeat(40),
-    ])
-    expect(officialBuildArgs({ v1Revision: "a".repeat(40) })).toEqual([
+    expect(officialBuildArgs({})).toEqual([
       "build-index",
       ".",
       "--out",
       "dist/catalog",
       "--official",
       "--initial",
-      "--v1-revision",
-      "a".repeat(40),
     ])
     expect(() => officialBuildArgs({
-      bootstrapPreviousV1: "dist/production/registry-v1.json",
-      previousDescriptor: "marketplace.json",
       previous: "dist/production/registry-v2.json",
-      previousShowcaseV1: "dist/production/showcase-v1.json",
-      v1Revision: "a".repeat(40),
-    })).toThrow("exactly one previous Registry mode")
-    expect(() => officialBuildArgs({
-      changed: "dist/release-plan.json",
-      previous: "dist/production/registry-v2.json",
-      v1Revision: "a".repeat(40),
     })).toThrow("complete previous v2 closure")
     expect(() => officialBuildArgs({
-      bootstrapPreviousV1: "dist/production/registry-v1.json",
-      previousDescriptor: "marketplace.json",
-      v1Revision: "a".repeat(40),
-    })).toThrow("complete previous v1 closure")
-    expect(() => officialBuildArgs({ v1Revision: "bad" }))
-      .toThrow("v1 revision must be an exact Git SHA")
+      changed: "dist/release-plan.json",
+    })).toThrow("Selective Official build requires a complete previous v2 closure")
+    expect(() => officialBuildArgs({
+      previousDescriptor: "dist/production/marketplace.json",
+      previous: "dist/production/registry-v2.json",
+      previousShowcase: "dist/production/showcase-v2.json",
+    })).toThrow(
+      "Non-initial Official build requires an exact ready-only change selection",
+    )
   })
 
-  test("runs the locked Marketplace CLI with the current Bun runtime", () => {
+  test("runs the locked Marketplace Kit CLI with the current runtime", () => {
     expect(officialBuildInvocation([
       "build-index",
       ".",
-      "--changed",
-      "dist/release-plan.json",
+      "--initial",
     ])).toEqual({
       args: [
         fileURLToPath(import.meta.resolve("@convax/marketplace-kit/cli")),
         "build-index",
         ".",
-        "--changed",
-        "dist/release-plan.json",
+        "--initial",
       ],
       command: process.execPath,
     })
   })
 
-  test("prefers production v2 and bootstraps from strict v1 only after an exact v2 404", async () => {
+  test("requires and forwards the Host API Catalog before spawning Marketplace Kit", async () => {
+    let preflightOptions
+    let spawnInvocation
+    await expect(runOfficialBuild({
+      environment: {},
+      preflight: async () => {
+        throw new Error("must not run")
+      },
+      spawn: () => {
+        throw new Error("must not spawn")
+      },
+    })).rejects.toThrow("CONVAX_PLUGIN_API_CATALOG")
+
+    await runOfficialBuild({
+      environment: {
+        CONVAX_PLUGIN_API_CATALOG: "fixtures/plugin-api.json",
+      },
+      preflight: async (options) => {
+        preflightOptions = options
+        return { packages: [] }
+      },
+      createView: async () => ({
+        omissions: {
+          schema: "convax.marketplace-build-omissions/1",
+          omitted: [],
+        },
+        root: "/tmp/unused-publication-view",
+      }),
+      discover: async () => [],
+      disposeView: async () => {},
+      spawn: (command, args, options) => {
+        spawnInvocation = { command, args, options }
+        return { status: 0 }
+      },
+    })
+    expect(preflightOptions).toEqual({
+      catalogPath: "fixtures/plugin-api.json",
+      workspaceRoot: `${root}${path.sep}`,
+    })
+    expect(spawnInvocation.command).toBe(process.execPath)
+    expect(spawnInvocation.args.slice(1)).toEqual([
+      "build-index",
+      ".",
+      "--out",
+      "dist/catalog",
+      "--official",
+      "--initial",
+    ])
+    expect(spawnInvocation.options.env.CONVAX_PLUGIN_API_CATALOG)
+      .toBe("fixtures/plugin-api.json")
+  })
+
+  test("uses a ready-only initial staging view when source contains blocked packages", async () => {
+    let buildOptions
+    let disposed
+    await runOfficialBuild({
+      build: async (options) => {
+        buildOptions = options
+      },
+      createView: async () => ({
+        omissions: {
+          schema: "convax.marketplace-build-omissions/1",
+          omitted: [{
+            kind: "plugin",
+            id: "blocked-plugin",
+            version: "1.0.0",
+            publication: {
+              status: "blocked",
+              blockers: [{
+                code: "host-capability-review-required",
+                note: "Pending generic contract.",
+              }],
+              blockedBy: ["plugin/blocked-plugin"],
+            },
+          }],
+        },
+        root: "/tmp/ready-only-publication-view",
+      }),
+      discover: async () => [],
+      disposeView: async () => {
+        disposed = true
+      },
+      environment: {
+        CONVAX_PLUGIN_API_CATALOG: "fixtures/plugin-api.json",
+      },
+      preflight: async () => ({
+        packages: [{
+          metadata: {
+            kind: "plugin",
+            id: "blocked-plugin",
+            version: "1.0.0",
+            publication: {
+              status: "blocked",
+              blockers: [{
+                code: "host-capability-review-required",
+                note: "Pending generic contract.",
+              }],
+            },
+          },
+          manifest: { contributes: {} },
+        }],
+      }),
+      spawn: () => {
+        throw new Error("initial blocked build must not use the unfiltered root")
+      },
+    })
+    expect(buildOptions).toEqual({
+      initialOfficial: true,
+      official: true,
+      outDir: path.join(root, "dist", "catalog"),
+      root: "/tmp/ready-only-publication-view",
+    })
+    expect(disposed).toBe(true)
+  })
+
+  test("fails closed when blocked source has a previous closure but no ready-only selection", async () => {
+    let spawned = false
+    await expect(runOfficialBuild({
+      environment: {
+        CONVAX_MARKETPLACE_PREVIOUS: "dist/production/registry-v2.json",
+        CONVAX_MARKETPLACE_PREVIOUS_DESCRIPTOR:
+          "dist/production/marketplace.json",
+        CONVAX_MARKETPLACE_PREVIOUS_SHOWCASE:
+          "dist/production/showcase-v2.json",
+        CONVAX_PLUGIN_API_CATALOG: "fixtures/plugin-api.json",
+      },
+      preflight: async () => ({
+        packages: [{
+          metadata: {
+            kind: "plugin",
+            id: "blocked-plugin",
+            version: "1.0.0",
+            publication: {
+              status: "blocked",
+              blockers: [{
+                code: "host-capability-review-required",
+                note: "Pending generic contract.",
+              }],
+            },
+          },
+          manifest: { contributes: {} },
+        }],
+      }),
+      spawn: () => {
+        spawned = true
+        return { status: 0 }
+      },
+    })).rejects.toThrow(
+      "Non-initial Official build requires an exact ready-only change selection",
+    )
+    expect(spawned).toBe(false)
+  })
+
+  test("fetches and snapshots exactly one strict v2 production closure", async () => {
     const output = await fs.mkdtemp(path.join(os.tmpdir(), "convax-marketplace-previous-"))
     try {
-      const v2Bytes = JSON.stringify({
-        schema: "convax.registry/2",
-        marketplaceId: "convax-official",
-        sequence: 45,
-        revision: "a".repeat(64),
-        packages: [],
-      })
-      let requests = []
-      const v2 = await fetchPreviousRegistry({
+      const requests = []
+      const result = await fetchPreviousRegistry({
         fetchImpl: async (url) => {
           requests.push(url)
-          if (url.endsWith("/v2")) return new Response(v2Bytes, { status: 200 })
-          if (url.endsWith("/descriptor")) return new Response('{"schema":"convax.marketplace/1"}', { status: 200 })
-          if (url.endsWith("/showcase-v2")) return new Response('{"schema":"convax.showcase/2"}', { status: 200 })
-          if (url.endsWith("/v1")) {
-            return new Response(JSON.stringify({
-              schema: "convax.registry/1",
-              sequence: 45,
-              revision: "c".repeat(40),
-              packages: [],
-            }), { status: 200 })
+          if (url.endsWith("/descriptor")) {
+            return new Response(JSON.stringify(officialDescriptor()), { status: 200 })
           }
-          return new Response('{"schema":"convax.showcase/1"}', { status: 200 })
+          if (url === registryUrl) {
+            return new Response(JSON.stringify(registryFixture()), { status: 200 })
+          }
+          if (url === showcaseUrl) {
+            return new Response(JSON.stringify(showcaseFixture()), { status: 200 })
+          }
+          return new Response("", { status: 404 })
         },
         descriptorUrl: "https://example.test/descriptor",
         outputDirectory: output,
-        parseV1: strictRegistryParser(1),
-        parseV2: strictRegistryParser(2),
-        v1ShowcaseUrl: "https://example.test/showcase-v1",
-        v1Url: "https://example.test/v1",
-        v2ShowcaseUrl: "https://example.test/showcase-v2",
-        v2Url: "https://example.test/v2",
+        registryUrl,
+        showcaseUrl,
       })
-      expect(v2.mode).toBe("v2")
-      expect(v2).toMatchObject({
-        baseRevision: "c".repeat(40),
+      expect(result).toMatchObject({
+        baseRevision: `registry-v2-${emptyRegistryRevision}`,
         descriptorSnapshot: path.join(output, "marketplace.json"),
-        legacyRegistrySnapshot: path.join(output, "registry-v1.json"),
-        legacyShowcaseSnapshot: path.join(output, "showcase-v1.json"),
+        snapshot: path.join(output, "registry-v2.json"),
         showcaseSnapshot: path.join(output, "showcase-v2.json"),
       })
       expect(requests).toEqual([
-        "https://example.test/v2",
         "https://example.test/descriptor",
-        "https://example.test/showcase-v2",
-        "https://example.test/v1",
-        "https://example.test/showcase-v1",
+        registryUrl,
+        showcaseUrl,
       ])
-
-      requests = []
-      const bootstrap = await fetchPreviousRegistry({
-        fetchImpl: async (url) => {
-          requests.push(url)
-          return url.endsWith("/v2")
-            ? new Response("", { status: 404 })
-            : url.endsWith("/showcase-v1")
-              ? new Response('{"schema":"convax.showcase/1"}', { status: 200 })
-            : new Response(JSON.stringify({
-                schema: "convax.registry/1",
-                sequence: 44,
-                revision: "b".repeat(40),
-                packages: [],
-              }), { status: 200 })
-        },
-        descriptorUrl: "https://example.test/descriptor",
-        outputDirectory: output,
-        parseV1: strictRegistryParser(1),
-        parseV2: strictRegistryParser(2),
-        v1ShowcaseUrl: "https://example.test/showcase-v1",
-        v1Url: "https://example.test/v1",
-        v2ShowcaseUrl: "https://example.test/showcase-v2",
-        v2Url: "https://example.test/v2",
-      })
-      expect(bootstrap.mode).toBe("bootstrap-v1")
-      expect(bootstrap).toMatchObject({
-        baseRevision: "b".repeat(40),
-        showcaseSnapshot: path.join(output, "showcase-v1.json"),
-      })
-      expect(requests).toEqual([
-        "https://example.test/v2",
-        "https://example.test/v1",
-        "https://example.test/showcase-v1",
-      ])
-
-      requests = []
-      await expect(fetchPreviousRegistry({
-        fetchImpl: async (url) => {
-          requests.push(url)
-          return new Response("", { status: 503 })
-        },
-        descriptorUrl: "https://example.test/descriptor",
-        outputDirectory: output,
-        parseV1: strictRegistryParser(1),
-        parseV2: strictRegistryParser(2),
-        v1ShowcaseUrl: "https://example.test/showcase-v1",
-        v1Url: "https://example.test/v1",
-        v2ShowcaseUrl: "https://example.test/showcase-v2",
-        v2Url: "https://example.test/v2",
-      })).rejects.toThrow("v2 returned HTTP 503")
-      expect(requests).toEqual(["https://example.test/v2"])
-
-      await expect(fetchPreviousRegistry({
-        fetchImpl: async (url) => url.endsWith("/v2")
-          ? new Response("", { status: 404 })
-          : url.endsWith("/showcase-v1")
-            ? new Response('{"schema":"convax.showcase/1"}', { status: 200 })
-          : new Response(JSON.stringify({
-              schema: "convax.registry/1",
-              sequence: 0,
-              revision: "bad",
-              packages: [],
-            }), { status: 200 }),
-        descriptorUrl: "https://example.test/descriptor",
-        outputDirectory: output,
-        parseV1: strictRegistryParser(1),
-        parseV2: strictRegistryParser(2),
-        v1ShowcaseUrl: "https://example.test/showcase-v1",
-        v1Url: "https://example.test/v1",
-        v2ShowcaseUrl: "https://example.test/showcase-v2",
-        v2Url: "https://example.test/v2",
-      })).rejects.toThrow("v1 is not a strict sequence input")
-
-      await expect(fetchPreviousRegistry({
-        fetchImpl: async () => new Response(JSON.stringify({
-          schema: "convax.registry/2",
-          marketplaceId: "convax-official",
-          sequence: 45,
-          revision: "a".repeat(64),
-          packages: [
-            { kind: "skill", id: "duplicate" },
-            { kind: "skill", id: "duplicate" },
-          ],
-          unexpected: true,
-        }), { status: 200 }),
-        descriptorUrl: "https://example.test/descriptor",
-        outputDirectory: output,
-        parseV1: strictRegistryParser(1),
-        parseV2: strictRegistryParser(2),
-        v1ShowcaseUrl: "https://example.test/showcase-v1",
-        v1Url: "https://example.test/v1",
-        v2ShowcaseUrl: "https://example.test/showcase-v2",
-        v2Url: "https://example.test/v2",
-      })).rejects.toThrow("strict validation failed")
+      expect(JSON.parse(await fs.readFile(result.snapshot, "utf8"))).toEqual(registryFixture())
+      expect(JSON.parse(await fs.readFile(result.showcaseSnapshot, "utf8"))).toEqual(showcaseFixture())
     } finally {
       await fs.rm(output, { recursive: true, force: true })
     }
   })
 
-  test("redeploys only reverified low-privilege bytes when no package version changes", async () => {
-    const releaseWorkflow = await fs.readFile(
-      path.join(root, ".github/workflows/release-on-main.yml"),
-      "utf8",
-    )
-    const pagesWorkflow = await fs.readFile(
-      path.join(root, ".github/workflows/pages.yml"),
-      "utf8",
-    )
-    expect(releaseWorkflow).toContain("branches: [main]")
-    expect(releaseWorkflow).not.toContain("pull_request_target")
-    expect(releaseWorkflow).not.toContain("if: steps.plan.outputs.count != '0'")
-    expect(releaseWorkflow).not.toContain("if: needs.verify.outputs.count != '0'")
-    expect(releaseWorkflow).toContain("needs: [verify, publish]")
-    expect(releaseWorkflow).toContain("uses: ./.github/workflows/pages.yml")
-    expect(pagesWorkflow).toContain(
-      "bun tooling/verify-marketplace-output.mjs dist/catalog",
-    )
-    expect(pagesWorkflow).toContain(
-      "bun tooling/verify-product-lock-input.mjs dist/product-lock-input.json",
-    )
-    expect(pagesWorkflow).toContain(
-      "CONVAX_MARKETPLACE_CHANGED: dist/release-plan.json",
-    )
-    expect(releaseWorkflow).toContain(
-      "cp schemas/*.json dist/catalog/site/schemas/",
-    )
-    expect(releaseWorkflow.indexOf("Fetch the current production closure"))
-      .toBeLessThan(releaseWorkflow.indexOf("Select exact unpublished version changes"))
-    expect(releaseWorkflow).toContain('--base "$CONVAX_MARKETPLACE_BASE_SHA"')
-    expect(pagesWorkflow).toContain('cmp "$schema" "dist/catalog/site/schemas/$(basename "$schema")"')
-    expect(pagesWorkflow).toContain("path: dist/catalog/site")
-    expect(pagesWorkflow).not.toContain("cp schemas/*.json")
-    expect(pagesWorkflow).not.toContain("cp dist/catalog/registry-v2.json")
-    expect(pagesWorkflow).not.toContain("cp dist/catalog/showcase-v2.json")
-    expect(pagesWorkflow).not.toContain("path: dist/site")
+  test("fails closed on missing or inconsistent v2 production inputs", async () => {
+    const output = await fs.mkdtemp(path.join(os.tmpdir(), "convax-marketplace-invalid-"))
+    const fetchClosure = (fetchImpl, overrides = {}) => fetchPreviousRegistry({
+      fetchImpl,
+      descriptorUrl: "https://example.test/descriptor",
+      outputDirectory: output,
+      registryUrl,
+      showcaseUrl,
+      ...overrides,
+    })
+    try {
+      const descriptorBytes = JSON.stringify(officialDescriptor())
+      await expect(fetchClosure(async () => new Response("", { status: 404 })))
+        .rejects.toThrow("descriptor returned HTTP 404")
+
+      await expect(fetchClosure(async (url) => (
+        url.endsWith("/descriptor")
+          ? new Response(descriptorBytes, { status: 200 })
+          : new Response("", { status: 404 })
+      ))).rejects.toThrow("Registry v2 returned HTTP 404")
+
+      await expect(fetchClosure(async (url) => {
+        if (url.endsWith("/descriptor")) return new Response(descriptorBytes, { status: 200 })
+        if (url === registryUrl) {
+          return new Response(JSON.stringify(registryFixture({ unexpected: true })), { status: 200 })
+        }
+        return new Response(JSON.stringify(showcaseFixture()), { status: 200 })
+      })).rejects.toThrow("Registry v2 strict validation failed")
+
+      await expect(fetchClosure(async (url) => {
+        if (url.endsWith("/descriptor")) return new Response(descriptorBytes, { status: 200 })
+        if (url === registryUrl) {
+          return new Response(JSON.stringify(registryFixture()), { status: 200 })
+        }
+        return new Response(JSON.stringify(showcaseFixture({ revision: "b".repeat(64) })), {
+          status: 200,
+        })
+      })).rejects.toThrow("Showcase v2 is not a strict Registry-bound input")
+
+      await expect(fetchClosure(
+        async (url) => (
+          url.endsWith("/descriptor")
+            ? new Response(descriptorBytes, { status: 200 })
+            : new Response("", { status: 404 })
+        ),
+        { registryUrl: "https://example.test/unpinned.json" },
+      )).rejects.toThrow("URLs differ from the pinned Official closure")
+    } finally {
+      await fs.rm(output, { recursive: true, force: true })
+    }
   })
 })

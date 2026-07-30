@@ -31,11 +31,6 @@ jobs:
         run: |
           bun tooling/verify-marketplace-output.mjs dist/catalog
           bun tooling/verify-product-lock-input.mjs dist/product-lock-input.json
-          test "$(find schemas -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' ')" = \
-            "$(find dist/catalog/site/schemas -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' ')"
-          for schema in schemas/*.json; do
-            cmp "$schema" "dist/catalog/site/schemas/$(basename "$schema")"
-          done
       - name: Configure Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - name: Upload Pages artifact

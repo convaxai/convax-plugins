@@ -14,7 +14,7 @@ The audited MCP configuration declares the hosted endpoint
 `https://api.chatcut.io/api/external-mcp/mcp`, the static
 `x-chatcut-mcp-surface: codex` header, and OAuth resource discovery for that same
 endpoint. Convax represents those public configuration facts through the generic
-`convax.plugin/6` remote MCP contribution. OpenCode performs the standard MCP
+`convax.plugin/8` remote MCP contribution. OpenCode performs the standard MCP
 OAuth flow; this package contains no authentication implementation or credential.
 
 The audited asset-import workflow documents a separate local-media boundary:
@@ -35,9 +35,11 @@ authored package under its declared MIT license and avoids implying that Convax
 republishes the official ChatCut package.
 
 The Canvas workspace HTML, CSS, JavaScript, icons, copy, and workflow starters
-were independently authored for Convax. They use only Convax's documented
-`convax.plugin-capability/1` MessagePort contract and contain no upstream UI or
-application code.
+were independently authored for Convax. They use only the documented
+`@convax/plugin-sdk/client` `convax.plugin-host/8` MessagePort contract. The
+client is bundled into a local static asset from repository author source; the
+browser bundle excludes the remote MCP endpoint and other non-Web manifest
+contributions. The package contains no upstream UI or application code.
 
 The `codex` surface header is retained because it is the public, tested value in
 the audited configuration. A future release may use a ChatCut-approved `convax`
