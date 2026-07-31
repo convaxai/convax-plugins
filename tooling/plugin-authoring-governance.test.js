@@ -129,6 +129,12 @@ describe("Convax Plugin authoring governance", () => {
     const packageBuild = releaseWorkflow.indexOf(
       "bun run workspaces:build:packages",
     );
+    const ffmpegSourceVerification = releaseWorkflow.indexOf(
+      "Fetch and verify the pinned official FFmpeg source",
+    );
+    const ffmpegSourceBinding = releaseWorkflow.indexOf(
+      "CONVAX_FFMPEG_SOURCE_ARCHIVE=",
+    );
     const companionBuild = releaseWorkflow.indexOf(
       "bun run build:companions",
     );
@@ -136,10 +142,17 @@ describe("Convax Plugin authoring governance", () => {
       "bun tooling/marketplace-release.mjs",
     );
     expect(packageBuild).toBeGreaterThanOrEqual(0);
+    expect(ffmpegSourceVerification).toBeGreaterThanOrEqual(0);
+    expect(ffmpegSourceBinding).toBeGreaterThan(ffmpegSourceVerification);
     expect(companionBuild).toBeGreaterThanOrEqual(0);
     expect(releaseSelection).toBeGreaterThanOrEqual(0);
+    expect(ffmpegSourceBinding).toBeLessThan(companionBuild);
     expect(packageBuild).toBeLessThan(releaseSelection);
     expect(companionBuild).toBeLessThan(releaseSelection);
+    expect(releaseWorkflow).toContain("--retry-all-errors");
+    expect(releaseWorkflow.match(
+      /Fetch and verify the pinned official FFmpeg source/g,
+    )).toHaveLength(1);
     expect(codeowners).toContain("@fearclear");
     expect(codeowners).toContain(
       "/tooling/host-capability-history.mjs",

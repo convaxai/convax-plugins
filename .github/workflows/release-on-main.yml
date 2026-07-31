@@ -38,6 +38,48 @@ jobs:
           git diff --exit-code -- bun.lock
       - name: Fetch the current production closure
         run: bun tooling/fetch-marketplace-previous.mjs
+      - name: Fetch and verify the pinned official FFmpeg source
+        run: |
+          set -euo pipefail
+          if ! command -v gpg >/dev/null 2>&1; then
+            brew install gnupg
+          fi
+          source_path="$RUNNER_TEMP/ffmpeg-8.1.2.tar.xz"
+          signature_path="$source_path.asc"
+          key_path="$RUNNER_TEMP/ffmpeg-devel.asc"
+          download() {
+            curl \
+              --connect-timeout 20 \
+              --fail \
+              --location \
+              --max-time 240 \
+              --retry 5 \
+              --retry-all-errors \
+              --retry-delay 5 \
+              --silent \
+              --show-error \
+              "$1" \
+              --output "$2"
+          }
+          download https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz "$source_path"
+          download https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz.asc "$signature_path"
+          download https://ffmpeg.org/ffmpeg-devel.asc "$key_path"
+          test "$(stat -f '%z' "$source_path")" = "11710924"
+          test "$(shasum -a 256 "$source_path" | awk '{print $1}')" = "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c"
+          test "$(stat -f '%z' "$signature_path")" = "520"
+          test "$(shasum -a 256 "$signature_path" | awk '{print $1}')" = "0a0963fccd70597838073f3e31b20f4a4d8cc2b5e577472c9a5a1f22624246f8"
+          test "$(stat -f '%z' "$key_path")" = "1709"
+          test "$(shasum -a 256 "$key_path" | awk '{print $1}')" = "397b3becedcd5a98769967ff1ff8501ddc89f8368b8f766e4701377d7dbaabe5"
+          export GNUPGHOME="$RUNNER_TEMP/ffmpeg-gnupg"
+          mkdir -m 700 "$GNUPGHOME"
+          gpg --batch --import "$key_path"
+          fingerprint="$(gpg --batch --with-colons --fingerprint | awk -F: '$1 == "fpr" { print $10; exit }')"
+          test "$fingerprint" = "FCF986EA15E6E293A5644F10B4322F04D67658D8"
+          gpg --batch --verify "$signature_path" "$source_path"
+          echo "CONVAX_FFMPEG_SOURCE_ARCHIVE=$source_path" >> "$GITHUB_ENV"
+          echo "CONVAX_FFMPEG_SOURCE_SIGNATURE=$signature_path" >> "$GITHUB_ENV"
+          echo "CONVAX_FFMPEG_SIGNING_KEY=$key_path" >> "$GITHUB_ENV"
+          echo "CONVAX_FFMPEG_REQUIRE_PGP=1" >> "$GITHUB_ENV"
       - name: Build deterministic version-selection inputs
         run: |
           bun run workspaces:build:packages
@@ -65,37 +107,6 @@ jobs:
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6
         with:
           cosign-release: v3.0.6
-      - name: Verify the pinned official FFmpeg source
-        run: |
-          set -euo pipefail
-          if ! jq -e '.[] | select(.kind == "plugin" and .id == "ffmpeg-tools")' dist/release-plan.json >/dev/null; then
-            exit 0
-          fi
-          if ! command -v gpg >/dev/null 2>&1; then
-            brew install gnupg
-          fi
-          source_path="$RUNNER_TEMP/ffmpeg-8.1.2.tar.xz"
-          signature_path="$source_path.asc"
-          key_path="$RUNNER_TEMP/ffmpeg-devel.asc"
-          curl --fail --location --silent --show-error https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz --output "$source_path"
-          curl --fail --location --silent --show-error https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz.asc --output "$signature_path"
-          curl --fail --location --silent --show-error https://ffmpeg.org/ffmpeg-devel.asc --output "$key_path"
-          test "$(stat -f '%z' "$source_path")" = "11710924"
-          test "$(shasum -a 256 "$source_path" | awk '{print $1}')" = "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c"
-          test "$(stat -f '%z' "$signature_path")" = "520"
-          test "$(shasum -a 256 "$signature_path" | awk '{print $1}')" = "0a0963fccd70597838073f3e31b20f4a4d8cc2b5e577472c9a5a1f22624246f8"
-          test "$(stat -f '%z' "$key_path")" = "1709"
-          test "$(shasum -a 256 "$key_path" | awk '{print $1}')" = "397b3becedcd5a98769967ff1ff8501ddc89f8368b8f766e4701377d7dbaabe5"
-          export GNUPGHOME="$RUNNER_TEMP/ffmpeg-gnupg"
-          mkdir -m 700 "$GNUPGHOME"
-          gpg --batch --import "$key_path"
-          fingerprint="$(gpg --batch --with-colons --fingerprint | awk -F: '$1 == "fpr" { print $10; exit }')"
-          test "$fingerprint" = "FCF986EA15E6E293A5644F10B4322F04D67658D8"
-          gpg --batch --verify "$signature_path" "$source_path"
-          echo "CONVAX_FFMPEG_SOURCE_ARCHIVE=$source_path" >> "$GITHUB_ENV"
-          echo "CONVAX_FFMPEG_SOURCE_SIGNATURE=$signature_path" >> "$GITHUB_ENV"
-          echo "CONVAX_FFMPEG_SIGNING_KEY=$key_path" >> "$GITHUB_ENV"
-          echo "CONVAX_FFMPEG_REQUIRE_PGP=1" >> "$GITHUB_ENV"
       - name: Validate and build immutable release inputs
         run: bun run check
       - name: Require an npm-only frozen Plugin SDK closure
