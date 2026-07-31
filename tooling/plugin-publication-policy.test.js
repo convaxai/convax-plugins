@@ -158,6 +158,28 @@ describe("protected Plugin publication policy", () => {
       await fs.writeFile(
         path.join(fixture, ".github", "workflows", "release-on-main.yml"),
         release.replace(
+          'cmp -s "$candidate_asset" "$published_asset"',
+          'test -f "$published_asset"',
+        ),
+      )
+      await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
+        "does not re-verify exact artifact-only provenance",
+      )
+
+      await fs.writeFile(
+        path.join(fixture, ".github", "workflows", "release-on-main.yml"),
+        release.replace(
+          "Tag was not visible after bounded retry",
+          "Tag was not visible",
+        ),
+      )
+      await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
+        "does not re-verify exact artifact-only provenance",
+      )
+
+      await fs.writeFile(
+        path.join(fixture, ".github", "workflows", "release-on-main.yml"),
+        release.replace(
           "tooling/vendored-host-package-closure.mjs",
           "tooling/workspace-closure-disabled.mjs",
         ),

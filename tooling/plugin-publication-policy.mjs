@@ -277,7 +277,20 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
     !publishShell.includes("sha256sum --check PUBLICATION-SHA256SUMS") ||
     !publishShell.includes("convax.vendored-host-package-closure/1") ||
     !publishShell.includes("convax.plugin-bundle-provenance/1") ||
-    !publishShell.includes("Release version reuse is forbidden") ||
+    !publishShell.includes(
+      "Existing immutable Release does not match verified candidate",
+    ) ||
+    !publishShell.includes("Tag was not visible after bounded retry") ||
+    !publishShell.includes(
+      'gh release download "$tag" \\\n    --repo "$GITHUB_REPOSITORY"',
+    ) ||
+    !publishShell.includes(
+      'cmp -s "$candidate_asset" "$published_asset"',
+    ) ||
+    !publishShell.includes(".immutable == true") ||
+    !publishShell.includes(
+      '"repos/$GITHUB_REPOSITORY/compare/$release_commit...$GITHUB_SHA"',
+    ) ||
     !publishShell.includes(
       'gh release view "$tag" \\\n    --repo "$GITHUB_REPOSITORY"',
     ) ||

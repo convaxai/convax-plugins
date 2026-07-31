@@ -658,20 +658,147 @@ jobs:
       - name: Publish each selected version once
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
           set -euo pipefail
+          read_tag_ref_with_retry() {
+            local tag="$1"
+            local output="$2"
+            local attempt
+            for attempt in 1 2 3 4 5 6; do
+              if gh api \
+                --header "X-GitHub-Api-Version: 2026-03-10" \
+                "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" \
+                > "$output" 2>/dev/null; then
+                return 0
+              fi
+              if [ "$attempt" -lt 6 ]; then
+                sleep "$((attempt * 2))"
+              fi
+            done
+            echo "Tag was not visible after bounded retry: $tag" >&2
+            return 1
+          }
+          verify_existing_release_exactly() {
+            local tag="$1"
+            local package_dir="$2"
+            local release_json
+            local tag_ref_json
+            local comparison_json
+            local release_commit
+            local download_dir
+            local candidate_list
+            local published_list
+            local asset_name
+            local candidate_asset
+            local published_asset
+            release_json="$(mktemp "$RUNNER_TEMP/release.XXXXXX.json")"
+            tag_ref_json="$(mktemp "$RUNNER_TEMP/tag-ref.XXXXXX.json")"
+            comparison_json="$(mktemp "$RUNNER_TEMP/comparison.XXXXXX.json")"
+            download_dir="$(mktemp -d "$RUNNER_TEMP/published-release.XXXXXX")"
+            candidate_list="$(mktemp "$RUNNER_TEMP/candidate-assets.XXXXXX.txt")"
+            published_list="$(mktemp "$RUNNER_TEMP/published-assets.XXXXXX.txt")"
+
+            gh api \
+              --header "X-GitHub-Api-Version: 2026-03-10" \
+              "repos/$GITHUB_REPOSITORY/releases/tags/$tag" \
+              > "$release_json"
+            jq -e \
+              --arg tag "$tag" \
+              '
+                .tag_name == $tag and
+                .draft == false and
+                .prerelease == false and
+                .immutable == true
+              ' "$release_json" >/dev/null
+            read_tag_ref_with_retry "$tag" "$tag_ref_json"
+            release_commit="$(jq -r \
+              'select(.object.type == "commit") | .object.sha' \
+              "$tag_ref_json")"
+            [[ "$release_commit" =~ ^[a-f0-9]{40}$ ]]
+            jq -e \
+              --arg commit "$release_commit" \
+              '.target_commitish == $commit' \
+              "$release_json" >/dev/null
+            gh api \
+              --header "X-GitHub-Api-Version: 2026-03-10" \
+              "repos/$GITHUB_REPOSITORY/compare/$release_commit...$GITHUB_SHA" \
+              > "$comparison_json"
+            jq -e \
+              --arg commit "$release_commit" \
+              '
+                .base_commit.sha == $commit and
+                .merge_base_commit.sha == $commit and
+                (
+                  (
+                    .status == "identical" and
+                    .ahead_by == 0 and
+                    .behind_by == 0
+                  ) or
+                  (
+                    .status == "ahead" and
+                    .ahead_by > 0 and
+                    .behind_by == 0
+                  )
+                )
+              ' "$comparison_json" >/dev/null
+            gh release download "$tag" \
+              --repo "$GITHUB_REPOSITORY" \
+              --dir "$download_dir"
+            find "$package_dir" -mindepth 1 -maxdepth 1 -type f \
+              -exec basename {} \; |
+              LC_ALL=C sort > "$candidate_list"
+            find "$download_dir" -mindepth 1 -maxdepth 1 -type f \
+              -exec basename {} \; |
+              LC_ALL=C sort > "$published_list"
+            test -s "$candidate_list"
+            if ! cmp -s "$candidate_list" "$published_list"; then
+              echo "Existing immutable Release does not match verified candidate: $tag" >&2
+              return 1
+            fi
+            while IFS= read -r asset_name; do
+              candidate_asset="$package_dir/$asset_name"
+              published_asset="$download_dir/$asset_name"
+              if ! cmp -s "$candidate_asset" "$published_asset"; then
+                echo \
+                  "Existing immutable Release does not match verified candidate: $tag/$asset_name" \
+                  >&2
+                return 1
+              fi
+            done < "$candidate_list"
+          }
+
           jq -c '.releases[]' dist/publication-plan.json | while read -r item; do
             tag="$(jq -r '.tag' <<<"$item")"
             package_dir="dist/$(jq -r '.directory' <<<"$item")"
             test -d "$package_dir"
             if gh release view "$tag" \
               --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-              echo "Release version reuse is forbidden: $tag" >&2
-              exit 1
+              verify_existing_release_exactly "$tag" "$package_dir"
+              echo "Recovered exact immutable Release: $tag"
+              continue
             fi
             if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
-              echo "Tag version reuse is forbidden: $tag" >&2
-              exit 1
+              release_visible=false
+              for attempt in 1 2 3 4 5 6; do
+                if gh release view "$tag" \
+                  --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+                  release_visible=true
+                  break
+                fi
+                if [ "$attempt" -lt 6 ]; then
+                  sleep "$((attempt * 2))"
+                fi
+              done
+              if [ "$release_visible" != true ]; then
+                echo \
+                  "Release version reuse is forbidden without an exact immutable Release: $tag" \
+                  >&2
+                exit 1
+              fi
+              verify_existing_release_exactly "$tag" "$package_dir"
+              echo "Recovered exact immutable Release: $tag"
+              continue
             fi
             shopt -s nullglob
             assets=("$package_dir"/*)
@@ -682,10 +809,12 @@ jobs:
               --title "$tag" \
               --notes "Deterministic Convax Marketplace package generated from protected main." \
               "${assets[@]}"
-            gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" |
-              jq -e \
-                --arg commit "$GITHUB_SHA" \
-                '.object.type == "commit" and .object.sha == $commit' >/dev/null
+            tag_ref_json="$(mktemp "$RUNNER_TEMP/tag-ref.XXXXXX.json")"
+            read_tag_ref_with_retry "$tag" "$tag_ref_json"
+            jq -e \
+              --arg commit "$GITHUB_SHA" \
+              '.object.type == "commit" and .object.sha == $commit' \
+              "$tag_ref_json" >/dev/null
           done
 
   pages:
