@@ -14,6 +14,9 @@ import {
   parsePortablePluginVersion,
   validatePortablePluginSegment,
 } from "@convax/plugin-sdk";
+import {
+  parseAcceptedApiContracts,
+} from "./host-capability-api-contracts.mjs";
 import { validateHostCapabilityRequestDocument } from "./host-capability-request.mjs";
 
 export const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -191,11 +194,14 @@ function parsePublication(value, label) {
     }
     return {
       code,
-      note: cleanString(item.note, `${itemLabel} note`, 500),
+      note: cleanString(item.note, `${itemLabel} note`, 700),
     };
   });
-  if (new Set(blockers.map((item) => item.code)).size !== blockers.length) {
-    error(label, "contains duplicate blocker codes");
+  const blockerKeys = blockers.map(
+    (item) => `${item.code}\0${item.note}`,
+  );
+  if (new Set(blockerKeys).size !== blockers.length) {
+    error(label, "contains duplicate blockers");
   }
   if (value.status === "ready" && blockers.length !== 0) {
     error(label, "ready packages must not declare blockers");
@@ -203,11 +209,18 @@ function parsePublication(value, label) {
   if (value.status === "blocked" && blockers.length === 0) {
     error(label, "blocked packages must declare at least one blocker");
   }
-  return { status: value.status, blockers };
+  return {
+    status: value.status,
+    blockers: blockers.sort((left, right) =>
+      left.code.localeCompare(right.code, "en") ||
+      left.note.localeCompare(right.note, "en"),
+    ),
+  };
 }
 
 const pendingRequestStatus = "pending";
 const pendingRequestDocumentStatus = "Status: pending human review";
+const maximumHostCapabilityRequestsPerPackage = 16;
 
 export function requiresSdkOwnedPetSurfaceClient(manifest, _files) {
   return manifest?.contributes?.pet?.protocol === "convax.pet-host/1";
@@ -239,8 +252,17 @@ export function parseHostCapabilityPolicy(
   value,
   label = "registry/host-capability-policy.json",
 ) {
-  exactKeys(value, ["requests", "schema"], ["requests", "schema"], label);
-  if (value.schema !== "convax.host-capability-policy/1") {
+  const isV2 = value?.schema === "convax.host-capability-policy/2";
+  exactKeys(
+    value,
+    isV2 ? ["requests", "resolutions", "schema"] : ["requests", "schema"],
+    isV2 ? ["requests", "resolutions", "schema"] : ["requests", "schema"],
+    label,
+  );
+  if (
+    value.schema !== "convax.host-capability-policy/1" &&
+    value.schema !== "convax.host-capability-policy/2"
+  ) {
     error(label, "unsupported schema");
   }
   if (
@@ -251,10 +273,20 @@ export function parseHostCapabilityPolicy(
   }
   const requests = value.requests.map((request, requestIndex) => {
     const requestLabel = `${label} request ${requestIndex}`;
+    const requestKeys = isV2
+      ? [
+          "acceptedApiContracts",
+          "affected",
+          "document",
+          "humanDecision",
+          "id",
+          "status",
+        ]
+      : ["affected", "document", "humanDecision", "id", "status"];
     exactKeys(
       request,
-      ["affected", "document", "humanDecision", "id", "status"],
-      ["affected", "document", "humanDecision", "id", "status"],
+      requestKeys,
+      requestKeys,
       requestLabel,
     );
     const id = cleanString(request.id, `${requestLabel} id`, 128);
@@ -334,14 +366,29 @@ export function parseHostCapabilityPolicy(
         blockers: publication.blockers,
       };
     });
+    const affectedIdentities = affected.map(
+      (item) => `${item.kind}/${item.id}@${item.version}`,
+    );
+    if (new Set(affectedIdentities).size !== affectedIdentities.length) {
+      error(requestLabel, "contains duplicate affected package versions");
+    }
     return {
       id,
       document,
       status: pendingRequestStatus,
       humanDecision: null,
-      affected,
+      acceptedApiContracts: parseAcceptedApiContracts(
+        isV2 ? request.acceptedApiContracts : [],
+        `${requestLabel} acceptedApiContracts`,
+      ),
+      affected: affected.sort((left, right) =>
+        `${left.kind}/${left.id}@${left.version}`.localeCompare(
+          `${right.kind}/${right.id}@${right.version}`,
+          "en",
+        ),
+      ),
     };
-  });
+  }).sort((left, right) => left.id.localeCompare(right.id, "en"));
   const requestIds = requests.map((request) => request.id);
   if (new Set(requestIds).size !== requestIds.length) {
     error(label, "contains duplicate request ids");
@@ -350,16 +397,119 @@ export function parseHostCapabilityPolicy(
   if (new Set(documents).size !== documents.length) {
     error(label, "contains duplicate request documents");
   }
-  const packages = requests.flatMap((request) => request.affected);
-  const packageIdentities = packages.map(
-    (item) => `${item.kind}/${item.id}@${item.version}`,
+  const packages = requests
+    .flatMap((request) =>
+      request.affected.map((item) => ({
+        ...item,
+        requestId: request.id,
+      })),
+    )
+    .sort((left, right) =>
+      `${left.kind}/${left.id}@${left.version}\0${left.requestId}`.localeCompare(
+        `${right.kind}/${right.id}@${right.version}\0${right.requestId}`,
+        "en",
+      ),
+    );
+  const requestsByPackageVersion = new Map();
+  for (const item of packages) {
+    const identity = `${item.kind}/${item.id}@${item.version}`;
+    const requestIds = requestsByPackageVersion.get(identity) ?? [];
+    requestIds.push(item.requestId);
+    requestsByPackageVersion.set(identity, requestIds);
+  }
+  for (const [identity, requestIds] of requestsByPackageVersion) {
+    if (requestIds.length > maximumHostCapabilityRequestsPerPackage) {
+      error(
+        label,
+        `${identity} binds more than ${maximumHostCapabilityRequestsPerPackage} pending requests`,
+      );
+    }
+  }
+  const resolutions = (value.resolutions ?? []).map(
+    (resolution, resolutionIndex) => {
+      const resolutionLabel = `${label} resolution ${resolutionIndex}`;
+      exactKeys(
+        resolution,
+        ["id", "receipt"],
+        ["id", "receipt"],
+        resolutionLabel,
+      );
+      const id = cleanString(resolution.id, `${resolutionLabel} id`, 128);
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) {
+        error(resolutionLabel, "id must be a lowercase kebab-case identifier");
+      }
+      exactKeys(
+        resolution.receipt,
+        ["asset", "releaseTag", "repository", "sha256"],
+        ["asset", "releaseTag", "repository", "sha256"],
+        `${resolutionLabel} receipt`,
+      );
+      const repository = cleanString(
+        resolution.receipt.repository,
+        `${resolutionLabel} receipt repository`,
+        128,
+      );
+      if (repository !== "microvoid/convax-plugins") {
+        error(
+          `${resolutionLabel} receipt`,
+          "repository must be the protected microvoid/convax-plugins authority",
+        );
+      }
+      const releaseTag = cleanString(
+        resolution.receipt.releaseTag,
+        `${resolutionLabel} receipt releaseTag`,
+        240,
+      );
+      if (
+        !/^host-capability-decision-v1-[a-z0-9]+(?:-[a-z0-9]+)*-[a-f0-9]{64}$/u.test(
+          releaseTag,
+        )
+      ) {
+        error(
+          `${resolutionLabel} receipt`,
+          "releaseTag must be the canonical immutable decision tag",
+        );
+      }
+      const asset = cleanString(
+        resolution.receipt.asset,
+        `${resolutionLabel} receipt asset`,
+        180,
+      );
+      if (asset !== `${id}.decision.json`) {
+        error(
+          `${resolutionLabel} receipt`,
+          `asset must equal ${id}.decision.json`,
+        );
+      }
+      const sha256 = cleanString(
+        resolution.receipt.sha256,
+        `${resolutionLabel} receipt sha256`,
+        64,
+      );
+      if (!/^[a-f0-9]{64}$/u.test(sha256)) {
+        error(`${resolutionLabel} receipt`, "sha256 must be one lowercase SHA-256");
+      }
+      return {
+        id,
+        receipt: { asset, releaseTag, repository, sha256 },
+      };
+    },
   );
-  if (new Set(packageIdentities).size !== packageIdentities.length) {
-    error(label, "binds one package version to more than one pending request");
+  if (value.schema === "convax.host-capability-policy/1" && resolutions.length) {
+    error(label, "v1 policy cannot contain resolutions");
+  }
+  const resolutionIds = resolutions.map((resolution) => resolution.id);
+  if (new Set(resolutionIds).size !== resolutionIds.length) {
+    error(label, "contains duplicate resolution ids");
+  }
+  const pendingIds = new Set(requestIds);
+  if (resolutionIds.some((id) => pendingIds.has(id))) {
+    error(label, "a request id cannot be both pending and resolved");
   }
   return {
-    schema: "convax.host-capability-policy/1",
+    schema: value.schema,
     requests,
+    resolutions,
     packages,
   };
 }
@@ -395,12 +545,12 @@ export async function loadPublicationPolicy(workspaceRoot = root) {
         packageJson["convax.hostCapabilityRequests"] ?? [];
       if (
         !Array.isArray(declarations) ||
-        declarations.length > 16 ||
+        declarations.length > maximumHostCapabilityRequestsPerPackage ||
         new Set(declarations).size !== declarations.length
       ) {
         error(
           `${kind}/${entry.name} package.json`,
-          "convax.hostCapabilityRequests must contain at most 16 unique request ids",
+          `convax.hostCapabilityRequests must contain at most ${maximumHostCapabilityRequestsPerPackage} unique request ids`,
         );
       }
       const identity =
@@ -491,6 +641,26 @@ export async function loadPublicationPolicy(workspaceRoot = root) {
       "utf8",
     );
     validateHostCapabilityRequestDocument(source, request.document);
+    const documentedContractDigests = [
+      ...new Set(source.match(/sha256:[a-f0-9]{64}/gu) ?? []),
+    ].sort();
+    const acceptedContractDigests = request.acceptedApiContracts
+      .map(({ digest }) => digest)
+      .sort();
+    if (
+      documentedContractDigests.length !== acceptedContractDigests.length ||
+      documentedContractDigests.some(
+        (digest, index) => digest !== acceptedContractDigests[index],
+      ) ||
+      request.acceptedApiContracts.some(
+        ({ id }) => !source.includes(`\`${id}\``),
+      )
+    ) {
+      error(
+        request.document,
+        "documented API ids and contract digests must exactly match policy acceptedApiContracts",
+      );
+    }
   }
   return policy;
 }
@@ -1235,12 +1405,30 @@ export async function discoverPackages(options = {}) {
     ]),
   );
   const publicationPolicy = await loadPublicationPolicy(workspaceRoot);
-  const publicationByVersion = new Map(
-    publicationPolicy.packages.map((item) => [
-      `${item.kind}/${item.id}@${item.version}`,
-      { status: item.status, blockers: item.blockers },
-    ]),
-  );
+  const publicationByVersion = new Map();
+  for (const item of publicationPolicy.packages) {
+    const identity = `${item.kind}/${item.id}@${item.version}`;
+    const current = publicationByVersion.get(identity) ?? {
+      status: "blocked",
+      blockers: [],
+    };
+    publicationByVersion.set(
+      identity,
+      parsePublication(
+        {
+          status: "blocked",
+          blockers: [
+            ...current.blockers,
+            ...item.blockers.map((blocker) => ({
+              ...blocker,
+              note: `[${item.requestId}] ${blocker.note}`,
+            })),
+          ],
+        },
+        `${identity} Host capability blockers`,
+      ),
+    );
+  }
   for (const item of publicationPolicy.packages) {
     const candidate = candidatesByIdentity.get(`${item.kind}/${item.id}`);
     if (!candidate || candidate.version !== item.version) {

@@ -12,8 +12,8 @@ Plugins:
   `host.context.get`;
 - `canvas.inputs.list` plus `canvas.inputs.changed` for pathless direct-input
   metadata and opaque `inputKey` values;
-- the `canvas.inputs.open`/`canvas.inputs.close` lifecycle, pending generic Host
-  admission for direct image inputs;
+- the `canvas.inputs.image.open`/`canvas.inputs.image.close` lifecycle, pending
+  generic Host admission for direct image inputs;
 - `canvas.node.state.replace` for bounded Plugin-owned view state;
 - `canvas.resource.image.create` for one validated PNG;
 - managed Project asset admission and rollback;
@@ -22,7 +22,7 @@ Plugins:
   buttons.
 
 Desktop must not carry a second Panorama Viewer static bundle or reserve
-`panorama-viewer` as a built-in id. Version `0.2.3` targets clean/current profiles
+`panorama-viewer` as a built-in id. Version `0.3.0` targets clean/current profiles
 but remains publication-blocked pending the generic Web image-input capability
 review. Once admitted, it is installed only as an ordinary Registry package. This
 release deliberately does not migrate profiles created by the unreleased trusted
@@ -44,6 +44,6 @@ and offline, the manifest requests only the documented capabilities, and current
 viewport capture calls `canvas.resource.image.create`. Until the image-input
 capability is approved, source admission reports the package as blocked, exact
 packing rejects it, and Marketplace/release output omits it. End-to-end Electron
-acceptance after approval must install the packed `0.2.4` artifact through a
+acceptance after approval must install the packed `0.3.0` artifact through a
 validated Registry entry, exercise list/open/close with an opaque `inputKey`, and
 verify that the installed summary does not contain `trustedBuiltin`.

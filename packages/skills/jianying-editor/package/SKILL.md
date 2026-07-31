@@ -1,6 +1,6 @@
 ---
 name: jianying-editor
-version: 2.0.1
+version: 3.0.0
 description: Import directly connected Convax Canvas images and videos into JianYing, either into the stable current draft or a safely created new draft. Use when the user asks to send, import, or export Canvas media to 剪映 or JianYing.
 ---
 

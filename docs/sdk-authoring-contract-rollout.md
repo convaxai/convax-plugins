@@ -1,14 +1,14 @@
 # SDK authoring contract rollout blocker
 
-Status: rollout design record only; not a capability approval or publication receipt
+Status: consumer gate implemented; npm/immutable Host evidence still unavailable
 
 ## Problem
 
 - `convax-plugins` admits only `convax.package/2` and `convax.plugin/8`
   authoring input through the Host-owned SDK and Marketplace Kit.
-- The required dependency versions are `@convax/plugin-api@1.0.0`,
+- The required dependency versions are `@convax/plugin-api@2.0.0`,
   `@convax/plugin-sdk@0.1.0`, and `@convax/marketplace-kit@0.2.0`.
-- As of 2026-07-30, npm returns 404 for Plugin API and SDK and exposes
+- As of 2026-07-31, npm returns 404 for Plugin API and SDK and exposes
   Marketplace Kit only through `0.1.1`. A clean frozen install therefore cannot
   reproduce the approved local package set.
 
@@ -105,3 +105,52 @@ owned Agent tool. The Skill reference generator cannot safely invent these types
   the committed lockfile records that public dependency closure.
 - Follow-up owner: Host package publisher, then the `convax-plugins` lockfile and
   release owner.
+
+## Implemented consumer gate
+
+The protected `release-on-main.yml` now refuses every selected Plugin release
+unless all of the following are true:
+
+1. the committed root `bun.lock` resolves exactly one
+   `@convax/plugin-sdk` and one `@convax/plugin-api` from
+   `https://registry.npmjs.org`, with exact stable versions and SHA-512 SRI;
+2. root declarations and the lock agree, install uses
+   `--frozen-lockfile --ignore-scripts`, and the lock remains byte-identical;
+3. the SDK npm tarball is byte-identical to the immutable
+   `plugin-sdk-v<version>-<commit>` Host Release and its closed
+   `convax.host-package-release/1` manifest;
+4. the release-time API tarball/Catalog match that SDK manifest, while the actual
+   locked API independently matches its immutable
+   `plugin-api-v<version>-<commit>` runtime-conformance Release;
+5. every Host Release payload has an exact `<asset>.sigstore.json` bundle and
+   passes immutable Release verification, asset verification, pinned Cosign
+   v3.0.6 keyless verification, and default Public Rekor inclusion verification
+   for the exact protected workflow, `convax-next` source ref, Host commit,
+   `workflow_dispatch` trigger, GitHub OIDC issuer, and GitHub-hosted runner;
+   the canonical verification manifest additionally binds repository id
+   `1293264965` and owner id `125447777` from both live GitHub metadata and
+   bounded Fulcio certificate claims;
+6. the actual API version satisfies the range inside the exact SDK tarball; and
+7. every selected Plugin ZIP receives canonical
+   `convax.plugin-bundle-provenance/1` evidence binding the lock digest, npm URLs,
+   tarball SRI/SHA-256, Host release identities, package manifest, source
+   entrypoints, and final ZIP bytes.
+
+The environment-gated publisher does not check out source or execute Bun, Node,
+Git, npm, or repository scripts. It consumes the uploaded candidate, verifies the
+complete checksum manifest and closed statements, attests the bundles/statements/
+checksums together, and rejects every existing tag or Release version.
+
+`host-capability-governance.yml` runs the high-water checker first and then invokes
+the protected-base copy of `plugin-publication-policy.mjs` against candidate bytes.
+That ordering prevents a candidate from weakening its own SDK gate or treating an
+SDK package Release as capability approval.
+
+The current vendor workspace remains a development-only bootstrap. It deliberately
+fails the release gate. Once Host publishes the exact npm and immutable Release
+assets and their Sigstore bundles, the release owner must remove the SDK/API
+workspace resolution, pin the public versions, regenerate the committed root lock
+with the official npm registry, and run a no-change frozen install before any
+Plugin version is eligible. npm SHA-512 SRI and byte identity are mirror
+consistency evidence only; the Host Sigstore bundle is the package-origin trust
+chain.

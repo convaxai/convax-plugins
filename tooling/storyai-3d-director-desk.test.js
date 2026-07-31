@@ -52,7 +52,7 @@ describe("storyai-3d-director-desk package", () => {
       id: "storyai-3d-director-desk",
       name: "3D Director Desk",
       description: manifest.description,
-      version: "0.2.0",
+      version: "0.3.0",
       publication: {
         status: "ready",
         blockers: [],
@@ -85,7 +85,7 @@ describe("storyai-3d-director-desk package", () => {
       entry: "index.html",
       capabilities: ["canvas.node.write", "canvas.image.write"],
       hostApi: {
-        major: 1,
+        major: 2,
         required: [
           "canvas.node.state.replace",
           "canvas.resource.image.create",
@@ -155,7 +155,7 @@ describe("storyai-3d-director-desk package", () => {
       "2fe096047aa10f51dbbf92ad2542b97ed4d73437bd281867f277e9027bd7b22f",
     )
     expect(await sha256("assets/plugin-host-client.js")).toBe(
-      "b7d26c08bafb0635a9eff4f146d08ffe2daa59ac536e17ba91b79374336be9dc",
+      "bc9c4a20fc301e1489618be11099cc3e762ef9a2d630b9231e231a28a4b7baa6",
     )
     expect(await sha256("assets/convax-theme.css")).toBe(
       "a27a031b299856bd4bd6d31b7cbb54e9996e0679e13db14ae3945197b1de41af",

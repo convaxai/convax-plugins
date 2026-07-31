@@ -27,8 +27,9 @@ Every new Plugin or Skill Release candidate is admitted from
 `convax.package/2`. New Plugin candidates additionally require
 `convax.plugin/8`. Source metadata contains neither publication policy nor
 `compatibility`. `registry/host-capability-policy.json` reverse-binds pending Host
-capability requests to exact package versions, and tooling merges that policy
-before validation, packing, Marketplace builds, or release selection.
+capability requests to exact package versions and sorted accepted API
+`{id,digest}` pairs, and tooling merges that policy before validation, packing,
+Marketplace builds, or release selection.
 
 The builder derives, rather than accepts, the Registry compatibility envelope:
 

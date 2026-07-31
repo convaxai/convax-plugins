@@ -4,6 +4,6 @@
   "id": "video-timeline",
   "name": "Video Timeline",
   "description": "Creates a live Composition video card whose connected media can be edited in a dedicated Timeline tool.",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "yanked": false
 }

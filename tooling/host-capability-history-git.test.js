@@ -27,7 +27,8 @@ async function writeEmptyPolicy(root) {
     fs.writeFile(
       path.join(root, "registry", "host-capability-policy.json"),
       `${JSON.stringify({
-        schema: "convax.host-capability-policy/1",
+        schema: "convax.host-capability-policy/2",
+        resolutions: [],
         requests: [],
       }, null, 2)}\n`,
     ),
@@ -136,6 +137,7 @@ describe("protected Host capability history Git boundary", () => {
           path.join(fixture, "registry", "host-capability-policy.json"),
           `${JSON.stringify({
             schema: currentPolicy.schema,
+            resolutions: currentPolicy.resolutions,
             requests: [request],
           }, null, 2)}\n`,
         ),

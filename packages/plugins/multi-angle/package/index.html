@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' convax-connected-media:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
     <title>多角度</title>
     <script type="module" src="./assets/app.js"></script>
     <link rel="stylesheet" href="./assets/styles.css" />
@@ -50,7 +51,7 @@
           </div>
 
           <div class="source-stage" id="sourceStage">
-            <img class="source-image is-hidden" id="sourceImage" alt="当前多角度参考图" />
+            <canvas class="source-image is-hidden" id="sourceImage" role="img" aria-label="当前多角度参考图"></canvas>
             <div class="source-grid" aria-hidden="true"></div>
             <div class="empty-source" id="emptySource">
               <span class="empty-camera" aria-hidden="true">

@@ -16,7 +16,7 @@ Plugins:
 
 - sandboxed static Web Plugin frames and manifest-driven Canvas renderers;
 - bounded Plugin-owned Canvas node state;
-- `host.context.get` for the negotiated Host API major 1 profile;
+- `host.context.get` for the negotiated Host API major 2 profile;
 - `canvas.node.state.replace` for bounded Plugin-owned state;
 - `canvas.resource.image.create` for one validated PNG;
 - managed Project asset admission, Canvas image-node creation, connection, and

@@ -1,6 +1,6 @@
 ---
 name: relight-studio
-version: 0.1.0
+version: 0.2.0
 description: Generate relit variations from a directly connected Canvas image through the Relight Studio Plugin and Convax's installed image-generation tools.
 ---
 
@@ -16,16 +16,14 @@ See [Plugin capabilities](references/plugin-capabilities.md) for generated Plugi
    source image to it with a direct incoming Canvas edge.
 2. Choose a lighting preset or refine the light direction, intensity, softness,
    temperature, ambient level, and atmosphere in the Plugin surface.
-3. Start generation from the Plugin. It discovers compatible installed image tools
-   through `generation.tools.list` and submits the relighting prompt plus the direct
-   incoming image through `generation.execute`.
-4. The host creates a pending image node beside the Plugin surface immediately,
-   then admits the generated image into managed Project assets and replaces that
-   pending node. Treat generation as successful only when the host reports the
-   created Canvas node id.
-5. If no compatible image tool is installed or authorized, explain that generation
-   is unavailable and ask the user to install or authorize one; do not claim that a
-   preview is a generated result.
+3. Start generation only through the Plugin surface. Treat the generated Convax
+   capability reference as the sole description of the current generation API
+   contract and use the Plugin's live availability/error state as authoritative.
+4. Treat a run as successful only when the Plugin reports a completed Host result.
+   A local preview is not a generated result.
+5. If the Plugin reports that generation is unavailable, stop and explain that
+   current-session availability failed. Do not infer permission from this Skill or
+   ask the user to bypass Host setup, authorization, or policy.
 
 Do not edit `.convax` files, pass local paths or credentials, call a vendor directly,
 or claim that this Skill grants Plugin permissions.

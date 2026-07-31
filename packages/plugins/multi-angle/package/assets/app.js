@@ -12,7 +12,12 @@ import {
   normalizeGenerationTools,
   presetById,
 } from "./multi-angle-model.js"
-import { normalizeImageInputs, parseOpenedImageStream } from "./image-inputs.js"
+import {
+  clearImagePreview,
+  decodeImageSessionPreview,
+  normalizeImageInputs,
+  withOpenedImageSession,
+} from "./image-inputs.js"
 import { acceptPluginHostConnection } from "./plugin-host-client.js"
 
 const CONNECTIONS_CHANGED_COMMAND = "canvas.inputs.changed"
@@ -62,8 +67,8 @@ let pluginState = createDefaultState()
 let hydrationSource = "empty"
 let connectedImages = []
 let generationTools = []
-let sourcePreviewUrl = ""
-let sourceSessionId = null
+let sourcePreview = null
+let sourceLoadController = null
 let sourceLoadSequence = 0
 let refreshPromise = null
 let refreshQueued = false
@@ -107,19 +112,26 @@ function setLoading(active, text) {
   setHidden(elements.loadingOverlay, !active)
 }
 
-async function hostRequest(method, params, timeoutMs) {
+async function hostRequest(method, params, timeoutMs, externalSignal) {
   if (!hostClient) throw new Error("Convax Plugin host is not connected")
   const requestTimeout = timeoutMs === undefined ? REQUEST_TIMEOUT : timeoutMs
-  if (requestTimeout === null) return hostClient.callHostApi(method, params)
   const controller = new AbortController()
-  const timeout = window.setTimeout(
-    () => controller.abort(new Error("插件宿主请求超时")),
-    requestTimeout,
-  )
+  const forwardAbort = function () {
+    controller.abort(externalSignal.reason)
+  }
+  if (externalSignal?.aborted) forwardAbort()
+  else externalSignal?.addEventListener("abort", forwardAbort, { once: true })
+  const timeout = requestTimeout === null
+    ? 0
+    : window.setTimeout(
+        () => controller.abort(new Error("插件宿主请求超时")),
+        requestTimeout,
+      )
   try {
     return await hostClient.callHostApi(method, params, { signal: controller.signal })
   } finally {
-    window.clearTimeout(timeout)
+    if (timeout) window.clearTimeout(timeout)
+    externalSignal?.removeEventListener("abort", forwardAbort)
   }
 }
 
@@ -204,6 +216,10 @@ async function hydrateFromHost() {
     const hydrated = hydratePluginState(pluginStateFromContext(context))
     hydrationSource = hydrated.source
     pluginState = hydrated.state
+    await Promise.all([
+      hostClient.requireHostApi("canvas.inputs.image.close"),
+      hostClient.requireHostApi("canvas.inputs.image.open"),
+    ])
     renderAll()
     await refreshAll(true)
   } catch (error) {
@@ -212,21 +228,19 @@ async function hydrateFromHost() {
 }
 
 function chooseSourceImage() {
-  return connectedImages.find((image) => image.id === pluginState.sourceNodeId && image.readable)
+  return connectedImages.find((image) => image.id === pluginState.sourceInputKey && image.readable)
     ?? connectedImages.find((image) => image.readable)
     ?? null
 }
 
-async function readSelectedSource(force) {
+async function readSelectedSource() {
   const source = chooseSourceImage()
   const sequence = ++sourceLoadSequence
-  const previousSessionId = sourceSessionId
-  sourceSessionId = null
-  sourcePreviewUrl = ""
-  if (previousSessionId) {
-    await hostRequest("canvas.inputs.close", { sessionId: previousSessionId }).catch(() => undefined)
-  }
-  if (sequence !== sourceLoadSequence) return
+  sourceLoadController?.abort(new Error("参考图已切换"))
+  const controller = new AbortController()
+  sourceLoadController = controller
+  sourcePreview = null
+  clearImagePreview(elements.sourceImage)
   if (!source) {
     setLoading(false)
     renderSource()
@@ -236,19 +250,47 @@ async function readSelectedSource(force) {
   setLoading(true, "正在读取参考图…")
   renderSource()
   try {
-    const result = parseOpenedImageStream(
-      await hostRequest("canvas.inputs.open", { inputKey: source.id }),
-    )
-    if (sequence !== sourceLoadSequence || pluginState.sourceNodeId !== source.id) {
-      await hostRequest("canvas.inputs.close", { sessionId: result.sessionId }).catch(() => undefined)
+    const preview = await withOpenedImageSession({
+      close: (sessionId) => hostRequest(
+        "canvas.inputs.image.close",
+        { sessionId },
+        5_000,
+      ),
+      inputKey: source.id,
+      open: (inputKey, signal) => hostRequest(
+        "canvas.inputs.image.open",
+        { inputKey },
+        undefined,
+        signal,
+      ),
+      signal: controller.signal,
+      use: (session, signal) => decodeImageSessionPreview({
+        createCanvas: () => document.createElement("canvas"),
+        createImage: () => new Image(),
+        inputKey: source.id,
+        mediaRevision: source.mediaRevision,
+        pixelRatio: window.devicePixelRatio,
+        session,
+        signal,
+        target: elements.sourceImage,
+        viewport: elements.sourceStage,
+      }),
+    })
+    if (
+      sequence !== sourceLoadSequence ||
+      pluginState.sourceInputKey !== source.id ||
+      source.mediaRevision !== preview.mediaRevision
+    ) {
       return
     }
-    sourceSessionId = result.sessionId
-    sourcePreviewUrl = result.url
+    sourcePreview = preview
   } catch (error) {
-    if (sequence === sourceLoadSequence) showToast(errorMessage(error, "参考图预览失败；仍可尝试通过统一生成接口处理该节点。"), "warning")
+    if (sequence === sourceLoadSequence && !controller.signal.aborted) {
+      showToast(errorMessage(error, "参考图预览失败；仍可尝试通过统一生成接口处理该输入。"), "warning")
+    }
   } finally {
     if (sequence === sourceLoadSequence) {
+      sourceLoadController = null
       setLoading(false)
       renderSource()
       renderActions()
@@ -265,7 +307,7 @@ async function refreshTools() {
 }
 
 async function refreshConnectedImages(force) {
-  const previousSourceId = pluginState.sourceNodeId
+  const previousSourceId = pluginState.sourceInputKey
   connectedImages = normalizeImageInputs(await hostRequest("canvas.inputs.list"))
   const source = chooseSourceImage()
   if (source?.id !== previousSourceId) {
@@ -273,9 +315,10 @@ async function refreshConnectedImages(force) {
       ...pluginState,
       lastRun: null,
       result: null,
-      sourceNodeId: source?.id ?? null,
+      sourceInputKey: source?.id ?? null,
     }
-    sourcePreviewUrl = ""
+    sourcePreview = null
+    clearImagePreview(elements.sourceImage)
   }
   renderAll()
   await readSelectedSource(force)
@@ -425,24 +468,28 @@ function renderSource() {
     option.textContent = image.name + (image.readable ? "" : "（不可读取）")
     elements.sourceSelect.append(option)
   }
-  if (pluginState.sourceNodeId) elements.sourceSelect.value = pluginState.sourceNodeId
+  if (pluginState.sourceInputKey) elements.sourceSelect.value = pluginState.sourceInputKey
   elements.sourceSelect.disabled = runActive
   setHidden(elements.sourceSelectShell, connectedImages.length === 0)
 
   const source = chooseSourceImage()
-  const hasPreview = Boolean(source && sourcePreviewUrl)
+  const hasPreview = Boolean(
+    source &&
+    sourcePreview &&
+    sourcePreview.inputKey === source.id &&
+    sourcePreview.mediaRevision === source.mediaRevision,
+  )
   elements.sourceStage.classList.toggle("has-image", hasPreview)
   setHidden(elements.emptySource, hasPreview)
   setHidden(elements.sourceImage, !hasPreview)
   setHidden(elements.sourceOverlay, !hasPreview)
   if (hasPreview) {
-    elements.sourceImage.src = sourcePreviewUrl
-    elements.sourceImage.alt = "多角度参考图：" + source.name
-    elements.sourceSize.textContent = source.width && source.height
-      ? String(source.width) + " × " + String(source.height)
+    elements.sourceImage.setAttribute("aria-label", "多角度参考图：" + source.name)
+    elements.sourceSize.textContent = sourcePreview.width && sourcePreview.height
+      ? String(sourcePreview.width) + " × " + String(sourcePreview.height)
       : source.mimeType ?? "IMAGE"
   } else {
-    elements.sourceImage.removeAttribute("src")
+    elements.sourceImage.removeAttribute("aria-label")
   }
   if (!connectedImages.length) elements.sourceHelp.textContent = "从 Canvas 图片节点连线到此节点；插件不能读取未连接的素材。"
   else if (!source) elements.sourceHelp.textContent = "当前连接中没有可用的 JPEG、PNG 或 WebP 图片。"
@@ -605,13 +652,13 @@ async function runGeneration() {
       completedAt: "",
       failure: null,
       presetIds,
-      sourceNodeId: source.id,
+      sourceInputKey: source.id,
       startedAt,
       status: "running",
       toolId: tool.id,
     },
     result: null,
-    sourceNodeId: source.id,
+    sourceInputKey: source.id,
     toolId: tool.id,
   }
   hydrationSource = "current"
@@ -643,7 +690,7 @@ async function runGeneration() {
         presetIds,
         subjectType: pluginState.subjectType,
       })
-      const request = createGenerationRequest({ prompt, sourceNodeId: source.id, toolId: tool.id })
+      const request = createGenerationRequest({ prompt, sourceInputKey: source.id, toolId: tool.id })
       // Generation has no client deadline. The host owns queued-job polling,
       // frame cancellation, stale-scope checks, managed assets and Canvas commit.
       const rawResult = await hostRequest("generation.execute", request, null)
@@ -686,17 +733,14 @@ function bindEvents() {
   window.addEventListener("message", handleWindowMessage)
   window.addEventListener("beforeunload", function () {
     postStateSnapshotBestEffort()
-    if (sourceSessionId && hostClient) {
-      void hostClient.callHostApi("canvas.inputs.close", {
-        sessionId: sourceSessionId,
-      }).catch(() => {
-        // Host frame teardown revokes any remaining connection-bound session.
-      })
-      sourceSessionId = null
-      sourcePreviewUrl = ""
-    }
+    sourceLoadController?.abort(new Error("插件页面正在关闭"))
+    sourceLoadController = null
+    sourcePreview = null
+    clearImagePreview(elements.sourceImage)
     window.clearTimeout(stateSaveTimer)
     window.clearTimeout(toastTimer)
+    // Unload cannot await the helper's explicit API close. Host connection
+    // teardown is the authoritative closeConnection -> revokeFrame fallback.
     hostClient?.close()
     hostClient = null
   })
@@ -707,9 +751,10 @@ function bindEvents() {
   elements.sourceSelect.addEventListener("change", function () {
     if (runActive) return
     const source = connectedImages.find((image) => image.id === elements.sourceSelect.value && image.readable)
-    if (!source || source.id === pluginState.sourceNodeId) return
-    pluginState = { ...pluginState, sourceNodeId: source.id }
-    sourcePreviewUrl = ""
+    if (!source || source.id === pluginState.sourceInputKey) return
+    pluginState = { ...pluginState, sourceInputKey: source.id }
+    sourcePreview = null
+    clearImagePreview(elements.sourceImage)
     resetRunForPlanChange()
     queueStateSave()
     renderAll()

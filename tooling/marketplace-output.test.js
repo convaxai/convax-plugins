@@ -70,7 +70,7 @@ async function writeFixture() {
               schema: "convax.plugin/8",
               id: definition.id,
               version: definition.version,
-              hostApi: { major: 1, required: [], optional: [] },
+              hostApi: { major: 2, required: [], optional: [] },
             },
           }
         : {}),

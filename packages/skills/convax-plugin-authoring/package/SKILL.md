@@ -1,6 +1,6 @@
 ---
 name: convax-plugin-authoring
-version: 0.1.1
+version: 0.1.3
 description: Create, modify, or debug a Convax Plugin. Use for Plugin manifests, Web assets, contributions, owned Skills, companion integration, Host API availability, protocol failures, and missing-capability design in a Convax Plugin repository.
 ---
 
@@ -36,7 +36,10 @@ authority for inter-Plugin capability declarations and generated references.
    add the request id to each affected workspace's
    `package.json#convax.hostCapabilityRequests`, bind those exact package versions
    in `registry/host-capability-policy.json`, and hand the proposal to a human
-   reviewer. Do not infer resolution from a business-code rewrite.
+   reviewer. A v2 policy request carries sorted `acceptedApiContracts`; use an
+   explicit empty list until a human has accepted exact API ids and Catalog
+   contract digests. Never infer accepted digests from a writable Host checkout or
+   from a business-code rewrite.
 6. Follow the generated result contract, not a guessed broader meaning.
    `canvas.inputs.open` is a valid audio/video stream API and admits only
    `probe.kind: "audio" | "video"`; image bytes require the pending image-input
@@ -54,15 +57,49 @@ authority for inter-Plugin capability declarations and generated references.
 8. Resume Host-dependent implementation only after an explicit human decision,
    a protected external receipt accepted by the repository's human-owned
    governance verifier, and an updated `@convax/plugin-api` catalog that contains
-   the approved API. Until that verifier exists, the package stays blocked. Re-run
-   protocol conformance, package tests, structural validation, SDK reference input
-   checks, and release gates.
+   the approved API. The Catalog must use exactly
+   `convax.plugin-api-catalog/3`. The receipt must come from the protected
+   default-branch workflow, bind the request semantic digest, affected identities,
+   exact Host PR/commit, published npm tarball/integrity, Catalog version/SHA-256
+   and strictly parsed `convax.plugin-api-runtime-conformance/1` evidence, and be
+   published as an attested immutable Release. The closed conformance check set
+   must be all-passed and include the exact Plugin asset-protocol CSP suite.
+   For an API-backed request, the protected policy and receipt must contain the
+   same sorted accepted API ids and exact Catalog `contract.digest` values; every
+   named API must exist unchanged in the receipt-bound Catalog. Whole-Catalog
+   SHA-256 alone is insufficient.
+   Catalog, tarball, and conformance assets must each be attested by the protected
+   Host release workflow for the exact Host commit; an evidence field that merely
+   names that workflow is insufficient. The package tarball must contain the exact
+   Catalog bytes. A later resolution PR keeps the append-only receipt tombstone; it
+   cannot author, replace, or locally approve the receipt. Re-run protocol
+   conformance, package tests, structural validation, SDK reference input checks,
+   and release gates. A Host API receipt does not prove `@convax/plugin-sdk`
+   provenance; when the Plugin bundles the SDK client, require a separately
+   protected, npm-identical SDK release bound to the exact API version and Catalog
+   digest rather than accepting repository-local SDK bytes.
+9. Treat SDK provenance as a release concern independent from Host capability
+   approval; it is never part of request resolution. A local vendor workspace can
+   support development, but it can never authorize a Plugin Release. Before
+   publication, require the root frozen lock to
+   resolve exact npm `@convax/plugin-sdk` and `@convax/plugin-api` tarballs, verify
+   the immutable protected Host package/API Releases and their attestations, and
+   bind the actual closure plus source manifest, build entrypoints, and final
+   Plugin ZIP in canonical `convax.plugin-bundle-provenance/1` evidence. The actual
+   locked API must satisfy the SDK tarball range and must have its own runtime
+   evidence even when it differs from the SDK release-time API baseline. Missing
+   npm bytes, workspace/file/Git resolution, lock mutation, evidence drift, an
+   existing version, or network verification failure blocks publication. Never add
+   SDK package evidence to a capability request or decision receipt.
 
 Repository CODEOWNERS and the protected
-`plugin-marketplace-production` environment are required external controls. The
-repository ruleset must require a named human code-owner, dismiss stale approvals,
-reject bot approval, require current CI, and prevent a candidate change from
-approving its own governance checker.
+`plugin-marketplace-production` and `plugin-host-capability-governance`
+environments are required external controls. The governance Environment must
+require named reviewers, prevent self-review and administrator bypass, and both
+Host and Plugin repositories must enable immutable Releases. The repository
+ruleset must require a named human code-owner, dismiss stale approvals, reject bot
+approval, require the protected-base governance check, and prevent a candidate
+change from approving its own checker.
 
 For every Plugin-owned Skill, keep the two stable `SKILL.md` links but never author
 `references/convax-capabilities.md` or

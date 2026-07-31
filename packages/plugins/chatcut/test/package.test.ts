@@ -80,6 +80,8 @@ describe("ChatCut Plugin package", () => {
     expect(application).toContain("convax_plugin_chatcut_import_connected_media")
     expect(application).toContain("Do not call import_media action=create_session a second time")
     expect(application).toContain("ownerNodeId")
+    expect(application).toContain('references as [{"inputKey":"…","role":')
+    expect(application).not.toContain('references as [{"nodeId"')
     expect(application).toContain("every reference is still directly connected")
     expect(application).toContain("action=create_session")
     expect(application).toContain("edit_item")
@@ -141,13 +143,13 @@ describe("ChatCut Plugin package", () => {
       },
       entry: "index.html",
       hostApi: {
-        major: 1,
+        major: 2,
         optional: [],
         required: ["agent.prompt", "canvas.inputs.list", "host.context.get"],
       },
       id: "chatcut",
       schema: "convax.plugin/8",
-      version: "0.3.2",
+      version: "0.4.0",
       runtime: {
         command: "convax-chatcut-media-import-mcp",
         type: "mcp-stdio",

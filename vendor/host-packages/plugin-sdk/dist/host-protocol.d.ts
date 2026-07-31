@@ -13,6 +13,8 @@ export declare const maximumPluginHostResponseBytes: number;
 /** P2P capabilities deliberately retain a smaller independent attack surface. */
 export declare const maximumPluginCapabilityRequestBytes: number;
 export declare const maximumPluginCapabilityResponseBytes: number;
+/** Fixed control envelopes contain no caller-selected identifiers or payloads. */
+export declare const maximumPluginHostControlBytes = 128;
 export declare const maximumPluginHostInFlightRequests = 16;
 export declare const maximumPluginHostRequestIdLength = 128;
 export declare const maximumPluginHostIngressDepth = 64;
@@ -53,6 +55,16 @@ export interface PluginHostCancel {
     readonly id: string;
     readonly protocol: PluginHostProtocol;
     readonly type: "cancel";
+}
+/**
+ * Closes only the exact sender-scoped MessagePort connection.
+ *
+ * This is protocol lifecycle control, not a Host API or Plugin capability. It
+ * deliberately carries no caller-selected identity, scope, or payload.
+ */
+export interface PluginHostDisconnect {
+    readonly protocol: PluginHostProtocol;
+    readonly type: "disconnect";
 }
 export type PluginCapabilityRemoteErrorCode = "canceled" | "contract-mismatch" | "depth-exceeded" | "duplicate-request" | "execution-failed" | "invalid-input" | "invalid-output" | "overloaded" | "provider-unavailable" | "reentrant-call";
 export type PluginHostProtocolRemoteErrorCode = "canceled" | "internal-error" | "invalid-request" | "overloaded" | "transport-closed";
@@ -167,6 +179,7 @@ export declare function isPluginHostRequest(value: unknown): value is PluginHost
 export declare function isPluginHostCapabilityInvokeRequest(value: unknown): value is PluginHostCapabilityInvokeRequest;
 export declare function isPluginHostCapabilityAvailabilityRequest(value: unknown): value is PluginHostCapabilityAvailabilityRequest;
 export declare function isPluginHostCancel(value: unknown): value is PluginHostCancel;
+export declare function isPluginHostDisconnect(value: unknown): value is PluginHostDisconnect;
 export declare function isPluginHostResponse(value: unknown): value is PluginHostResponse;
 export declare function isPluginHostCommand(value: unknown): value is PluginHostCommand;
 export declare function parsePluginHostCapabilityAvailability(value: unknown): PluginHostCapabilityAvailability;

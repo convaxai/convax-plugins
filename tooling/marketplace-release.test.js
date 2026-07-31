@@ -98,7 +98,7 @@ async function writePlugin(root, version = "1.0.0") {
       entry: "index.html",
       capabilities: [],
       hostApi: {
-        major: 1,
+        major: 2,
         required: ["host.context.get"],
         optional: [],
       },
@@ -276,6 +276,166 @@ describe("Marketplace Kit release selection and publication policy", () => {
     await expect(packageVersionSnapshot(fixture))
       .rejects.toThrow(
         "required pending request example-host-capability is missing from publication policy",
+      )
+  })
+
+  test("keeps every orthogonal request on one exact package version independently blocked", async () => {
+    const fixture = await temporaryDirectory()
+    await writePlugin(fixture)
+    const generationDocument =
+      "docs/host-capability-requests/generation-input-binding.md"
+    const imageDocument =
+      "docs/host-capability-requests/image-input-read.md"
+    await Promise.all([
+      writePendingRequestDocument(
+        fixture,
+        generationDocument,
+        "generation input binding",
+      ),
+      writePendingRequestDocument(
+        fixture,
+        imageDocument,
+        "image input read",
+      ),
+    ])
+    await writePolicy(fixture, [
+      {
+        id: "image-input-read",
+        document: imageDocument,
+        status: "pending",
+        humanDecision: null,
+        affected: [{
+          kind: "plugin",
+          id: "example-plugin",
+          version: "1.0.0",
+          blocker: {
+            code: "host-capability-review-required",
+            note: `Missing image contract. ${imageDocument}`,
+          },
+        }],
+      },
+      {
+        id: "generation-input-binding",
+        document: generationDocument,
+        status: "pending",
+        humanDecision: null,
+        affected: [{
+          kind: "plugin",
+          id: "example-plugin",
+          version: "1.0.0",
+          blocker: {
+            code: "host-capability-review-required",
+            note: `Missing generation contract. ${generationDocument}`,
+          },
+        }],
+      },
+    ])
+
+    const snapshot = await packageVersionSnapshot(fixture)
+    const publication =
+      snapshot.get("plugin\0example-plugin")?.publication
+    expect(publication).toEqual({
+      blockedBy: ["plugin/example-plugin"],
+      blockers: [
+        {
+          code: "host-capability-review-required",
+          note: expect.stringContaining("[generation-input-binding]"),
+        },
+        {
+          code: "host-capability-review-required",
+          note: expect.stringContaining("[image-input-read]"),
+        },
+      ],
+      status: "blocked",
+    })
+    expect(() =>
+      assertSelectedCandidatesMatchSnapshot([{
+        kind: "plugin",
+        id: "example-plugin",
+        version: "1.0.0",
+        releaseTag: "plugin-example-plugin-v1.0.0",
+      }], snapshot),
+    ).toThrow(/generation-input-binding.*image-input-read/u)
+  })
+
+  test("rejects duplicate, over-bound, and version-drifted request declarations", async () => {
+    const duplicateFixture = await temporaryDirectory()
+    await writeReadyFixture(duplicateFixture)
+    const duplicatePackagePath = path.join(
+      duplicateFixture,
+      "packages",
+      "plugins",
+      "example-plugin",
+      "package.json",
+    )
+    const duplicatePackage = JSON.parse(
+      await fs.readFile(duplicatePackagePath, "utf8"),
+    )
+    duplicatePackage["convax.hostCapabilityRequests"] = [
+      "same-request",
+      "same-request",
+    ]
+    await fs.writeFile(
+      duplicatePackagePath,
+      `${JSON.stringify(duplicatePackage, null, 2)}\n`,
+    )
+    await expect(packageVersionSnapshot(duplicateFixture))
+      .rejects.toThrow(
+        "convax.hostCapabilityRequests must contain at most 16 unique request ids",
+      )
+
+    const overBoundFixture = await temporaryDirectory()
+    await writeReadyFixture(overBoundFixture)
+    const overBoundPackagePath = path.join(
+      overBoundFixture,
+      "packages",
+      "plugins",
+      "example-plugin",
+      "package.json",
+    )
+    const overBoundPackage = JSON.parse(
+      await fs.readFile(overBoundPackagePath, "utf8"),
+    )
+    overBoundPackage["convax.hostCapabilityRequests"] = Array.from(
+      { length: 17 },
+      (_, index) => `request-${index + 1}`,
+    )
+    await fs.writeFile(
+      overBoundPackagePath,
+      `${JSON.stringify(overBoundPackage, null, 2)}\n`,
+    )
+    await expect(packageVersionSnapshot(overBoundFixture))
+      .rejects.toThrow(
+        "convax.hostCapabilityRequests must contain at most 16 unique request ids",
+      )
+
+    const driftFixture = await temporaryDirectory()
+    await writePlugin(driftFixture, "1.0.0")
+    const driftDocument =
+      "docs/host-capability-requests/version-drift.md"
+    await writePendingRequestDocument(
+      driftFixture,
+      driftDocument,
+      "version drift",
+    )
+    await writePolicy(driftFixture, [{
+      id: "version-drift",
+      document: driftDocument,
+      status: "pending",
+      humanDecision: null,
+      affected: [{
+        kind: "plugin",
+        id: "example-plugin",
+        version: "2.0.0",
+        blocker: {
+          code: "host-capability-review-required",
+          note: `Wrong package version. ${driftDocument}`,
+        },
+      }],
+    }])
+    await expect(packageVersionSnapshot(driftFixture))
+      .rejects.toThrow(
+        "must exactly match workspace declarations and policy affected versions",
       )
   })
 

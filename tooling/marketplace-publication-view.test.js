@@ -42,10 +42,16 @@ describe("ready-only Marketplace publication view", () => {
     }
     const blockedPublication = {
       status: "blocked",
-      blockers: [{
-        code: "host-capability-review-required",
-        note: "Pending generic contract.",
-      }],
+      blockers: [
+        {
+          code: "host-capability-review-required",
+          note: "[alpha-contract] Pending alpha contract.",
+        },
+        {
+          code: "host-capability-review-required",
+          note: "[zeta-contract] Pending zeta contract.",
+        },
+      ],
     }
     const packages = [
       {
@@ -122,6 +128,9 @@ describe("ready-only Marketplace publication view", () => {
       expect(view.omissions.omitted[1].publication.blockedBy).toEqual([
         "plugin/blocked-plugin",
       ])
+      expect(view.omissions.omitted[1].publication.blockers).toEqual(
+        blockedPublication.blockers,
+      )
     } finally {
       await disposeMarketplacePublicationView(view)
     }

@@ -28,6 +28,7 @@ function compareVersions(left, right) {
 function freezeDefinition(definition) {
   if (!API_ID.test(definition.id))
     throw new TypeError(`Plugin API id is invalid: ${definition.id}`);
+  assertVersion(definition.contractSince, `${definition.id} contractSince`);
   if (definition.grant !== null && !GRANT.test(definition.grant)) {
     throw new TypeError(`Plugin API grant is invalid: ${definition.grant}`);
   }
@@ -75,6 +76,7 @@ function definePluginApiCatalog(...releases) {
     throw new TypeError("Plugin API catalog requires at least one release");
   const ids = new Set;
   const apis = [];
+  const releaseVersions = new Set(releases.map((release) => release.version));
   let previous;
   for (const release of releases) {
     assertVersion(release.version, "Plugin API release version");
@@ -86,6 +88,12 @@ function definePluginApiCatalog(...releases) {
       const definition = freezeDefinition(candidate);
       if (ids.has(definition.id))
         throw new TypeError(`Plugin API id is duplicated: ${definition.id}`);
+      if (compareVersions(definition.contractSince, release.version) < 0) {
+        throw new TypeError(`Plugin API ${definition.id} contractSince must not precede since`);
+      }
+      if (!releaseVersions.has(definition.contractSince)) {
+        throw new TypeError(`Plugin API ${definition.id} contractSince must identify a Catalog release block`);
+      }
       ids.add(definition.id);
       apis.push(Object.freeze({ ...definition, since: release.version }));
     }
@@ -93,7 +101,6 @@ function definePluginApiCatalog(...releases) {
   if (apis.length === 0)
     throw new TypeError("Plugin API catalog must contain at least one API");
   return Object.freeze({
-    schema: "convax.plugin-api-catalog/1",
     version: releases[releases.length - 1].version,
     apis: Object.freeze(apis)
   });
@@ -104,13 +111,17 @@ var pluginApiContractInternals = Object.freeze({
 });
 
 // src/method-schemas.ts
-var pluginApiWireSchemaDialect = "convax.plugin-api-wire-schema/2";
+var pluginApiWireSchemaDialect = "convax.plugin-api-wire-schema/3";
 var KiB = 1024;
 var MiB = KiB * KiB;
+var maximumPluginApiConnectedImageBytes = 16 * MiB;
+var maximumPluginApiConnectedImageDimension = 8192;
+var maximumPluginApiConnectedImagePixels = 33554432;
 var none = { type: "none" };
 var bool = { type: "boolean" };
 var finite = { finite: true, type: "number" };
 var integer = { finite: true, minimum: 0, type: "integer" };
+var boundedPositiveInteger = (maximum) => ({ finite: true, maximum, minimum: 1, type: "integer" });
 var nil = { type: "null" };
 var literal = (value) => ({ const: value });
 var string = (maxLength = 2048, options = {}) => ({
@@ -122,9 +133,10 @@ var string = (maxLength = 2048, options = {}) => ({
   type: "string"
 });
 var array = (items, maxItems, minItems = 0, uniqueBy) => ({ items, maxItems, minItems, type: "array", ...uniqueBy ? { uniqueBy } : {} });
-var object = (properties, required) => ({
+var object = (properties, required, products) => ({
   additionalProperties: false,
   properties,
+  ...products ? { products } : {},
   required,
   type: "object"
 });
@@ -146,10 +158,12 @@ var stringList = (maximum = 1000) => array(string(), maximum);
 var availability = union(object({
   available: literal(true),
   catalogVersion: string(64),
+  contractSince: string(64),
   id: string(128),
   since: string(64)
-}, ["available", "catalogVersion", "id", "since"]), object({
+}, ["available", "catalogVersion", "contractSince", "id", "since"]), object({
   available: literal(false),
+  contractSince: string(64),
   id: string(128),
   reason: enumString([
     "unsupported-host",
@@ -173,7 +187,7 @@ var hostNode = object({
   style: jsonObject(),
   type: string(80)
 }, ["data", "id", "position", "revision", "type"]);
-var generationReference = object({ nodeId: string(), role: inputRole }, ["nodeId", "role"]);
+var generationReference = object({ inputKey: string(), role: inputRole }, ["inputKey", "role"]);
 var nodeQuery = object({
   ids: stringList(),
   kinds: stringList(),
@@ -225,6 +239,14 @@ var connectedInput = object({
   status: enumString(["error", "idle", "pending"]),
   width: finite
 }, ["inputKey", "kind", "label"]);
+var connectedImageProbe = object({
+  contentRevision: string(64, { refinement: "lowercase-sha256" }),
+  height: boundedPositiveInteger(maximumPluginApiConnectedImageDimension),
+  kind: literal("image"),
+  mimeType: enumString(["image/jpeg", "image/png", "image/webp"]),
+  size: boundedPositiveInteger(maximumPluginApiConnectedImageBytes),
+  width: boundedPositiveInteger(maximumPluginApiConnectedImageDimension)
+}, ["contentRevision", "height", "kind", "mimeType", "size", "width"], [{ fields: ["width", "height"], maximum: maximumPluginApiConnectedImagePixels }]);
 var generationTool = object({
   acceptedInputs: array(inputRole, 6),
   description: string(2000),
@@ -297,6 +319,7 @@ var hostContextResult = object({
   project: object({ id: string(256), name: string(512) }, ["id"])
 }, ["canvas", "hostApi", "node", "plugin", "project"]);
 var contract = (request, result, limits = {}) => ({
+  dialect: pluginApiWireSchemaDialect,
   request: { maxBytes: limits.request ?? 64 * KiB, schema: request },
   result: { maxBytes: limits.result ?? 64 * KiB, schema: result }
 });
@@ -305,6 +328,12 @@ var pluginApiWireContracts = Object.freeze({
   "canvas.inputs.list": contract(none, object({ inputs: array(connectedInput, 256) }, ["inputs"]), {
     result: MiB
   }),
+  "canvas.inputs.image.open": contract(object({ inputKey: string() }, ["inputKey"]), object({
+    probe: connectedImageProbe,
+    sessionId: string(128),
+    url: string(2048, { prefix: "convax-connected-media://" })
+  }, ["probe", "sessionId", "url"])),
+  "canvas.inputs.image.close": contract(object({ sessionId: string(128) }, ["sessionId"]), object({ closed: bool }, ["closed"])),
   "canvas.inputs.open": contract(object({ inputKey: string() }, ["inputKey"]), object({
     probe: object({
       duration: object({ estimated: bool, milliseconds: finite }, ["estimated", "milliseconds"]),
@@ -425,6 +454,8 @@ function isPortableNameSegment(value) {
 function satisfiesStringRefinement(value, refinement) {
   if (refinement === undefined)
     return true;
+  if (refinement === "lowercase-sha256")
+    return /^[a-f0-9]{64}$/u.test(value);
   if (refinement === "trimmed")
     return value === value.trim();
   if (refinement === "safe-png-file-name") {
@@ -483,6 +514,25 @@ function json(value, schema, label) {
   }
   return result;
 }
+function enforceProductConstraints(value, products, label) {
+  for (const constraint of products ?? []) {
+    let product = 1;
+    for (const field of constraint.fields) {
+      const factor = value[field];
+      if (typeof factor !== "number" || !Number.isFinite(factor) || factor < 0) {
+        throw new TypeError(`${label}.${field} must be a non-negative finite product factor`);
+      }
+      if (factor !== 0 && product > constraint.maximum / factor) {
+        throw new TypeError(`${label} must satisfy its numeric product limits`);
+      }
+      product *= factor;
+    }
+    if (product > constraint.maximum) {
+      throw new TypeError(`${label} must satisfy its numeric product limits`);
+    }
+  }
+  return value;
+}
 function parsePluginApiSchema(schema, value, label = "Plugin API value") {
   if ("oneOf" in schema) {
     const matches = [];
@@ -516,7 +566,7 @@ function parsePluginApiSchema(schema, value, label = "Plugin API value") {
     return value;
   }
   if ("type" in schema && (schema.type === "number" || schema.type === "integer")) {
-    if (typeof value !== "number" || !Number.isFinite(value) || schema.type === "integer" && !Number.isSafeInteger(value) || schema.minimum !== undefined && value < schema.minimum) {
+    if (typeof value !== "number" || !Number.isFinite(value) || schema.type === "integer" && !Number.isSafeInteger(value) || schema.minimum !== undefined && value < schema.minimum || schema.maximum !== undefined && value > schema.maximum) {
       throw new TypeError(`${label} must be a valid ${schema.type}`);
     }
     return value;
@@ -531,9 +581,9 @@ function parsePluginApiSchema(schema, value, label = "Plugin API value") {
     if (!Array.isArray(value) || value.length < schema.minItems || value.length > schema.maxItems) {
       throw new TypeError(`${label} must satisfy its bounded array contract`);
     }
-    const parsed = value.map((entry, index) => parsePluginApiSchema(schema.items, entry, `${label}[${index}]`));
+    const parsed2 = value.map((entry, index) => parsePluginApiSchema(schema.items, entry, `${label}[${index}]`));
     if (schema.uniqueBy !== undefined) {
-      const identities = parsed.map((entry) => {
+      const identities = parsed2.map((entry) => {
         const item = record(entry, `${label} unique item`);
         const identity = item[schema.uniqueBy];
         if (typeof identity !== "string" && typeof identity !== "number") {
@@ -545,7 +595,7 @@ function parsePluginApiSchema(schema, value, label = "Plugin API value") {
         throw new TypeError(`${label} contains duplicate ${schema.uniqueBy}`);
       }
     }
-    return parsed;
+    return parsed2;
   }
   if ("type" in schema && schema.type === "json-object")
     return json(value, schema, label);
@@ -556,10 +606,11 @@ function parsePluginApiSchema(schema, value, label = "Plugin API value") {
   if (schema.required.some((key) => !Object.prototype.hasOwnProperty.call(input, key)) || Object.keys(input).some((key) => !admitted.has(key))) {
     throw new TypeError(`${label} contains unsupported or missing fields`);
   }
-  return Object.fromEntries(Object.entries(input).map(([key, entry]) => [
+  const parsed = Object.fromEntries(Object.entries(input).map(([key, entry]) => [
     key,
     parsePluginApiSchema(schema.properties[key], entry, `${label}.${key}`)
   ]));
+  return enforceProductConstraints(parsed, schema.products, label);
 }
 function objectShape(schema, label) {
   if ("oneOf" in schema) {
@@ -598,6 +649,7 @@ var pluginApiMethodContracts = Object.freeze(Object.fromEntries(pluginApiContrac
   return [
     id,
     {
+      dialect: wire.dialect,
       params: objectShape(wire.request.schema, `Plugin API ${id} params`),
       request: wire.request,
       response: wire.result,
@@ -653,8 +705,12 @@ var partialSuccessErrors = [
     recoverable: false
   }
 ];
+var defineV2Contract = (definition) => definePluginApi({
+  ...definition,
+  contractSince: "2.0.0"
+});
 var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
-  definePluginApi({
+  defineV2Contract({
     id: "host.context.get",
     completion: "cancelable",
     grant: null,
@@ -668,7 +724,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "The current Plugin, Project, Canvas, node, and negotiated Host API context when present."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.inputs.list",
     completion: "cancelable",
     grant: "canvas.connectedInputs.read",
@@ -682,7 +738,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "A bounded list of direct incoming input descriptors and opaque input keys."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.inputs.open",
     completion: "cancelable",
     grant: "canvas.connectedMedia.stream",
@@ -697,7 +753,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       remarks: "Call canvas.inputs.close when the stream is no longer needed."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.inputs.close",
     completion: "cancelable",
     grant: "canvas.connectedMedia.stream",
@@ -711,7 +767,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "An acknowledgement; closing an already closed handle is idempotent."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.node.get",
     completion: "cancelable",
     grant: "canvas.node.read",
@@ -725,7 +781,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "The owning node identity, revision, geometry, and Plugin state projection."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.node.state.replace",
     completion: "commit-preserving",
     grant: "canvas.node.write",
@@ -739,7 +795,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "`{ updated: true }` after the authoritative state replacement commits."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.resource.image.create",
     completion: "commit-preserving",
     grant: "canvas.image.write",
@@ -753,7 +809,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "The created renderer-safe image result after Project publication and Canvas commit."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "project.file.text.read",
     completion: "cancelable",
     grant: "project.files.read",
@@ -767,7 +823,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "The bounded UTF-8 file text."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "agent.prompt",
     completion: "commit-preserving",
     grant: "agent.prompt",
@@ -781,7 +837,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "`{ text }`, containing the bounded host acknowledgement."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "generation.tools.list",
     completion: "cancelable",
     grant: "generation.execute",
@@ -795,7 +851,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "A bounded list of available generation tools and their public input contracts."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "generation.execute",
     completion: "commit-preserving",
     grant: "generation.execute",
@@ -805,11 +861,11 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
     docs: {
       summary: "Execute one selected generation tool through the shared host executor.",
       description: "Revalidates the active Plugin, authorized executable, inputs, cancellation, and live resource guards immediately before execution.",
-      request: "`{ output?, prompt, references?, resultMode?, toolId? }`, validated against the selected tool.",
+      request: "`{ output?, prompt, references?: Array<{ inputKey, role }>, resultMode?, toolId? }`; every opaque input key must come from the current owning node's canvas.inputs.list result.",
       response: "The bounded selected tool result, created node ids, authoritative revision, and warnings."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "projects.list",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -824,7 +880,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "A bounded list of renderer-safe Project summaries."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.catalog.list",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -839,7 +895,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "A bounded list of portable Canvas catalog entries."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.document.get",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -854,7 +910,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "The requested pathless document projection and authoritative revision."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.nodes.query",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -869,7 +925,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "Matching node projections and the authoritative Canvas revision."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.transaction.execute",
     completion: "commit-preserving",
     audience: ["web-plugin", "companion"],
@@ -884,7 +940,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "The committed authoritative revision and bounded command results."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.events.subscribe",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -899,7 +955,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "A connection-bound subscription identifier."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.events.unsubscribe",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -912,6 +968,36 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       description: "Releases a subscription created by canvas.events.subscribe without changing Canvas state.",
       request: "The subscription identifier returned by canvas.events.subscribe.",
       response: "An acknowledgement; closing an already closed subscription is idempotent."
+    }
+  })
+]), definePluginApiRelease("2.0.0", [
+  defineV2Contract({
+    id: "canvas.inputs.image.open",
+    completion: "cancelable",
+    grant: "canvas.connectedImages.read",
+    scope: "own-node",
+    sideEffect: "read",
+    errors: [...contextErrors, ...permissionErrors, ...resourceErrors],
+    docs: {
+      summary: "Open one directly connected image through the owning Plugin node.",
+      description: "Issues a revocable Host-owned session for signature-validated JPEG, PNG, or WebP content after validating the Plugin principal, owning node, direct edge, resource identity, and image limits. Every protocol read revalidates the issued principal and direct edge against current Host state.",
+      request: "`{ inputKey }`, using an opaque image key returned by canvas.inputs.list.",
+      response: "A connection-issued, revocable session with an opaque 128-bit bearer URL, bounded image probe, and lowercase SHA-256 content revision.",
+      remarks: "Electron protocol GET/HEAD requests have no trusted sender or frame principal. Possession of the convax-connected-media URL therefore carries bearer authority until the Host revokes the session or its principal/edge revalidation fails; the URL must be kept secret and closed promptly. The response contains no image bytes, native path, or unrestricted URL. The Host rejects images above 16 MiB, dimensions above 8192 pixels, or more than 33,554,432 pixels."
+    }
+  }),
+  defineV2Contract({
+    id: "canvas.inputs.image.close",
+    completion: "cancelable",
+    grant: "canvas.connectedImages.read",
+    scope: "own-node",
+    sideEffect: "write",
+    errors: [...contextErrors, ...permissionErrors],
+    docs: {
+      summary: "Close one revocable connected-image bearer session.",
+      description: "Revokes a session and bearer URL created by canvas.inputs.image.open after validating the calling Plugin principal, without changing Canvas or Project state.",
+      request: "`{ sessionId }`, using the opaque handle returned by canvas.inputs.image.open.",
+      response: "An acknowledgement that the caller's image session is closed; repeated close calls are idempotent."
     }
   })
 ]));
@@ -933,7 +1019,7 @@ function isPluginApiCommitPreserving(id) {
   return getPluginApiDefinition(id).completion === "commit-preserving";
 }
 // src/catalog-artifact.ts
-var PLUGIN_API_CATALOG_ARTIFACT_SCHEMA = "convax.plugin-api-catalog/2";
+var PLUGIN_API_CATALOG_ARTIFACT_SCHEMA = "convax.plugin-api-catalog/3";
 // src/declaration.ts
 var API_ID2 = /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+$/;
 function isRecord(value) {
@@ -1021,37 +1107,45 @@ function compareVersions2(left, right) {
   }
   return 0;
 }
-function unavailable(id, since, reason, recoverable) {
-  return { available: false, id, ...since ? { since } : {}, reason, recoverable };
+function unavailable(id, since, contractSince, reason, recoverable) {
+  return {
+    available: false,
+    id,
+    ...since ? { since } : {},
+    ...contractSince ? { contractSince } : {},
+    reason,
+    recoverable
+  };
 }
 function evaluatePluginApiAvailability(id, declaration, context) {
   if (!isPluginApiId(id))
-    return unavailable(id, undefined, "unsupported-host", false);
+    return unavailable(id, undefined, undefined, "unsupported-host", false);
   const definition = getPluginApiDefinition(id);
-  if (context.catalogMajor !== PLUGIN_API_CATALOG_MAJOR || declaration.major !== context.catalogMajor || compareVersions2(context.catalogVersion, definition.since) < 0) {
-    return unavailable(id, definition.since, "unsupported-host", false);
+  if (context.catalogMajor !== PLUGIN_API_CATALOG_MAJOR || declaration.major !== context.catalogMajor || compareVersions2(context.catalogVersion, definition.contractSince) < 0) {
+    return unavailable(id, definition.since, definition.contractSince, "unsupported-host", false);
   }
   if (!declaration.required.includes(id) && !declaration.optional.includes(id)) {
-    return unavailable(id, definition.since, "not-declared", false);
+    return unavailable(id, definition.since, definition.contractSince, "not-declared", false);
   }
   if (!definition.audience.includes(context.audience)) {
-    return unavailable(id, definition.since, "wrong-surface", false);
+    return unavailable(id, definition.since, definition.contractSince, "wrong-surface", false);
   }
   if (definition.grant !== null && !context.grants.includes(definition.grant)) {
-    return unavailable(id, definition.since, "permission-denied", false);
+    return unavailable(id, definition.since, definition.contractSince, "permission-denied", false);
   }
   if (!context.hasContext)
-    return unavailable(id, definition.since, "missing-context", true);
+    return unavailable(id, definition.since, definition.contractSince, "missing-context", true);
   if (!context.setupComplete)
-    return unavailable(id, definition.since, "setup-required", true);
+    return unavailable(id, definition.since, definition.contractSince, "setup-required", true);
   if (context.disabled)
-    return unavailable(id, definition.since, "disabled", true);
+    return unavailable(id, definition.since, definition.contractSince, "disabled", true);
   if (context.recovering)
-    return unavailable(id, definition.since, "recovering", true);
+    return unavailable(id, definition.since, definition.contractSince, "recovering", true);
   return {
     available: true,
     id,
     since: definition.since,
+    contractSince: definition.contractSince,
     catalogVersion: context.catalogVersion
   };
 }
@@ -1173,15 +1267,15 @@ function renderPluginApiReference(input) {
   if (selected.length === 0) {
     lines.push("## Host APIs", "", "This Skill does not call a Convax Host API.", "");
   } else {
-    lines.push("## Host APIs", "", "| API | Requirement | Since | Grant | Scope | Side effect | Completion |", "| --- | --- | --- | --- | --- | --- | --- |");
+    lines.push("## Host APIs", "", "| API | Requirement | Introduced | Current contract | Grant | Scope | Side effect | Completion |", "| --- | --- | --- | --- | --- | --- | --- | --- |");
     for (const entry of selected) {
       const definition = definitionsById.get(entry.id);
-      lines.push(`| \`${definition.id}\` | ${entry.requirement} | ${definition.since} | ${definition.grant ? `\`${definition.grant}\`` : "none"} | ${definition.scope} | ${definition.sideEffect} | ${definition.completion} |`);
+      lines.push(`| \`${definition.id}\` | ${entry.requirement} | ${definition.since} | ${definition.contractSince} | ${definition.grant ? `\`${definition.grant}\`` : "none"} | ${definition.scope} | ${definition.sideEffect} | ${definition.completion} |`);
     }
     lines.push("");
     for (const entry of selected) {
       const definition = definitionsById.get(entry.id);
-      lines.push(`### \`${definition.id}\``, "", definition.docs.summary, "", definition.docs.description, "", `- Requirement: ${entry.requirement}`, `- Available since: Host API ${definition.since}`, `- Required grant: ${definition.grant ? `\`${definition.grant}\`` : "none"}`, `- Scope: ${definition.scope}`, `- Side effect: ${definition.sideEffect}`, `- Completion: ${definition.completion}`, `- Request: ${definition.docs.request}`, `- Response: ${definition.docs.response}`, `- Request schema: ${renderMethodShape(pluginApiMethodContracts[definition.id].params)}`, `- Response schema: ${renderMethodShape(pluginApiMethodContracts[definition.id].result)}`, `- Request byte limit: ${pluginApiMethodContracts[definition.id].request.maxBytes}`, `- Response byte limit: ${pluginApiMethodContracts[definition.id].response.maxBytes}`, `- Contract dialect: \`${pluginApiWireSchemaDialect}\``);
+      lines.push(`### \`${definition.id}\``, "", definition.docs.summary, "", definition.docs.description, "", `- Requirement: ${entry.requirement}`, `- API introduced: Host API ${definition.since}`, `- Current contract available since: Host API ${definition.contractSince}`, `- Required grant: ${definition.grant ? `\`${definition.grant}\`` : "none"}`, `- Scope: ${definition.scope}`, `- Side effect: ${definition.sideEffect}`, `- Completion: ${definition.completion}`, `- Request: ${definition.docs.request}`, `- Response: ${definition.docs.response}`, `- Request schema: ${renderMethodShape(pluginApiMethodContracts[definition.id].params)}`, `- Response schema: ${renderMethodShape(pluginApiMethodContracts[definition.id].result)}`, `- Request byte limit: ${pluginApiMethodContracts[definition.id].request.maxBytes}`, `- Response byte limit: ${pluginApiMethodContracts[definition.id].response.maxBytes}`, `- Contract dialect: \`${pluginApiMethodContracts[definition.id].dialect}\``);
       if (definition.docs.remarks)
         lines.push(`- Remarks: ${definition.docs.remarks}`);
       lines.push("", "Request contract:", "", "```json", stableContractJson(pluginApiMethodContracts[definition.id].request), "```", "", "Response contract:", "", "```json", stableContractJson(pluginApiMethodContracts[definition.id].response), "```");
@@ -1222,6 +1316,9 @@ export {
   parsePluginApiCall,
   maximumPluginApiResultBytes,
   maximumPluginApiRequestBytes,
+  maximumPluginApiConnectedImagePixels,
+  maximumPluginApiConnectedImageDimension,
+  maximumPluginApiConnectedImageBytes,
   isPluginApiId,
   isPluginApiErrorCode,
   isPluginApiDeclared,
@@ -1241,5 +1338,5 @@ export {
   PLUGIN_API_CATALOG_ARTIFACT_SCHEMA
 };
 
-//# debugId=AFA4502CE1E908C964756E2164756E21
+//# debugId=90871B4DC56E9CA164756E2164756E21
 //# sourceMappingURL=index.js.map

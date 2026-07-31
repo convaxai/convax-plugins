@@ -30,7 +30,7 @@ describe("storyboard-studio package contract", () => {
     expect(manifest).toMatchObject({
       schema: "convax.plugin/8",
       id: "storyboard-studio",
-      version: "0.1.1",
+      version: "0.2.0",
       entry: "index.html",
       contributes: {
         canvas: {

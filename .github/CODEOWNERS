@@ -7,6 +7,10 @@
 /packages/skills/convax-plugin-authoring/ @fearclear @smackgg @youking-lib @JPJeePee
 /tooling/host-capability-history.mjs @fearclear @smackgg @youking-lib @JPJeePee
 /tooling/host-capability-request.mjs @fearclear @smackgg @youking-lib @JPJeePee
+/tooling/host-capability-decision.mjs @fearclear @smackgg @youking-lib @JPJeePee
+/tooling/create-host-capability-decision-receipt.mjs @fearclear @smackgg @youking-lib @JPJeePee
+/tooling/host-sigstore-bundle.mjs @fearclear @smackgg @youking-lib @JPJeePee
+/docs/host-capability-resolution.md @fearclear @smackgg @youking-lib @JPJeePee
 /tooling/publication-eligibility.mjs @fearclear @smackgg @youking-lib @JPJeePee
 /.github/CODEOWNERS @fearclear @smackgg @youking-lib @JPJeePee
 /.github/workflows/ @fearclear @smackgg @youking-lib @JPJeePee

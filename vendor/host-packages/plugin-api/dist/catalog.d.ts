@@ -17,6 +17,8 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly response: "The current Plugin, Project, Canvas, node, and negotiated Host API context when present.";
     };
 } & {
+    readonly contractSince: "2.0.0";
+} & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
     readonly audience: readonly import("./contracts").PluginApiAudience[];
@@ -42,6 +44,8 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly request: "No parameters; the owning node comes from the bound connection.";
         readonly response: "A bounded list of direct incoming input descriptors and opaque input keys.";
     };
+} & {
+    readonly contractSince: "2.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -74,6 +78,8 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly remarks: "Call canvas.inputs.close when the stream is no longer needed.";
     };
 } & {
+    readonly contractSince: "2.0.0";
+} & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
     readonly audience: readonly import("./contracts").PluginApiAudience[];
@@ -99,6 +105,8 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly request: "The stream handle returned by canvas.inputs.open.";
         readonly response: "An acknowledgement; closing an already closed handle is idempotent.";
     };
+} & {
+    readonly contractSince: "2.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -126,6 +134,8 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly response: "The owning node identity, revision, geometry, and Plugin state projection.";
     };
 } & {
+    readonly contractSince: "2.0.0";
+} & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
     readonly audience: readonly import("./contracts").PluginApiAudience[];
@@ -151,6 +161,8 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly request: "`{ state }`, where state is a bounded JSON value.";
         readonly response: "`{ updated: true }` after the authoritative state replacement commits.";
     };
+} & {
+    readonly contractSince: "2.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -182,6 +194,8 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly response: "The created renderer-safe image result after Project publication and Canvas commit.";
     };
 } & {
+    readonly contractSince: "2.0.0";
+} & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
     readonly audience: readonly import("./contracts").PluginApiAudience[];
@@ -207,6 +221,8 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly request: "`{ path }`, using a normalized Project-relative portable path.";
         readonly response: "The bounded UTF-8 file text.";
     };
+} & {
+    readonly contractSince: "2.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -234,6 +250,8 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly response: "`{ text }`, containing the bounded host acknowledgement.";
     };
 } & {
+    readonly contractSince: "2.0.0";
+} & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
     readonly audience: readonly import("./contracts").PluginApiAudience[];
@@ -255,6 +273,8 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly request: "Optional `{ output }` modality filter; omitting params lists every admitted modality.";
         readonly response: "A bounded list of available generation tools and their public input contracts.";
     };
+} & {
+    readonly contractSince: "2.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -286,9 +306,11 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
     readonly docs: {
         readonly summary: "Execute one selected generation tool through the shared host executor.";
         readonly description: "Revalidates the active Plugin, authorized executable, inputs, cancellation, and live resource guards immediately before execution.";
-        readonly request: "`{ output?, prompt, references?, resultMode?, toolId? }`, validated against the selected tool.";
+        readonly request: "`{ output?, prompt, references?: Array<{ inputKey, role }>, resultMode?, toolId? }`; every opaque input key must come from the current owning node's canvas.inputs.list result.";
         readonly response: "The bounded selected tool result, created node ids, authoritative revision, and warnings.";
     };
+} & {
+    readonly contractSince: "2.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -312,6 +334,8 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly request: "No parameters.";
         readonly response: "A bounded list of renderer-safe Project summaries.";
     };
+} & {
+    readonly contractSince: "2.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -340,6 +364,8 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly response: "A bounded list of portable Canvas catalog entries.";
     };
 } & {
+    readonly contractSince: "2.0.0";
+} & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
     readonly audience: readonly import("./contracts").PluginApiAudience[];
@@ -366,6 +392,8 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly request: "`{ ref, projection }`, using an explicit portable Project/Canvas reference and supported projection.";
         readonly response: "The requested pathless document projection and authoritative revision.";
     };
+} & {
+    readonly contractSince: "2.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -394,6 +422,8 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly response: "Matching node projections and the authoritative Canvas revision.";
     };
 } & {
+    readonly contractSince: "2.0.0";
+} & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
     readonly audience: readonly import("./contracts").PluginApiAudience[];
@@ -420,6 +450,8 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly request: "`{ ref, expectedRevision, commands, transactionId }` with a bounded non-empty command list.";
         readonly response: "The committed authoritative revision and bounded command results.";
     };
+} & {
+    readonly contractSince: "2.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -448,6 +480,8 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly response: "A connection-bound subscription identifier.";
     };
 } & {
+    readonly contractSince: "2.0.0";
+} & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
     readonly audience: readonly import("./contracts").PluginApiAudience[];
@@ -475,10 +509,73 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly response: "An acknowledgement; closing an already closed subscription is idempotent.";
     };
 } & {
+    readonly contractSince: "2.0.0";
+} & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
     readonly audience: readonly import("./contracts").PluginApiAudience[];
     readonly since: "1.0.0";
+}) | (Omit<Readonly<{
+    readonly id: "canvas.inputs.image.open";
+    readonly completion: "cancelable";
+    readonly grant: "canvas.connectedImages.read";
+    readonly scope: "own-node";
+    readonly sideEffect: "read";
+    readonly errors: readonly [{
+        readonly code: "stale-context";
+        readonly description: "The bound Project, Canvas, node, or connection changed before the call completed.";
+        readonly recoverable: true;
+    }, {
+        readonly code: "permission-denied";
+        readonly description: "The installed Plugin principal does not currently hold the required grant.";
+        readonly recoverable: false;
+    }, {
+        readonly code: "resource-unavailable";
+        readonly description: "The authoritative Project resource is missing, changed, or cannot be read safely.";
+        readonly recoverable: true;
+    }];
+    readonly docs: {
+        readonly summary: "Open one directly connected image through the owning Plugin node.";
+        readonly description: "Issues a revocable Host-owned session for signature-validated JPEG, PNG, or WebP content after validating the Plugin principal, owning node, direct edge, resource identity, and image limits. Every protocol read revalidates the issued principal and direct edge against current Host state.";
+        readonly request: "`{ inputKey }`, using an opaque image key returned by canvas.inputs.list.";
+        readonly response: "A connection-issued, revocable session with an opaque 128-bit bearer URL, bounded image probe, and lowercase SHA-256 content revision.";
+        readonly remarks: "Electron protocol GET/HEAD requests have no trusted sender or frame principal. Possession of the convax-connected-media URL therefore carries bearer authority until the Host revokes the session or its principal/edge revalidation fails; the URL must be kept secret and closed promptly. The response contains no image bytes, native path, or unrestricted URL. The Host rejects images above 16 MiB, dimensions above 8192 pixels, or more than 33,554,432 pixels.";
+    };
+} & {
+    readonly contractSince: "2.0.0";
+} & {
+    audience: readonly import("./contracts").PluginApiAudience[];
+}>, "audience"> & {
+    readonly audience: readonly import("./contracts").PluginApiAudience[];
+    readonly since: "2.0.0";
+}) | (Omit<Readonly<{
+    readonly id: "canvas.inputs.image.close";
+    readonly completion: "cancelable";
+    readonly grant: "canvas.connectedImages.read";
+    readonly scope: "own-node";
+    readonly sideEffect: "write";
+    readonly errors: readonly [{
+        readonly code: "stale-context";
+        readonly description: "The bound Project, Canvas, node, or connection changed before the call completed.";
+        readonly recoverable: true;
+    }, {
+        readonly code: "permission-denied";
+        readonly description: "The installed Plugin principal does not currently hold the required grant.";
+        readonly recoverable: false;
+    }];
+    readonly docs: {
+        readonly summary: "Close one revocable connected-image bearer session.";
+        readonly description: "Revokes a session and bearer URL created by canvas.inputs.image.open after validating the calling Plugin principal, without changing Canvas or Project state.";
+        readonly request: "`{ sessionId }`, using the opaque handle returned by canvas.inputs.image.open.";
+        readonly response: "An acknowledgement that the caller's image session is closed; repeated close calls are idempotent.";
+    };
+} & {
+    readonly contractSince: "2.0.0";
+} & {
+    audience: readonly import("./contracts").PluginApiAudience[];
+}>, "audience"> & {
+    readonly audience: readonly import("./contracts").PluginApiAudience[];
+    readonly since: "2.0.0";
 })>;
 export type PluginApiId = PluginApiContractId;
 export declare const PLUGIN_API_CATALOG_VERSION: `${number}.${number}.${number}`;

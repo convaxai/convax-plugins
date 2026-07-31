@@ -4,7 +4,8 @@ import path from "node:path"
 
 import {
   normalizeImageInputs,
-  parseOpenedImageStream,
+  parseOpenedImageSession,
+  withOpenedImageSession,
 } from "../package/assets/image-inputs.js"
 
 const packageRoot = path.join(import.meta.dir, "..", "package")
@@ -20,17 +21,19 @@ describe("relight-studio v8 transport", () => {
       readFile(path.join(repositoryRoot, "registry/host-capability-policy.json"), "utf8").then(JSON.parse),
     ])
 
-    expect(manifest.version).toBe("0.1.4")
+    expect(manifest.version).toBe("0.2.0")
     expect(metadata).not.toHaveProperty("publication")
     expect(publication.requests.flatMap((request) => request.affected)
       .find((item) => item.id === "relight-studio")).toMatchObject({
       blocker: { code: "host-capability-review-required" },
     })
-    expect(manifest.capabilities).toContain("canvas.connectedMedia.stream")
+    expect(manifest.capabilities).toContain("canvas.connectedImages.read")
+    expect(manifest.capabilities).not.toContain("canvas.connectedMedia.stream")
+    expect(manifest.hostApi.major).toBe(2)
     expect(manifest.hostApi.required).toEqual(expect.arrayContaining([
-      "canvas.inputs.close",
+      "canvas.inputs.image.close",
+      "canvas.inputs.image.open",
       "canvas.inputs.list",
-      "canvas.inputs.open",
       "canvas.node.state.replace",
       "generation.execute",
       "generation.tools.list",
@@ -48,8 +51,9 @@ describe("relight-studio v8 transport", () => {
     expect(application).not.toContain("new Map")
     expect(application).not.toContain("convax.plugin-capability/3")
     expect(application).toContain('hostRequest("canvas.inputs.list")')
-    expect(application).toContain('hostRequest("canvas.inputs.open", { inputKey: image.id })')
-    expect(application).toContain('hostRequest("canvas.inputs.close"')
+    expect(application).toContain('"canvas.inputs.image.open"')
+    expect(application).toContain('"canvas.inputs.image.close"')
+    expect(application).toContain("sourceLoadController?.abort")
     expect(application).toContain('hostRequest("canvas.node.state.replace"')
     expect(application).toContain('"generation.execute"')
     expect(application).toContain("normalizeImageInputs")
@@ -70,18 +74,62 @@ describe("relight-studio v8 transport", () => {
       expect.objectContaining({ id: "failed", readable: false }),
       expect.objectContaining({ id: "ready", mimeType: "image/jpeg", name: "Portrait", readable: true }),
     ])
-    expect(parseOpenedImageStream({
-      probe: { mimeType: "image/png" },
+    expect(parseOpenedImageSession({
+      probe: { kind: "image", mimeType: "image/png" },
       sessionId: "session-2",
       url: "convax-connected-media://session-2/token",
     })).toEqual({
-      mimeType: "image/png",
+      probe: { kind: "image", mimeType: "image/png" },
       sessionId: "session-2",
       url: "convax-connected-media://session-2/token",
     })
-    expect(() => parseOpenedImageStream({
+    expect(() => parseOpenedImageSession({
       dataUrl: "data:image/png;base64,AA==",
       mimeType: "image/png",
     })).toThrow()
+  })
+
+  test("closes every acquired image session exactly once on success, failure, and cancellation", async () => {
+    const opened = {
+      probe: { kind: "image", mimeType: "image/png" },
+      sessionId: "relight-session",
+      url: "convax-connected-media://relight-session/token",
+    }
+    for (const outcome of ["success", "failure", "cancel"]) {
+      const controller = new AbortController()
+      const closes = []
+      const result = withOpenedImageSession({
+        close: async (sessionId) => { closes.push(sessionId) },
+        inputKey: "opaque-relight-input",
+        open: async () => opened,
+        signal: controller.signal,
+        use: async () => {
+          if (outcome === "failure") throw new Error("decode failed")
+          if (outcome === "cancel") {
+            controller.abort(new Error("stale relight"))
+            throw controller.signal.reason
+          }
+          return "ready"
+        },
+      })
+      if (outcome === "success") await expect(result).resolves.toBe("ready")
+      else await expect(result).rejects.toThrow(outcome === "failure" ? "decode failed" : "stale relight")
+      expect(closes).toEqual(["relight-session"])
+    }
+  })
+
+  test("does not claim an exact close when the SDK rejects an open result before returning it", async () => {
+    const closes = []
+    await expect(withOpenedImageSession({
+      close: async (sessionId) => { closes.push(sessionId) },
+      inputKey: "opaque-relight-input",
+      open: async () => {
+        throw new Error("Plugin Host returned an invalid result")
+      },
+      use: async () => {
+        throw new Error("must not decode")
+      },
+    })).rejects.toThrow("Plugin Host returned an invalid result")
+    expect(closes).toEqual([])
   })
 })

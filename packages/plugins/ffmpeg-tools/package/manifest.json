@@ -3,7 +3,7 @@
   "id": "ffmpeg-tools",
   "name": "FFmpeg Tools",
   "description": "Runs reviewed local FFmpeg transforms against host-staged Canvas media without exposing native paths or a shell.",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "contributes": {
     "generation": {
       "models": [],
@@ -208,7 +208,7 @@
     "command": "convax-ffmpeg-mcp"
   },
   "hostApi": {
-    "major": 1,
+    "major": 2,
     "required": [],
     "optional": []
   }

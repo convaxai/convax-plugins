@@ -1,6 +1,6 @@
 ---
 name: storyai-3d-director-desk
-version: 0.1.1
+version: 0.2.0
 description: Plan and review spatial blocking, characters, props, and camera shots in the open-source 3D Director Desk on the active Convax Canvas.
 ---
 

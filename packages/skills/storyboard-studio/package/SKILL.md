@@ -1,6 +1,6 @@
 ---
 name: storyboard-studio
-version: 0.1.1
+version: 0.2.0
 description: Turn a one-line premise, full script, or directly connected Canvas inputs into a traceable episodic storyboard package with episode scripts, shot cards, character/location/prop assets, image and voice briefs, personality and continuity locks, and an editable episode-grouped Canvas graph. Use when an agent must create, expand, revise, validate, or place a story package owned by the Storyboard Studio Plugin.
 ---
 

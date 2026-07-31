@@ -2,6 +2,11 @@ import { describe, expect, test } from "bun:test"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 
+import {
+  selectReadableConnectedImage,
+  withPanoramaImageSession,
+} from "../package/assets/panorama-image.js"
+
 const pluginRoot = path.resolve(import.meta.dir, "..")
 const repositoryRoot = path.resolve(import.meta.dir, "../../../..")
 
@@ -18,9 +23,9 @@ describe("panorama-viewer v8 Web Host API", () => {
     ])
 
     expect([manifest.version, metadata.version, workspace.version]).toEqual([
-      "0.2.4",
-      "0.2.4",
-      "0.2.4",
+      "0.3.0",
+      "0.3.0",
+      "0.3.0",
     ])
     expect(metadata).not.toHaveProperty("publication")
     expect(publication.requests.flatMap((request) => request.affected)
@@ -32,17 +37,17 @@ describe("panorama-viewer v8 Web Host API", () => {
     })
     expect(manifest.capabilities).toEqual([
       "canvas.connectedInputs.read",
-      "canvas.connectedMedia.stream",
+      "canvas.connectedImages.read",
       "canvas.image.write",
       "canvas.node.write",
       "ui.fullscreen",
     ])
     expect(manifest.hostApi).toEqual({
-      major: 1,
+      major: 2,
       required: [
+        "canvas.inputs.image.close",
+        "canvas.inputs.image.open",
         "canvas.inputs.list",
-        "canvas.inputs.open",
-        "canvas.inputs.close",
         "canvas.node.state.replace",
         "canvas.resource.image.create",
         "host.context.get",
@@ -111,8 +116,8 @@ describe("panorama-viewer v8 Web Host API", () => {
     for (const token of [
       "canvas.inputs.changed",
       "canvas.inputs.list",
-      "canvas.inputs.open",
-      "canvas.inputs.close",
+      "canvas.inputs.image.open",
+      "canvas.inputs.image.close",
       "canvas.node.state.replace",
       "canvas.resource.image.create",
     ]) {
@@ -132,7 +137,9 @@ describe("panorama-viewer v8 Web Host API", () => {
       expect(application).toContain(message)
     }
     expect(application).toContain("result.inputs")
-    expect(application).toContain("{ inputKey: image.inputKey }")
+    expect(application).toContain("{ inputKey }")
+    expect(application).toContain("sourceLoadController?.abort")
+    expect(application).toContain("withPanoramaImageSession")
     expect(application).not.toContain("selectedSourceInputKey:")
     expect(imageDecoder).toContain('url.startsWith("convax-connected-media://")')
     for (const legacyCommand of [
@@ -156,5 +163,60 @@ describe("panorama-viewer v8 Web Host API", () => {
     expect(application).not.toMatch(/convax\.plugin-host\/[1-7]\b/u)
     expect(application).not.toContain("result.images")
     expect(application).not.toContain("{ nodeId:")
+  })
+
+  test("closes an acquired image session exactly once after success, failure, or cancellation", async () => {
+    const opened = {
+      probe: { kind: "image" },
+      sessionId: "panorama-session",
+      url: "convax-connected-media://panorama-session/token",
+    }
+    for (const outcome of ["success", "failure", "cancel"]) {
+      const controller = new AbortController()
+      const closes = []
+      const result = withPanoramaImageSession({
+        close: async (sessionId) => { closes.push(sessionId) },
+        inputKey: "opaque-panorama-input",
+        open: async () => opened,
+        signal: controller.signal,
+        use: async () => {
+          if (outcome === "failure") throw new Error("decode failed")
+          if (outcome === "cancel") {
+            controller.abort(new Error("stale panorama"))
+            throw controller.signal.reason
+          }
+          return "ready"
+        },
+      })
+      if (outcome === "success") await expect(result).resolves.toBe("ready")
+      else await expect(result).rejects.toThrow(outcome === "failure" ? "decode failed" : "stale panorama")
+      expect(closes).toEqual(["panorama-session"])
+    }
+  })
+
+  test("switches between two inputs by exact opaque inputKey", () => {
+    const inputs = [
+      { id: "legacy-a", inputKey: "opaque-a", readable: true },
+      { id: "legacy-b", inputKey: "opaque-b", readable: true },
+    ]
+    expect(selectReadableConnectedImage(inputs, "opaque-a")).toBe(inputs[0])
+    expect(selectReadableConnectedImage(inputs, "opaque-b")).toBe(inputs[1])
+    expect(selectReadableConnectedImage(inputs, "legacy-a")).toBeNull()
+    expect(selectReadableConnectedImage(inputs, "missing")).toBeNull()
+  })
+
+  test("does not claim an exact close when the SDK rejects an open result before returning it", async () => {
+    const closes = []
+    await expect(withPanoramaImageSession({
+      close: async (sessionId) => { closes.push(sessionId) },
+      inputKey: "opaque-panorama-input",
+      open: async () => {
+        throw new Error("Plugin Host returned an invalid result")
+      },
+      use: async () => {
+        throw new Error("must not decode")
+      },
+    })).rejects.toThrow("Plugin Host returned an invalid result")
+    expect(closes).toEqual([])
   })
 })

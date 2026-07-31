@@ -29,7 +29,7 @@ describe("panorama-viewer package", () => {
       id: "panorama-viewer",
       name: "全景图预览",
       description: manifest.description,
-      version: "0.2.4",
+      version: "0.3.0",
       publication: {
         status: "blocked",
         blockers: [
@@ -52,17 +52,17 @@ describe("panorama-viewer package", () => {
       entry: "index.html",
       capabilities: [
         "canvas.connectedInputs.read",
-        "canvas.connectedMedia.stream",
+        "canvas.connectedImages.read",
         "canvas.image.write",
         "canvas.node.write",
         "ui.fullscreen",
       ],
       hostApi: {
-        major: 1,
+        major: 2,
         required: [
+          "canvas.inputs.image.close",
+          "canvas.inputs.image.open",
           "canvas.inputs.list",
-          "canvas.inputs.open",
-          "canvas.inputs.close",
           "canvas.node.state.replace",
           "canvas.resource.image.create",
           "host.context.get",

@@ -4,7 +4,7 @@
   "id": "chatcut",
   "name": "ChatCut",
   "description": "Import connected Convax Canvas media and operate authenticated ChatCut projects through MCP while preserving editable project state and explicit export intent.",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "yanked": false,
   "ownerPluginId": "chatcut"
 }

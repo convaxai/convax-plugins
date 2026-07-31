@@ -1,6 +1,6 @@
 ---
 name: ffmpeg-canvas
-version: 0.3.3
+version: 0.4.0
 description: Transform or split image, video, or audio with FFmpeg for operations such as extracting frames, trimming, cropping, separating audio and video into paired outputs, transcoding, remuxing, filtering, or combining media. Use the declared FFmpeg Plugin Agent tools for managed Convax Canvas nodes when available, or an authorized argv-based local process for explicit files in other compatible agents such as Codex.
 ---
 

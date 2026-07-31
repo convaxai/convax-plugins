@@ -31,7 +31,8 @@ and avoiding compressor-version drift makes releases reproducible.
 New Plugin and Skill source uses only `convax.package/2`. Every source package has
 no portable publication field. `registry/host-capability-policy.json` is the sole
 policy owner and reverse-binds every pending Host capability request to exact
-package versions. Every affected workspace independently lists the request id in
+package versions plus its sorted accepted Plugin API ids and exact Catalog
+contract digests. Every affected workspace independently lists the request id in
 `package.json#convax.hostCapabilityRequests`; tooling requires an exact two-way
 match before deriving blocked state in memory. Normal source admission reports
 blocked packages without publishing them. Exact packing rejects a blocked target;
@@ -39,24 +40,35 @@ Marketplace and release selection omit the blocked owner/owned-Skill closure and
 continue with unrelated ready packages. New Plugin manifests use only
 `convax.plugin/8`; older manifests are explicit rejection-test fixtures only.
 
+The reverse binding is a bounded set: one exact package version may list at most
+16 unique, orthogonal request ids. Derived blockers are deterministically sorted
+and retain every request even when several requests use the same blocker code.
+Each request is resolved and receipt-verified independently; partial resolution
+keeps the remaining requests blocked.
+
 The protected CI/release path runs `tooling/host-capability-history.mjs` against
 the exact prior protected-main commit before version selection. Every pending
-request and affected package identity from that base is monotonic until a future
-external human-receipt verifier exists. The normalized request semantic core is
-also monotonic while generated Catalog evidence may refresh. Simultaneously
+request and affected package identity from that base is monotonic until an
+externally issued human receipt passes the immutable-Release and workflow
+attestation verifier. The normalized request semantic core is also monotonic while
+generated Catalog evidence may refresh. Simultaneously
 deleting declarations, rewriting the pending contract, or copying a blocked
 implementation to a new Plugin id cannot produce a ready release. New and renamed
 Plugin identities enter pending human review by default.
 
-`.github/CODEOWNERS` covers the governance and publishing paths, and the publish job
-declares `plugin-marketplace-production`. Branch protection must require a named
-human code-owner, dismiss stale approvals, reject bot approval, require current CI,
-and protect that environment. Those remote settings remain mandatory external
+`.github/CODEOWNERS` covers the governance and publishing paths. The
+`pull_request_target` governance job executes the checker from protected base and
+never executes candidate code; configure it as a required status check. Host
+decisions use `plugin-host-capability-governance`, while the publish job declares
+`plugin-marketplace-production`. Branch protection must require a named human
+code-owner, dismiss stale approvals, reject bot approval, and require current CI.
+Both Environments must be protected, and immutable Releases must be enabled for
+the Host and Plugin repositories. Those remote settings remain mandatory external
 controls and must be verified outside repository source.
 
 A headless `convax.plugin/8` local Tool Plugin may contain only `manifest.json` and
 a license notice. It still declares
-`hostApi: {"major":1,"required":[],"optional":[]}` and must not claim Web APIs.
+`hostApi: {"major":2,"required":[],"optional":[]}` and must not claim Web APIs.
 Its executable contributions use one declared `mcp-stdio` executable that is a
 separate distributable and must never appear anywhere below `package/`; validation
 and packing do not install, build, or execute companion source under
@@ -89,7 +101,7 @@ HTTPS endpoint, OAuth mode, and optional bounded literal non-credential headers;
 never package credentials, tokens, local executables, or an adapter. OpenCode/the
 native host owns the remote connection and standard OAuth flow. A pure headless
 remote MCP Plugin explicitly declares
-`hostApi: {"major":1,"required":[],"optional":[]}`. The concrete manifest and any
+`hostApi: {"major":2,"required":[],"optional":[]}`. The concrete manifest and any
 owned Skill source remain under this repository's package workspaces.
 
 The matching source metadata declares the reviewed tool directory and build output

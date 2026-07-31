@@ -35,13 +35,42 @@ declaration and policy to match in both directions before deriving `publication:
 declaration, edited decision, or stale package version fails closed. The portable
 package and runtime Registry never acquire this authoring policy.
 
-The current repository deliberately accepts only `status: "pending"` with
-`humanDecision: null`; changing either field cannot unlock publication. A future
-resolution flow must verify a protected human decision receipt outside the author
-PR and bind it to the exact published generic contract package/version, Catalog
-SHA-256, and runtime conformance evidence before removing the explicitly declared
-dependency. Until that verifier exists, approval cannot be self-authored
-in this repository.
+`convax.hostCapabilityRequests` is a bounded set, not a single-choice field. One
+exact `{kind,id,version}` may bind up to 16 independent requests when capabilities
+are orthogonal. The policy parser rejects duplicates and over-bound sets, and
+normalizes request and blocker ordering so input order cannot affect release
+output. Authors must not merge unrelated requests merely to satisfy tooling.
+
+Pending entries still require `status: "pending"` with `humanDecision: null`;
+changing either field cannot unlock publication. Policy schema
+`convax.host-capability-policy/2` additionally keeps append-only resolution
+tombstones that point to external immutable receipt bytes. Each v2 request also
+contains sorted `acceptedApiContracts`: exact API id and Catalog
+`contract.digest` pairs, or an explicit empty list for a non-API request. The
+protected verifier binds a receipt to that list, the request semantic digest,
+affected package identities, exact published generic contract package/version,
+Catalog SHA-256, Host PR/commit, and
+strictly parsed `convax.plugin-api-runtime-conformance/1` evidence before the
+dependency can be removed. The current conformance check set is closed, must be
+all-passed, and must include the exact `plugin-asset-protocol.test.ts` CSP suite.
+The Catalog, tarball, and conformance assets must each carry a
+`<asset>.sigstore.json` keyless Sigstore bundle from the exact Host release
+workflow and source revision. Protected verification requires Public Rekor
+inclusion and binds the GitHub OIDC issuer, workflow, protected ref, source SHA,
+trigger, GitHub-hosted runner, and pinned numeric GitHub repository and owner
+identities. Both live GitHub metadata and Fulcio certificate claims must match
+those numeric pins. The published npm tarball must be byte-identical to the
+already verified Host immutable Release asset, carry the same name/version, and
+contain the exact Catalog bytes. npm integrity is a consistency check, not an
+independent publisher-provenance root. See
+[`host-capability-resolution.md`](host-capability-resolution.md). Approval cannot
+be self-authored in this repository.
+
+Resolution is per request id. Each removed request needs its own exact resolution
+tombstone and independently verified receipt; a receipt for one request never
+unblocks sibling requests bound to the same package version. Publication becomes
+eligible only after every blocker for that exact version is either still present
+and reported or has passed its own protected receipt transition.
 
 CI and release selection also compare the candidate with the exact protected-main
 commit supplied by GitHub. A pending request id and each affected `{kind,id}` from
@@ -71,10 +100,12 @@ prove an arbitrary Plugin's media intent.
 
 `.github/CODEOWNERS` assigns the checker, policy, requests, authoring Skill, Plugin
 source, and workflows to a human owner. Publication declares the protected
-`plugin-marketplace-production` environment. The remote ruleset must require that
-human code-owner, dismiss stale approvals, reject bot approval, require current CI,
-and protect the environment. Local source text cannot prove those external settings
-or reviewer identity.
+`plugin-marketplace-production` environment; Host decisions use the separate
+`plugin-host-capability-governance` environment. The remote ruleset must require
+that human code-owner, dismiss stale approvals, reject bot approval, require the
+protected-base governance check, prevent Environment self-review and administrator
+bypass, and enable immutable Releases. Local source text cannot prove those
+external settings or reviewer identity.
 
 ## Host API declaration
 
@@ -90,7 +121,7 @@ and optional API ids:
   "version": "1.0.0",
   "entry": "index.html",
   "hostApi": {
-    "major": 1,
+    "major": 2,
     "required": ["host.context.get"],
     "optional": []
   },
@@ -106,7 +137,7 @@ and optional API ids:
 A Plugin with `entry` must require `host.context.get`; the negotiated profile and
 availability query are exposed through that connection API. A pure headless Tool,
 Hook, Pet, or remote MCP Plugin still declares
-`{"major":1,"required":[],"optional":[]}` and must not claim Web-only APIs.
+`{"major":2,"required":[],"optional":[]}` and must not claim Web-only APIs.
 
 `hostApi` is an availability/compatibility declaration. Existing capability
 grants remain the authority request. Declaring an API does not bypass permission,
@@ -122,6 +153,16 @@ contributions. Do not hand-edit the generated asset or implement request ids,
 pending maps, protocol envelopes, `MessagePort.postMessage`, response parsing, or
 cancellation beside the SDK. Run both `bun run build` and
 `bun run build:check` before publishing.
+
+The build marker is not supply-chain proof. Protected publication separately
+requires the committed root lock to resolve the SDK and API from exact npm
+tarballs, verifies their immutable Host Releases and per-asset keyless Sigstore
+bundles against Public Rekor and immutable GitHub identity claims, checks the
+actual installed resolver directories against those tarballs, and emits
+`convax.plugin-bundle-provenance/1` for the final Plugin ZIP.
+Workspace, file, Git, alternate-registry, mutated-lock, missing-network-evidence,
+or reused-version inputs fail closed. This package evidence is independent from
+Host capability requests and can never approve a missing API.
 
 ## Canvas commands and placements
 

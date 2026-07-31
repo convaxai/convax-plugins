@@ -1,6 +1,6 @@
 ---
 name: hello-convax-guide
-version: 0.2.2
+version: 0.3.0
 description: Explain how to verify the Hello Convax Plugin host connection safely.
 ---
 

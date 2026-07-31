@@ -575,7 +575,7 @@ describe("production Web Plugin asset conformance", () => {
         contributes: {},
         entry: "index.html",
         hostApi: {
-          major: 1,
+          major: 2,
           optional: [],
           required: ["host.context.get"],
         },

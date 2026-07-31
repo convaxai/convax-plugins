@@ -1,4 +1,8 @@
-export type PluginApiStringRefinement = "portable-project-relative-path" | "safe-png-file-name" | "trimmed";
+export type PluginApiStringRefinement = "lowercase-sha256" | "portable-project-relative-path" | "safe-png-file-name" | "trimmed";
+export interface PluginApiWireProductConstraint<Field extends string = string> {
+    readonly fields: readonly [Field, Field, ...Field[]];
+    readonly maximum: number;
+}
 export type PluginApiWireSchema = {
     readonly type: "none";
 } | {
@@ -8,6 +12,7 @@ export type PluginApiWireSchema = {
 } | {
     readonly type: "integer" | "number";
     readonly finite: true;
+    readonly maximum?: number;
     readonly minimum?: number;
 } | {
     readonly type: "string";
@@ -26,6 +31,7 @@ export type PluginApiWireSchema = {
 } | {
     readonly additionalProperties: false;
     readonly properties: Readonly<Record<string, PluginApiWireSchema>>;
+    readonly products?: readonly PluginApiWireProductConstraint[];
     readonly required: readonly string[];
     readonly type: "object";
 } | {
@@ -43,11 +49,13 @@ export interface PluginApiWireLimit {
     readonly schema: PluginApiWireSchema;
 }
 export interface PluginApiWireContract {
+    readonly dialect: PluginApiWireSchemaDialect;
     readonly request: PluginApiWireLimit;
     readonly result: PluginApiWireLimit;
 }
-/** Versioned semantics of the portable schema interpreter and generated contracts. */
-export declare const pluginApiWireSchemaDialect: "convax.plugin-api-wire-schema/2";
+/** Wire-schema semantics admitted by the current runtime and generated Catalog. */
+export declare const pluginApiWireSchemaDialect: "convax.plugin-api-wire-schema/3";
+export type PluginApiWireSchemaDialect = typeof pluginApiWireSchemaDialect;
 declare const pluginApiSchemaValue: unique symbol;
 interface PluginApiSchemaBrand<Value> {
     readonly [pluginApiSchemaValue]: Value;
@@ -55,6 +63,9 @@ interface PluginApiSchemaBrand<Value> {
 export type PluginApiJsonValue = null | boolean | number | string | readonly PluginApiJsonValue[] | {
     readonly [key: string]: PluginApiJsonValue;
 };
+export declare const maximumPluginApiConnectedImageBytes: number;
+export declare const maximumPluginApiConnectedImageDimension = 8192;
+export declare const maximumPluginApiConnectedImagePixels = 33554432;
 /**
  * Complete portable wire schemas and byte budgets for every Host API.
  *
@@ -63,6 +74,7 @@ export type PluginApiJsonValue = null | boolean | number | string | readonly Plu
  */
 export declare const pluginApiWireContracts: Readonly<{
     readonly "host.context.get": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -94,6 +106,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly type: "string";
                             } & PluginApiSchemaBrand<string>;
                         };
+                        readonly products?: readonly PluginApiWireProductConstraint<"id" | "name">[] | undefined;
                         readonly required: readonly ["id"];
                         readonly type: "object";
                     } & PluginApiSchemaBrand<{
@@ -120,6 +133,14 @@ export declare const pluginApiWireContracts: Readonly<{
                                                 readonly refinement?: PluginApiStringRefinement;
                                                 readonly type: "string";
                                             } & PluginApiSchemaBrand<string>;
+                                            readonly contractSince: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
                                             readonly id: {
                                                 readonly controlCharacters: false;
                                                 readonly maxLength: number;
@@ -137,11 +158,13 @@ export declare const pluginApiWireContracts: Readonly<{
                                                 readonly type: "string";
                                             } & PluginApiSchemaBrand<string>;
                                         };
-                                        readonly required: readonly ["available", "catalogVersion", "id", "since"];
+                                        readonly products?: undefined;
+                                        readonly required: readonly ["available", "catalogVersion", "contractSince", "id", "since"];
                                         readonly type: "object";
                                     } & PluginApiSchemaBrand<{
                                         readonly since: string;
                                         readonly id: string;
+                                        readonly contractSince: string;
                                         readonly available: true;
                                         readonly catalogVersion: string;
                                     } & {}>, {
@@ -150,6 +173,14 @@ export declare const pluginApiWireContracts: Readonly<{
                                             readonly available: {
                                                 readonly const: false;
                                             } & PluginApiSchemaBrand<false>;
+                                            readonly contractSince: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
                                             readonly id: {
                                                 readonly controlCharacters: false;
                                                 readonly maxLength: number;
@@ -177,6 +208,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                                 readonly type: "string";
                                             } & PluginApiSchemaBrand<string>;
                                         };
+                                        readonly products?: undefined;
                                         readonly required: readonly ["available", "id", "reason", "recoverable"];
                                         readonly type: "object";
                                     } & PluginApiSchemaBrand<{
@@ -186,10 +218,12 @@ export declare const pluginApiWireContracts: Readonly<{
                                         readonly reason: "unsupported-host" | "not-declared" | "permission-denied" | "wrong-surface" | "missing-context" | "setup-required" | "disabled" | "recovering";
                                     } & {
                                         readonly since?: string | undefined;
+                                        readonly contractSince?: string | undefined;
                                     }>];
                                 } & PluginApiSchemaBrand<({
                                     readonly since: string;
                                     readonly id: string;
+                                    readonly contractSince: string;
                                     readonly available: true;
                                     readonly catalogVersion: string;
                                 } & {}) | ({
@@ -199,6 +233,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                     readonly reason: "unsupported-host" | "not-declared" | "permission-denied" | "wrong-surface" | "missing-context" | "setup-required" | "disabled" | "recovering";
                                 } & {
                                     readonly since?: string | undefined;
+                                    readonly contractSince?: string | undefined;
                                 })>;
                                 readonly maxItems: number;
                                 readonly minItems: number;
@@ -207,6 +242,7 @@ export declare const pluginApiWireContracts: Readonly<{
                             } & PluginApiSchemaBrand<readonly (({
                                 readonly since: string;
                                 readonly id: string;
+                                readonly contractSince: string;
                                 readonly available: true;
                                 readonly catalogVersion: string;
                             } & {}) | ({
@@ -216,6 +252,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly reason: "unsupported-host" | "not-declared" | "permission-denied" | "wrong-surface" | "missing-context" | "setup-required" | "disabled" | "recovering";
                             } & {
                                 readonly since?: string | undefined;
+                                readonly contractSince?: string | undefined;
                             }))[]>;
                             readonly catalogVersion: {
                                 readonly controlCharacters: false;
@@ -226,6 +263,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly type: "string";
                             } & PluginApiSchemaBrand<string>;
                         };
+                        readonly products?: readonly PluginApiWireProductConstraint<"catalogVersion" | "availability">[] | undefined;
                         readonly required: readonly ["availability", "catalogVersion"];
                         readonly type: "object";
                     } & PluginApiSchemaBrand<{
@@ -233,6 +271,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly availability: readonly (({
                             readonly since: string;
                             readonly id: string;
+                            readonly contractSince: string;
                             readonly available: true;
                             readonly catalogVersion: string;
                         } & {}) | ({
@@ -242,6 +281,7 @@ export declare const pluginApiWireContracts: Readonly<{
                             readonly reason: "unsupported-host" | "not-declared" | "permission-denied" | "wrong-surface" | "missing-context" | "setup-required" | "disabled" | "recovering";
                         } & {
                             readonly since?: string | undefined;
+                            readonly contractSince?: string | undefined;
                         }))[];
                     } & {}>;
                     readonly node: {
@@ -281,6 +321,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                         readonly type: "number";
                                     } & PluginApiSchemaBrand<number>;
                                 };
+                                readonly products?: undefined;
                                 readonly required: readonly ["x", "y"];
                                 readonly type: "object";
                             } & PluginApiSchemaBrand<{
@@ -307,6 +348,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly type: "string";
                             } & PluginApiSchemaBrand<string>;
                         };
+                        readonly products?: undefined;
                         readonly required: readonly ["data", "id", "position", "revision", "type"];
                         readonly type: "object";
                     } & PluginApiSchemaBrand<{
@@ -350,6 +392,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly type: "string";
                             } & PluginApiSchemaBrand<string>;
                         };
+                        readonly products?: readonly PluginApiWireProductConstraint<"id" | "version" | "name">[] | undefined;
                         readonly required: readonly ["id", "name", "version"];
                         readonly type: "object";
                     } & PluginApiSchemaBrand<{
@@ -377,6 +420,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly type: "string";
                             } & PluginApiSchemaBrand<string>;
                         };
+                        readonly products?: readonly PluginApiWireProductConstraint<"id" | "name">[] | undefined;
                         readonly required: readonly ["id"];
                         readonly type: "object";
                     } & PluginApiSchemaBrand<{
@@ -385,6 +429,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly name?: string | undefined;
                     }>;
                 };
+                readonly products?: undefined;
                 readonly required: readonly ["canvas", "hostApi", "node", "plugin", "project"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -408,6 +453,7 @@ export declare const pluginApiWireContracts: Readonly<{
                     readonly availability: readonly (({
                         readonly since: string;
                         readonly id: string;
+                        readonly contractSince: string;
                         readonly available: true;
                         readonly catalogVersion: string;
                     } & {}) | ({
@@ -417,6 +463,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly reason: "unsupported-host" | "not-declared" | "permission-denied" | "wrong-surface" | "missing-context" | "setup-required" | "disabled" | "recovering";
                     } & {
                         readonly since?: string | undefined;
+                        readonly contractSince?: string | undefined;
                     }))[];
                 } & {};
                 readonly node: {
@@ -436,6 +483,7 @@ export declare const pluginApiWireContracts: Readonly<{
         };
     };
     readonly "canvas.inputs.list": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -519,11 +567,12 @@ export declare const pluginApiWireContracts: Readonly<{
                                     readonly type: "number";
                                 } & PluginApiSchemaBrand<number>;
                             };
+                            readonly products?: undefined;
                             readonly required: readonly ["inputKey", "kind", "label"];
                             readonly type: "object";
                         } & PluginApiSchemaBrand<{
-                            readonly label: string;
                             readonly inputKey: string;
+                            readonly label: string;
                             readonly kind: string;
                         } & {
                             readonly height?: number | undefined;
@@ -539,8 +588,8 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "array";
                         readonly uniqueBy?: string;
                     } & PluginApiSchemaBrand<readonly ({
-                        readonly label: string;
                         readonly inputKey: string;
+                        readonly label: string;
                         readonly kind: string;
                     } & {
                         readonly height?: number | undefined;
@@ -552,12 +601,13 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly name?: string | undefined;
                     })[]>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"inputs">[] | undefined;
                 readonly required: readonly ["inputs"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
                 readonly inputs: readonly ({
-                    readonly label: string;
                     readonly inputKey: string;
+                    readonly label: string;
                     readonly kind: string;
                 } & {
                     readonly height?: number | undefined;
@@ -571,7 +621,8 @@ export declare const pluginApiWireContracts: Readonly<{
             } & {}>;
         };
     };
-    readonly "canvas.inputs.open": {
+    readonly "canvas.inputs.image.open": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -586,6 +637,163 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"inputKey">[] | undefined;
+                readonly required: readonly ["inputKey"];
+                readonly type: "object";
+            } & PluginApiSchemaBrand<{
+                readonly inputKey: string;
+            } & {}>;
+        };
+        readonly result: {
+            readonly maxBytes: number;
+            readonly schema: {
+                readonly additionalProperties: false;
+                readonly properties: {
+                    readonly probe: {
+                        readonly additionalProperties: false;
+                        readonly properties: {
+                            readonly contentRevision: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly height: {
+                                readonly finite: true;
+                                readonly maximum: 8192;
+                                readonly minimum: 1;
+                                readonly type: "integer";
+                            } & PluginApiSchemaBrand<number>;
+                            readonly kind: {
+                                readonly const: "image";
+                            } & PluginApiSchemaBrand<"image">;
+                            readonly mimeType: {
+                                readonly controlCharacters: false;
+                                readonly enum: readonly ["image/jpeg", "image/png", "image/webp"];
+                                readonly maxLength: number;
+                                readonly minLength: 1;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<"image/jpeg" | "image/png" | "image/webp">;
+                            readonly size: {
+                                readonly finite: true;
+                                readonly maximum: number;
+                                readonly minimum: 1;
+                                readonly type: "integer";
+                            } & PluginApiSchemaBrand<number>;
+                            readonly width: {
+                                readonly finite: true;
+                                readonly maximum: 8192;
+                                readonly minimum: 1;
+                                readonly type: "integer";
+                            } & PluginApiSchemaBrand<number>;
+                        };
+                        readonly products?: readonly [{
+                            readonly fields: readonly ["width", "height"];
+                            readonly maximum: 33554432;
+                        }] | undefined;
+                        readonly required: readonly ["contentRevision", "height", "kind", "mimeType", "size", "width"];
+                        readonly type: "object";
+                    } & PluginApiSchemaBrand<{
+                        readonly height: number;
+                        readonly width: number;
+                        readonly size: number;
+                        readonly kind: "image";
+                        readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+                        readonly contentRevision: string;
+                    } & {}>;
+                    readonly sessionId: {
+                        readonly controlCharacters: false;
+                        readonly maxLength: number;
+                        readonly minLength: number;
+                        readonly prefix?: string;
+                        readonly refinement?: PluginApiStringRefinement;
+                        readonly type: "string";
+                    } & PluginApiSchemaBrand<string>;
+                    readonly url: {
+                        readonly controlCharacters: false;
+                        readonly maxLength: number;
+                        readonly minLength: number;
+                        readonly prefix?: string;
+                        readonly refinement?: PluginApiStringRefinement;
+                        readonly type: "string";
+                    } & PluginApiSchemaBrand<string>;
+                };
+                readonly products?: readonly PluginApiWireProductConstraint<"probe" | "sessionId" | "url">[] | undefined;
+                readonly required: readonly ["probe", "sessionId", "url"];
+                readonly type: "object";
+            } & PluginApiSchemaBrand<{
+                readonly probe: {
+                    readonly height: number;
+                    readonly width: number;
+                    readonly size: number;
+                    readonly kind: "image";
+                    readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+                    readonly contentRevision: string;
+                } & {};
+                readonly sessionId: string;
+                readonly url: string;
+            } & {}>;
+        };
+    };
+    readonly "canvas.inputs.image.close": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
+        readonly request: {
+            readonly maxBytes: number;
+            readonly schema: {
+                readonly additionalProperties: false;
+                readonly properties: {
+                    readonly sessionId: {
+                        readonly controlCharacters: false;
+                        readonly maxLength: number;
+                        readonly minLength: number;
+                        readonly prefix?: string;
+                        readonly refinement?: PluginApiStringRefinement;
+                        readonly type: "string";
+                    } & PluginApiSchemaBrand<string>;
+                };
+                readonly products?: readonly PluginApiWireProductConstraint<"sessionId">[] | undefined;
+                readonly required: readonly ["sessionId"];
+                readonly type: "object";
+            } & PluginApiSchemaBrand<{
+                readonly sessionId: string;
+            } & {}>;
+        };
+        readonly result: {
+            readonly maxBytes: number;
+            readonly schema: {
+                readonly additionalProperties: false;
+                readonly properties: {
+                    readonly closed: {
+                        readonly type: "boolean";
+                    } & PluginApiSchemaBrand<boolean>;
+                };
+                readonly products?: readonly PluginApiWireProductConstraint<"closed">[] | undefined;
+                readonly required: readonly ["closed"];
+                readonly type: "object";
+            } & PluginApiSchemaBrand<{
+                readonly closed: boolean;
+            } & {}>;
+        };
+    };
+    readonly "canvas.inputs.open": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
+        readonly request: {
+            readonly maxBytes: number;
+            readonly schema: {
+                readonly additionalProperties: false;
+                readonly properties: {
+                    readonly inputKey: {
+                        readonly controlCharacters: false;
+                        readonly maxLength: number;
+                        readonly minLength: number;
+                        readonly prefix?: string;
+                        readonly refinement?: PluginApiStringRefinement;
+                        readonly type: "string";
+                    } & PluginApiSchemaBrand<string>;
+                };
+                readonly products?: readonly PluginApiWireProductConstraint<"inputKey">[] | undefined;
                 readonly required: readonly ["inputKey"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -611,6 +819,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                         readonly type: "number";
                                     } & PluginApiSchemaBrand<number>;
                                 };
+                                readonly products?: readonly PluginApiWireProductConstraint<"estimated" | "milliseconds">[] | undefined;
                                 readonly required: readonly ["estimated", "milliseconds"];
                                 readonly type: "object";
                             } & PluginApiSchemaBrand<{
@@ -653,6 +862,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly type: "number";
                             } & PluginApiSchemaBrand<number>;
                         };
+                        readonly products?: readonly PluginApiWireProductConstraint<"height" | "width" | "size" | "kind" | "mediaRevision" | "mimeType" | "duration">[] | undefined;
                         readonly required: readonly ["duration", "kind", "mediaRevision", "mimeType", "size"];
                         readonly type: "object";
                     } & PluginApiSchemaBrand<{
@@ -685,6 +895,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"probe" | "sessionId" | "url">[] | undefined;
                 readonly required: readonly ["probe", "sessionId", "url"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -707,6 +918,7 @@ export declare const pluginApiWireContracts: Readonly<{
         };
     };
     readonly "canvas.inputs.close": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -721,6 +933,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"sessionId">[] | undefined;
                 readonly required: readonly ["sessionId"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -736,6 +949,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "boolean";
                     } & PluginApiSchemaBrand<boolean>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"closed">[] | undefined;
                 readonly required: readonly ["closed"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -744,6 +958,7 @@ export declare const pluginApiWireContracts: Readonly<{
         };
     };
     readonly "canvas.node.get": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -789,6 +1004,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly type: "number";
                             } & PluginApiSchemaBrand<number>;
                         };
+                        readonly products?: undefined;
                         readonly required: readonly ["x", "y"];
                         readonly type: "object";
                     } & PluginApiSchemaBrand<{
@@ -815,6 +1031,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
                 };
+                readonly products?: undefined;
                 readonly required: readonly ["data", "id", "position", "revision", "type"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -833,6 +1050,7 @@ export declare const pluginApiWireContracts: Readonly<{
         };
     };
     readonly "canvas.node.state.replace": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -845,6 +1063,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "json-object";
                     } & PluginApiSchemaBrand<Readonly<Record<string, PluginApiJsonValue>>>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"state">[] | undefined;
                 readonly required: readonly ["state"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -860,6 +1079,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly const: true;
                     } & PluginApiSchemaBrand<true>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"updated">[] | undefined;
                 readonly required: readonly ["updated"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -868,6 +1088,7 @@ export declare const pluginApiWireContracts: Readonly<{
         };
     };
     readonly "canvas.resource.image.create": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -890,6 +1111,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"name" | "dataUrl">[] | undefined;
                 readonly required: readonly ["dataUrl", "name"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -916,6 +1138,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "integer";
                     } & PluginApiSchemaBrand<number>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"revision" | "createdNodeId">[] | undefined;
                 readonly required: readonly ["createdNodeId", "revision"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -925,6 +1148,7 @@ export declare const pluginApiWireContracts: Readonly<{
         };
     };
     readonly "project.file.text.read": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -939,6 +1163,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"path">[] | undefined;
                 readonly required: readonly ["path"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -970,6 +1195,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"path" | "content" | "exists">[] | undefined;
                 readonly required: readonly ["content", "exists", "path"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -980,6 +1206,7 @@ export declare const pluginApiWireContracts: Readonly<{
         };
     };
     readonly "agent.prompt": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -994,6 +1221,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"text">[] | undefined;
                 readonly required: readonly ["text"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -1014,6 +1242,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"text">[] | undefined;
                 readonly required: readonly ["text"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -1022,6 +1251,7 @@ export declare const pluginApiWireContracts: Readonly<{
         };
     };
     readonly "generation.tools.list": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -1038,6 +1268,7 @@ export declare const pluginApiWireContracts: Readonly<{
                             readonly type: "string";
                         } & PluginApiSchemaBrand<"text" | "image" | "video" | "audio">;
                     };
+                    readonly products?: readonly PluginApiWireProductConstraint<"output">[] | undefined;
                     readonly required: readonly [];
                     readonly type: "object";
                 } & PluginApiSchemaBrand<{} & {
@@ -1108,6 +1339,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                     readonly type: "string";
                                 } & PluginApiSchemaBrand<string>;
                             };
+                            readonly products?: undefined;
                             readonly required: readonly ["acceptedInputs", "description", "id", "kind", "output", "title"];
                             readonly type: "object";
                         } & PluginApiSchemaBrand<{
@@ -1131,6 +1363,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly title: string;
                     } & {})[]>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"tools">[] | undefined;
                 readonly required: readonly ["tools"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -1146,6 +1379,7 @@ export declare const pluginApiWireContracts: Readonly<{
         };
     };
     readonly "generation.execute": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -1170,7 +1404,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly items: {
                             readonly additionalProperties: false;
                             readonly properties: {
-                                readonly nodeId: {
+                                readonly inputKey: {
                                     readonly controlCharacters: false;
                                     readonly maxLength: number;
                                     readonly minLength: number;
@@ -1186,10 +1420,11 @@ export declare const pluginApiWireContracts: Readonly<{
                                     readonly type: "string";
                                 } & PluginApiSchemaBrand<"text" | "audio" | "reference_image" | "reference_video" | "first_frame" | "last_frame">;
                             };
-                            readonly required: readonly ["nodeId", "role"];
+                            readonly products?: undefined;
+                            readonly required: readonly ["inputKey", "role"];
                             readonly type: "object";
                         } & PluginApiSchemaBrand<{
-                            readonly nodeId: string;
+                            readonly inputKey: string;
                             readonly role: "text" | "audio" | "reference_image" | "reference_video" | "first_frame" | "last_frame";
                         } & {}>;
                         readonly maxItems: number;
@@ -1197,7 +1432,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "array";
                         readonly uniqueBy?: string;
                     } & PluginApiSchemaBrand<readonly ({
-                        readonly nodeId: string;
+                        readonly inputKey: string;
                         readonly role: "text" | "audio" | "reference_image" | "reference_video" | "first_frame" | "last_frame";
                     } & {})[]>;
                     readonly resultMode: {
@@ -1216,6 +1451,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"output" | "references" | "resultMode" | "prompt" | "toolId">[] | undefined;
                 readonly required: readonly ["prompt"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -1223,7 +1459,7 @@ export declare const pluginApiWireContracts: Readonly<{
             } & {
                 readonly output?: "text" | "image" | "video" | "audio" | undefined;
                 readonly references?: readonly ({
-                    readonly nodeId: string;
+                    readonly inputKey: string;
                     readonly role: "text" | "audio" | "reference_image" | "reference_video" | "first_frame" | "last_frame";
                 } & {})[] | undefined;
                 readonly resultMode?: "create-pending-node" | "return" | undefined;
@@ -1285,6 +1521,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly uniqueBy?: string;
                     } & PluginApiSchemaBrand<readonly string[]>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"revision" | "toolId" | "createdNodeIds" | "warnings" | "outputText">[] | undefined;
                 readonly required: readonly ["createdNodeIds", "revision", "toolId", "warnings"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -1298,6 +1535,7 @@ export declare const pluginApiWireContracts: Readonly<{
         };
     };
     readonly "projects.list": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -1333,6 +1571,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                     readonly type: "string";
                                 } & PluginApiSchemaBrand<string>;
                             };
+                            readonly products?: readonly PluginApiWireProductConstraint<"id" | "available" | "name">[] | undefined;
                             readonly required: readonly ["available", "id", "name"];
                             readonly type: "object";
                         } & PluginApiSchemaBrand<{
@@ -1350,6 +1589,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly name: string;
                     } & {})[]>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"projects">[] | undefined;
                 readonly required: readonly ["projects"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -1362,6 +1602,7 @@ export declare const pluginApiWireContracts: Readonly<{
         };
     };
     readonly "canvas.catalog.list": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -1376,6 +1617,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"projectId">[] | undefined;
                 readonly required: readonly ["projectId"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -1416,6 +1658,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                     readonly type: "number";
                                 } & PluginApiSchemaBrand<number>;
                             };
+                            readonly products?: readonly PluginApiWireProductConstraint<"id" | "name" | "createdAt" | "updatedAt">[] | undefined;
                             readonly required: readonly ["createdAt", "id", "name", "updatedAt"];
                             readonly type: "object";
                         } & PluginApiSchemaBrand<{
@@ -1443,6 +1686,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"projectId" | "canvases">[] | undefined;
                 readonly required: readonly ["canvases", "projectId"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -1457,6 +1701,7 @@ export declare const pluginApiWireContracts: Readonly<{
         };
     };
     readonly "canvas.document.get": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -1489,6 +1734,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly type: "string";
                             } & PluginApiSchemaBrand<string>;
                         };
+                        readonly products?: undefined;
                         readonly required: readonly ["canvasId", "projectId"];
                         readonly type: "object";
                     } & PluginApiSchemaBrand<{
@@ -1496,6 +1742,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly projectId: string;
                     } & {}>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"projection" | "ref">[] | undefined;
                 readonly required: readonly ["ref"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -1545,6 +1792,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                                 readonly type: "string";
                                             } & PluginApiSchemaBrand<string>;
                                         };
+                                        readonly products?: undefined;
                                         readonly required: readonly ["id", "source", "target"];
                                         readonly type: "object";
                                     } & PluginApiSchemaBrand<{
@@ -1617,6 +1865,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                                         readonly type: "number";
                                                     } & PluginApiSchemaBrand<number>;
                                                 };
+                                                readonly products?: undefined;
                                                 readonly required: readonly ["x", "y"];
                                                 readonly type: "object";
                                             } & PluginApiSchemaBrand<{
@@ -1635,6 +1884,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                                         readonly type: "number";
                                                     } & PluginApiSchemaBrand<number>;
                                                 };
+                                                readonly products?: undefined;
                                                 readonly required: readonly ["height", "width"];
                                                 readonly type: "object";
                                             } & PluginApiSchemaBrand<{
@@ -1650,6 +1900,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                                 readonly type: "string";
                                             } & PluginApiSchemaBrand<string>;
                                         };
+                                        readonly products?: undefined;
                                         readonly required: readonly ["id", "kind", "label", "position", "size"];
                                         readonly type: "object";
                                     } & PluginApiSchemaBrand<{
@@ -1702,6 +1953,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                     readonly type: "string";
                                 } & PluginApiSchemaBrand<string>;
                             };
+                            readonly products?: undefined;
                             readonly required: readonly ["edges", "id", "nodes", "revision", "title"];
                             readonly type: "object";
                         } & PluginApiSchemaBrand<{
@@ -1753,6 +2005,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                     readonly type: "string";
                                 } & PluginApiSchemaBrand<string>;
                             };
+                            readonly products?: undefined;
                             readonly required: readonly ["canvasId", "projectId"];
                             readonly type: "object";
                         } & PluginApiSchemaBrand<{
@@ -1772,6 +2025,7 @@ export declare const pluginApiWireContracts: Readonly<{
                             } & PluginApiSchemaBrand<string>];
                         } & PluginApiSchemaBrand<string | null>;
                     };
+                    readonly products?: readonly PluginApiWireProductConstraint<"projection" | "ref" | "storageVersion" | "document">[] | undefined;
                     readonly required: readonly ["document", "projection", "ref", "storageVersion"];
                     readonly type: "object";
                 } & PluginApiSchemaBrand<{
@@ -1850,6 +2104,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                                 readonly type: "string";
                                             } & PluginApiSchemaBrand<string>;
                                         };
+                                        readonly products?: undefined;
                                         readonly required: readonly ["id", "source", "target"];
                                         readonly type: "object";
                                     } & PluginApiSchemaBrand<{
@@ -1950,6 +2205,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                                         readonly type: "number";
                                                     } & PluginApiSchemaBrand<number>;
                                                 };
+                                                readonly products?: undefined;
                                                 readonly required: readonly ["x", "y"];
                                                 readonly type: "object";
                                             } & PluginApiSchemaBrand<{
@@ -1971,6 +2227,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                                         readonly type: "string";
                                                     } & PluginApiSchemaBrand<string>;
                                                 };
+                                                readonly products?: readonly PluginApiWireProductConstraint<"kind" | "path">[] | undefined;
                                                 readonly required: readonly ["kind", "path"];
                                                 readonly type: "object";
                                             } & PluginApiSchemaBrand<{
@@ -1989,6 +2246,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                                         readonly type: "number";
                                                     } & PluginApiSchemaBrand<number>;
                                                 };
+                                                readonly products?: undefined;
                                                 readonly required: readonly ["height", "width"];
                                                 readonly type: "object";
                                             } & PluginApiSchemaBrand<{
@@ -2020,6 +2278,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                                 readonly type: "string";
                                             } & PluginApiSchemaBrand<string>;
                                         };
+                                        readonly products?: undefined;
                                         readonly required: readonly ["id", "kind", "label", "position", "size"];
                                         readonly type: "object";
                                     } & PluginApiSchemaBrand<{
@@ -2106,6 +2365,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                     readonly type: "string";
                                 } & PluginApiSchemaBrand<string>;
                             };
+                            readonly products?: undefined;
                             readonly required: readonly ["edges", "id", "nodes", "revision", "title"];
                             readonly type: "object";
                         } & PluginApiSchemaBrand<{
@@ -2170,6 +2430,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                     readonly type: "string";
                                 } & PluginApiSchemaBrand<string>;
                             };
+                            readonly products?: undefined;
                             readonly required: readonly ["canvasId", "projectId"];
                             readonly type: "object";
                         } & PluginApiSchemaBrand<{
@@ -2189,6 +2450,7 @@ export declare const pluginApiWireContracts: Readonly<{
                             } & PluginApiSchemaBrand<string>];
                         } & PluginApiSchemaBrand<string | null>;
                     };
+                    readonly products?: readonly PluginApiWireProductConstraint<"projection" | "ref" | "storageVersion" | "document">[] | undefined;
                     readonly required: readonly ["document", "projection", "ref", "storageVersion"];
                     readonly type: "object";
                 } & PluginApiSchemaBrand<{
@@ -2321,6 +2583,7 @@ export declare const pluginApiWireContracts: Readonly<{
         };
     };
     readonly "canvas.nodes.query": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -2385,6 +2648,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly type: "string";
                             } & PluginApiSchemaBrand<string>;
                         };
+                        readonly products?: undefined;
                         readonly required: readonly [];
                         readonly type: "object";
                     } & PluginApiSchemaBrand<{} & {
@@ -2414,6 +2678,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly type: "string";
                             } & PluginApiSchemaBrand<string>;
                         };
+                        readonly products?: undefined;
                         readonly required: readonly ["canvasId", "projectId"];
                         readonly type: "object";
                     } & PluginApiSchemaBrand<{
@@ -2421,6 +2686,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly projectId: string;
                     } & {}>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"ref" | "query">[] | undefined;
                 readonly required: readonly ["ref"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -2519,6 +2785,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                             readonly type: "number";
                                         } & PluginApiSchemaBrand<number>;
                                     };
+                                    readonly products?: undefined;
                                     readonly required: readonly ["x", "y"];
                                     readonly type: "object";
                                 } & PluginApiSchemaBrand<{
@@ -2542,6 +2809,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                     readonly type: "string";
                                 } & PluginApiSchemaBrand<string>;
                             };
+                            readonly products?: undefined;
                             readonly required: readonly ["id", "incomingNodeIds", "kind", "label", "outgoingNodeIds", "position"];
                             readonly type: "object";
                         } & PluginApiSchemaBrand<{
@@ -2598,6 +2866,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly type: "string";
                             } & PluginApiSchemaBrand<string>;
                         };
+                        readonly products?: undefined;
                         readonly required: readonly ["canvasId", "projectId"];
                         readonly type: "object";
                     } & PluginApiSchemaBrand<{
@@ -2622,6 +2891,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         } & PluginApiSchemaBrand<string>];
                     } & PluginApiSchemaBrand<string | null>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"revision" | "nodes" | "ref" | "storageVersion">[] | undefined;
                 readonly required: readonly ["nodes", "ref", "revision", "storageVersion"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -2650,6 +2920,7 @@ export declare const pluginApiWireContracts: Readonly<{
         };
     };
     readonly "canvas.transaction.execute": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -2692,6 +2963,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                         readonly const: "elements.remove";
                                     } & PluginApiSchemaBrand<"elements.remove">;
                                 };
+                                readonly products?: undefined;
                                 readonly required: readonly ["type"];
                                 readonly type: "object";
                             } & PluginApiSchemaBrand<{
@@ -2727,6 +2999,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                         readonly const: "nodes.align";
                                     } & PluginApiSchemaBrand<"nodes.align">;
                                 };
+                                readonly products?: undefined;
                                 readonly required: readonly ["direction", "nodeIds", "type"];
                                 readonly type: "object";
                             } & PluginApiSchemaBrand<{
@@ -2775,6 +3048,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                                 readonly type: "string";
                                             } & PluginApiSchemaBrand<string>;
                                         };
+                                        readonly products?: undefined;
                                         readonly required: readonly ["source", "target"];
                                         readonly type: "object";
                                     } & PluginApiSchemaBrand<{
@@ -2789,6 +3063,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                         readonly const: "nodes.connect";
                                     } & PluginApiSchemaBrand<"nodes.connect">;
                                 };
+                                readonly products?: undefined;
                                 readonly required: readonly ["connection", "type"];
                                 readonly type: "object";
                             } & PluginApiSchemaBrand<{
@@ -2829,6 +3104,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                         readonly const: "nodes.distribute";
                                     } & PluginApiSchemaBrand<"nodes.distribute">;
                                 };
+                                readonly products?: undefined;
                                 readonly required: readonly ["axis", "nodeIds", "type"];
                                 readonly type: "object";
                             } & PluginApiSchemaBrand<{
@@ -2864,6 +3140,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                         readonly const: "nodes.group";
                                     } & PluginApiSchemaBrand<"nodes.group">;
                                 };
+                                readonly products?: undefined;
                                 readonly required: readonly ["nodeIds", "type"];
                                 readonly type: "object";
                             } & PluginApiSchemaBrand<{
@@ -2903,6 +3180,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                         readonly const: "nodes.layout";
                                     } & PluginApiSchemaBrand<"nodes.layout">;
                                 };
+                                readonly products?: undefined;
                                 readonly required: readonly ["nodeIds", "type"];
                                 readonly type: "object";
                             } & PluginApiSchemaBrand<{
@@ -2926,6 +3204,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                                 readonly type: "number";
                                             } & PluginApiSchemaBrand<number>;
                                         };
+                                        readonly products?: undefined;
                                         readonly required: readonly ["x", "y"];
                                         readonly type: "object";
                                     } & PluginApiSchemaBrand<{
@@ -2950,6 +3229,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                         readonly const: "nodes.move";
                                     } & PluginApiSchemaBrand<"nodes.move">;
                                 };
+                                readonly products?: undefined;
                                 readonly required: readonly ["delta", "nodeIds", "type"];
                                 readonly type: "object";
                             } & PluginApiSchemaBrand<{
@@ -2989,6 +3269,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                                             readonly type: "number";
                                                         } & PluginApiSchemaBrand<number>;
                                                     };
+                                                    readonly products?: undefined;
                                                     readonly required: readonly ["x", "y"];
                                                     readonly type: "object";
                                                 } & PluginApiSchemaBrand<{
@@ -3007,6 +3288,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                                             readonly type: "number";
                                                         } & PluginApiSchemaBrand<number>;
                                                     };
+                                                    readonly products?: undefined;
                                                     readonly required: readonly ["height", "width"];
                                                     readonly type: "object";
                                                 } & PluginApiSchemaBrand<{
@@ -3014,6 +3296,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                                     readonly width: number;
                                                 } & {}>;
                                             };
+                                            readonly products?: undefined;
                                             readonly required: readonly ["nodeId", "position"];
                                             readonly type: "object";
                                         } & PluginApiSchemaBrand<{
@@ -3045,6 +3328,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                         } & {}) | undefined;
                                     })[]>;
                                 };
+                                readonly products?: undefined;
                                 readonly required: readonly ["type", "updates"];
                                 readonly type: "object";
                             } & PluginApiSchemaBrand<{
@@ -3076,6 +3360,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                         readonly const: "nodes.ungroup";
                                     } & PluginApiSchemaBrand<"nodes.ungroup">;
                                 };
+                                readonly products?: undefined;
                                 readonly required: readonly ["nodeId", "type"];
                                 readonly type: "object";
                             } & PluginApiSchemaBrand<{
@@ -3140,6 +3425,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                                 readonly type: "string";
                                             } & PluginApiSchemaBrand<"component-packing" | "horizontal-directed-cluster" | "vertical-directed-cluster">;
                                         };
+                                        readonly products?: undefined;
                                         readonly required: readonly [];
                                         readonly type: "object";
                                     } & PluginApiSchemaBrand<{} & {
@@ -3156,6 +3442,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                         readonly const: "canvas.auto-layout";
                                     } & PluginApiSchemaBrand<"canvas.auto-layout">;
                                 };
+                                readonly products?: undefined;
                                 readonly required: readonly ["type"];
                                 readonly type: "object";
                             } & PluginApiSchemaBrand<{
@@ -3348,6 +3635,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly type: "string";
                             } & PluginApiSchemaBrand<string>;
                         };
+                        readonly products?: undefined;
                         readonly required: readonly ["canvasId", "projectId"];
                         readonly type: "object";
                     } & PluginApiSchemaBrand<{
@@ -3363,6 +3651,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"ref" | "commands" | "expectedRevision" | "transactionId">[] | undefined;
                 readonly required: readonly ["commands", "expectedRevision", "ref", "transactionId"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -3503,6 +3792,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly type: "string";
                             } & PluginApiSchemaBrand<string>;
                         };
+                        readonly products?: undefined;
                         readonly required: readonly ["canvasId", "projectId"];
                         readonly type: "object";
                     } & PluginApiSchemaBrand<{
@@ -3540,6 +3830,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly uniqueBy?: string;
                     } & PluginApiSchemaBrand<readonly string[]>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"revision" | "createdNodeIds" | "warnings" | "ref" | "storageVersion" | "affectedNodeIds" | "changed" | "summaryTruncated">[] | undefined;
                 readonly required: readonly ["affectedNodeIds", "changed", "createdNodeIds", "ref", "revision", "storageVersion", "warnings"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -3559,6 +3850,7 @@ export declare const pluginApiWireContracts: Readonly<{
         };
     };
     readonly "canvas.events.subscribe": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -3584,6 +3876,7 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly type: "string";
                             } & PluginApiSchemaBrand<string>;
                         };
+                        readonly products?: readonly PluginApiWireProductConstraint<"canvasId" | "projectId">[] | undefined;
                         readonly required: readonly ["projectId"];
                         readonly type: "object";
                     } & PluginApiSchemaBrand<{
@@ -3592,6 +3885,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly canvasId?: string | undefined;
                     }>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"ref">[] | undefined;
                 readonly required: readonly ["ref"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -3616,6 +3910,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"subscriptionId">[] | undefined;
                 readonly required: readonly ["subscriptionId"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -3624,6 +3919,7 @@ export declare const pluginApiWireContracts: Readonly<{
         };
     };
     readonly "canvas.events.unsubscribe": {
+        readonly dialect: typeof pluginApiWireSchemaDialect;
         readonly request: {
             readonly maxBytes: number;
             readonly schema: {
@@ -3638,6 +3934,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"subscriptionId">[] | undefined;
                 readonly required: readonly ["subscriptionId"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
@@ -3653,6 +3950,7 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "boolean";
                     } & PluginApiSchemaBrand<boolean>;
                 };
+                readonly products?: readonly PluginApiWireProductConstraint<"removed">[] | undefined;
                 readonly required: readonly ["removed"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{

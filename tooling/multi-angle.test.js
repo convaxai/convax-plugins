@@ -39,34 +39,40 @@ describe("multi-angle Plugin package", () => {
       schema: "convax.package/2",
       kind: "plugin",
       id: "multi-angle",
-      version: "0.1.3",
+      version: "0.2.0",
       publication: {
         status: "blocked",
-        blockers: [
+        blockers: expect.arrayContaining([
           {
             code: "host-capability-review-required",
             note: expect.stringContaining(
               "docs/host-capability-requests/web-plugin-image-input-read.md",
             ),
           },
-        ],
+          {
+            code: "host-capability-review-required",
+            note: expect.stringContaining(
+              "docs/host-capability-requests/web-plugin-generation-input-binding.md",
+            ),
+          },
+        ]),
       },
     })
     expect(manifest).toMatchObject({
       capabilities: [
         "canvas.connectedInputs.read",
-        "canvas.connectedMedia.stream",
+        "canvas.connectedImages.read",
         "canvas.node.write",
         "generation.execute",
       ],
       contributes: { canvas: { renderer: { create: true, height: 720, width: 1080 } } },
       entry: "index.html",
       hostApi: {
-        major: 1,
+        major: 2,
         required: [
-          "canvas.inputs.close",
+          "canvas.inputs.image.close",
+          "canvas.inputs.image.open",
           "canvas.inputs.list",
-          "canvas.inputs.open",
           "canvas.node.state.replace",
           "generation.execute",
           "generation.tools.list",
@@ -76,7 +82,7 @@ describe("multi-angle Plugin package", () => {
       },
       id: "multi-angle",
       schema: "convax.plugin/8",
-      version: "0.1.3",
+      version: "0.2.0",
     })
     expect(manifest.contributes.canvas.commands).toEqual([
       {
@@ -142,7 +148,7 @@ describe("multi-angle Plugin package", () => {
     expect(sdkClient).toContain("@convax/plugin-sdk/client:createPluginHostClient")
     expect(sdkClient).toContain("convax.plugin-host/8")
     expect(app).toContain('hostRequest("generation.tools.list", { output: "image" })')
-    expect(app).toContain('hostRequest("generation.execute", request, null)')
+    expect(app.match(/hostRequest\("generation\.execute", request, null\)/gu)).toHaveLength(1)
     expect(app).toContain("stateWritesSuspended = true")
     expect(app.indexOf("stateWritesSuspended = true")).toBeLessThan(app.indexOf('hostRequest("generation.execute"'))
     expect(runtime).not.toContain("agent.prompt")
@@ -153,7 +159,6 @@ describe("multi-angle Plugin package", () => {
     expect(runtime).not.toContain("activePresetId")
     expect(runtime).not.toContain("partial")
     expect(runtime).not.toContain("顺序发起")
-    expect(runtime).not.toContain("Promise.all")
     expect(runtime).not.toContain("localStorage")
     expect(runtime).not.toContain("sessionStorage")
     expect(runtime).not.toContain("indexedDB")
@@ -224,12 +229,12 @@ describe("multi-angle Plugin package", () => {
     expect(prompt).toContain("keep the red coat and soft side light")
     expect(createGenerationRequest({
       prompt,
-      sourceNodeId: "source-1",
+      sourceInputKey: "source-1",
       toolId: "provider/image.model",
     })).toEqual({
       output: "image",
       prompt,
-      references: [{ nodeId: "source-1", role: "reference_image" }],
+      references: [{ inputKey: "source-1", role: "reference_image" }],
       resultMode: "create-pending-node",
       toolId: "provider/image.model",
     })
@@ -294,9 +299,9 @@ describe("multi-angle Plugin package", () => {
       lastRun: null,
       notes: "keep materials",
       result: null,
-      schemaVersion: 3,
+      schemaVersion: 4,
       selectedPresetIds: ["front", "top"],
-      sourceNodeId: "source-1",
+      sourceInputKey: null,
       subjectType: "product",
       toolId: "provider/image.model",
     })
@@ -307,13 +312,13 @@ describe("multi-angle Plugin package", () => {
         completedAt: "",
         failure: null,
         presetIds: ["front", "top"],
-        sourceNodeId: "source-1",
+        sourceInputKey: "source-1",
         startedAt: "2026-07-21T00:00:00.000Z",
         status: "running",
         toolId: "provider/image.model",
       },
       result,
-      sourceNodeId: "source-1",
+      sourceInputKey: "source-1",
       toolId: "provider/image.model",
     })
     expect(interrupted.source).toBe("current")

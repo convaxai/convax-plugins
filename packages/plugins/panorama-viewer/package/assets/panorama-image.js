@@ -105,41 +105,6 @@ export function inspectImageBytes(bytes, mimeType) {
   return validatePanoramaDimensions(dimensions.width, dimensions.height)
 }
 
-export function inspectDataUrlImage(value, mimeType, expectedSize) {
-  const normalizedMimeType = String(mimeType).toLowerCase()
-  if (!ACCEPTED_IMAGE_TYPES.has(normalizedMimeType) || typeof value !== "string") {
-    throw new Error("宿主返回了不受支持的图片格式")
-  }
-  const prefix = "data:" + normalizedMimeType + ";base64,"
-  if (value.slice(0, prefix.length).toLowerCase() !== prefix) {
-    throw new Error("宿主返回的图片数据无效")
-  }
-  const encoded = value.slice(prefix.length)
-  if (!encoded || encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) {
-    throw new Error("宿主返回的图片不是有效 base64 数据")
-  }
-  if (encoded.length > Math.ceil(MAX_IMAGE_FILE_BYTES / 3) * 4 + 4) {
-    throw new Error("连接图片超过 16 MiB 限制")
-  }
-  let binary
-  try {
-    binary = window.atob(encoded)
-  } catch {
-    throw new Error("宿主返回的图片不是有效 base64 数据")
-  }
-  if (binary.length > MAX_IMAGE_FILE_BYTES
-    || (typeof expectedSize === "number" && expectedSize !== binary.length)) {
-    throw new Error("连接图片大小与宿主声明不一致")
-  }
-  const bytes = new Uint8Array(binary.length)
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
-  return {
-    bytes: bytes,
-    dimensions: inspectImageBytes(bytes, normalizedMimeType),
-    mimeType: normalizedMimeType,
-  }
-}
-
 function textureTargetDimensions(dimensions, gl) {
   if (!gl) throw new Error("WebGL2 尚未就绪")
   const dimensionLimit = Math.min(MAX_TEXTURE_DIMENSION, gl.getParameter(gl.MAX_TEXTURE_SIZE))
@@ -174,7 +139,66 @@ export async function decodePanoramaImage(blob, dimensions, gl) {
   return decodePanoramaSource(blob, dimensions, gl)
 }
 
-export async function decodePanoramaUrl(url, probe, gl) {
+function abortReason(signal) {
+  return signal?.reason instanceof Error ? signal.reason : new Error("图片读取已取消")
+}
+
+function throwIfAborted(signal) {
+  if (signal?.aborted) throw abortReason(signal)
+}
+
+export function parsePanoramaImageSession(result) {
+  if (!result || typeof result !== "object" || Array.isArray(result)
+    || typeof result.sessionId !== "string" || !result.sessionId
+    || typeof result.url !== "string" || !result.url.startsWith("convax-connected-media://")
+    || !result.probe || typeof result.probe !== "object" || Array.isArray(result.probe)
+    || result.probe.kind !== "image") {
+    throw new Error("宿主没有返回可用图片")
+  }
+  return result
+}
+
+export function selectReadableConnectedImage(images, inputKey) {
+  if (!Array.isArray(images) || typeof inputKey !== "string" || !inputKey) return null
+  return images.find(function (image) {
+    return image
+      && typeof image === "object"
+      && image.inputKey === inputKey
+      && image.readable === true
+  }) ?? null
+}
+
+export async function withPanoramaImageSession(input) {
+  throwIfAborted(input.signal)
+  let opened
+  let openedSessionId
+  let primaryError
+  try {
+    const response = await input.open(input.inputKey, input.signal)
+    opened = parsePanoramaImageSession(response)
+    // A malformed Host result is rejected by the generated SDK before it can
+    // expose a session id here. Host connection teardown owns that final revoke.
+    openedSessionId = opened.sessionId
+    throwIfAborted(input.signal)
+    const result = await input.use(opened, input.signal)
+    throwIfAborted(input.signal)
+    return result
+  } catch (error) {
+    primaryError = error
+    throw error
+  } finally {
+    if (openedSessionId) {
+      try {
+        await input.close(openedSessionId)
+      } catch (closeError) {
+        if (!primaryError) throw closeError
+      }
+    }
+  }
+}
+
+export async function decodePanoramaUrl(url, probe, gl, options = {}) {
+  throwIfAborted(options.signal)
   if (typeof url !== "string" || !url.startsWith("convax-connected-media://")) {
     throw new Error("宿主返回了无效的连接图片地址")
   }
@@ -187,18 +211,24 @@ export async function decodePanoramaUrl(url, probe, gl) {
     || probe.size > MAX_IMAGE_FILE_BYTES) {
     throw new Error("宿主返回了不受支持的图片格式")
   }
-  const image = await new Promise(function (resolve, reject) {
-    const element = new Image()
-    element.addEventListener("load", function () { resolve(element) }, { once: true })
-    element.addEventListener("error", function () {
-      reject(new Error("宿主连接图片无法载入"))
-    }, { once: true })
-    element.src = url
-  })
-  const dimensions = validatePanoramaDimensions(image.naturalWidth, image.naturalHeight)
-  if ((typeof probe.width === "number" && probe.width !== dimensions.width)
-    || (typeof probe.height === "number" && probe.height !== dimensions.height)) {
-    throw new Error("连接图片尺寸与宿主声明不一致")
+  const element = (options.createImage ?? (() => new Image()))()
+  const abort = function () {
+    element.removeAttribute("src")
   }
-  return decodePanoramaSource(image, dimensions, gl)
+  options.signal?.addEventListener("abort", abort, { once: true })
+  try {
+    element.decoding = "async"
+    element.src = url
+    await element.decode()
+    throwIfAborted(options.signal)
+    const dimensions = validatePanoramaDimensions(element.naturalWidth, element.naturalHeight)
+    if ((typeof probe.width === "number" && probe.width !== dimensions.width)
+      || (typeof probe.height === "number" && probe.height !== dimensions.height)) {
+      throw new Error("连接图片尺寸与宿主声明不一致")
+    }
+    return await decodePanoramaSource(element, dimensions, gl)
+  } finally {
+    options.signal?.removeEventListener("abort", abort)
+    element.removeAttribute("src")
+  }
 }

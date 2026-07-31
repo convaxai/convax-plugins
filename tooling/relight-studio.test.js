@@ -34,17 +34,23 @@ describe("relight-studio package", () => {
       id: "relight-studio",
       name: "重打光",
       description: manifest.description,
-      version: "0.1.4",
+      version: "0.2.0",
       publication: {
         status: "blocked",
-        blockers: [
+        blockers: expect.arrayContaining([
           {
             code: "host-capability-review-required",
             note: expect.stringContaining(
               "docs/host-capability-requests/web-plugin-image-input-read.md",
             ),
           },
-        ],
+          {
+            code: "host-capability-review-required",
+            note: expect.stringContaining(
+              "docs/host-capability-requests/web-plugin-generation-input-binding.md",
+            ),
+          },
+        ]),
       },
       yanked: false,
     })
@@ -57,17 +63,17 @@ describe("relight-studio package", () => {
       entry: "index.html",
       capabilities: [
         "canvas.connectedInputs.read",
-        "canvas.connectedMedia.stream",
+        "canvas.connectedImages.read",
         "canvas.node.write",
         "generation.execute",
         "ui.fullscreen",
       ],
       hostApi: {
-        major: 1,
+        major: 2,
         required: [
-          "canvas.inputs.close",
+          "canvas.inputs.image.close",
+          "canvas.inputs.image.open",
           "canvas.inputs.list",
-          "canvas.inputs.open",
           "canvas.node.state.replace",
           "generation.execute",
           "generation.tools.list",
@@ -142,13 +148,13 @@ describe("relight-studio package", () => {
   test("drains Plugin state before requesting a pending Canvas generation node", async () => {
     const request = buildRelightGenerationRequest({
       prompt: "Relight this image.",
-      referenceNodeId: "source-image",
+      referenceInputKey: "source-image",
       toolId: "example-vendor/image-a",
     })
     expect(request).toEqual({
       output: "image",
       prompt: "Relight this image.",
-      references: [{ nodeId: "source-image", role: "reference_image" }],
+      references: [{ inputKey: "source-image", role: "reference_image" }],
       resultMode: "create-pending-node",
       toolId: "example-vendor/image-a",
     })
@@ -223,12 +229,15 @@ describe("relight-studio package", () => {
       kind: "skill",
       id: "relight-studio",
       ownerPluginId: "relight-studio",
+      version: "0.2.0",
       publication: { status: "ready", blockers: [] },
     })
     const skill = await fs.readFile(path.join(skillRoot, "package", "SKILL.md"), "utf8")
-    expect(skill).toContain("generation.tools.list")
-    expect(skill).toContain("generation.execute")
-    expect(skill).toContain("created Canvas node")
-    expect(skill).not.toContain("local preview only")
+    expect(skill).toContain("references/convax-capabilities.md")
+    expect(skill).toMatch(/generated Convax\s+capability reference/u)
+    expect(skill).toContain("live availability/error state")
+    expect(skill).toContain("Skill or")
+    expect(skill).not.toContain("generation.tools.list")
+    expect(skill).not.toContain("generation.execute")
   })
 })

@@ -24,7 +24,8 @@ describe("ChatCut Skill package", () => {
     expect(skill).toContain("exactly once")
     expect(skill).toContain("ownerNodeId")
     expect(skill).toContain("host-provided opaque `inputKey`")
-    expect(skill).toContain("`references[].nodeId`")
+    expect(skill).toContain("`references[].inputKey`")
+    expect(skill).not.toContain("`references[].nodeId`")
     expect(skill).toContain("copy each host-provided `inputKey`")
     expect(skill).toContain("do not interpret it as a")
     expect(skill).toContain("references that are still")
@@ -40,8 +41,8 @@ describe("ChatCut Skill package", () => {
     expect(metadata).toMatchObject({
       id: "chatcut",
       ownerPluginId: "chatcut",
-      version: "0.3.2",
+      version: "0.4.0",
     })
-    expect(packageJson.version).toBe("0.3.2")
+    expect(packageJson.version).toBe("0.4.0")
   })
 })

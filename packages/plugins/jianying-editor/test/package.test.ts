@@ -15,13 +15,13 @@ describe("JianYing Plugin package", () => {
     expect(manifest).toMatchObject({
       capabilities: ["canvas.connectedInputs.read", "generation.execute"],
       hostApi: {
-        major: 1,
+        major: 2,
         optional: [],
         required: ["canvas.inputs.list", "generation.execute", "host.context.get"],
       },
       id: "jianying-editor",
       schema: "convax.plugin/8",
-      version: "2.1.2",
+      version: "3.0.0",
       runtime: {
         command: "convax-jianying-editor-mcp",
         type: "mcp-stdio",
@@ -92,8 +92,11 @@ describe("JianYing Plugin package", () => {
       "utf8",
     ))
 
-    expect(metadata.version).toBe("2.1.2")
-    expect(workspace.version).toBe("2.1.2")
+    expect(metadata.version).toBe("3.0.0")
+    expect(workspace.version).toBe("3.0.0")
+    expect(workspace["convax.hostCapabilityRequests"]).toEqual([
+      "web-plugin-generation-input-binding",
+    ])
     expect(metadata.companions).toEqual([
       expect.objectContaining({
         command: "convax-jianying-editor-mcp",
@@ -127,7 +130,8 @@ describe("JianYing Plugin package", () => {
     expect(application).toContain("hostClient.onCommand(receiveCommand)")
     expect(application).toContain("hostClient.callHostApi(method, params)")
     expect(application).toContain("value.inputKey")
-    expect(application).toContain("nodeId: input.inputKey")
+    expect(application).toContain("inputKey: input.inputKey")
+    expect(application).not.toContain("nodeId: input.inputKey")
     expect(application).not.toContain('type: "request"')
     expect(application).not.toContain("postMessage")
     expect(application).not.toContain("new Map")

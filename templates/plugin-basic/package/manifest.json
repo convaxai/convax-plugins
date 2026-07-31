@@ -5,7 +5,7 @@
   "description": "__PLUGIN_DESCRIPTION__",
   "version": "0.1.0",
   "hostApi": {
-    "major": 1,
+    "major": 2,
     "required": ["host.context.get"],
     "optional": []
   },

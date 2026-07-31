@@ -1,6 +1,6 @@
 export const MAX_SELECTED_PRESETS = 6
 export const MIN_SELECTED_PRESETS = 2
-export const STATE_SCHEMA_VERSION = 3
+export const STATE_SCHEMA_VERSION = 4
 
 export const ANGLE_PRESETS = Object.freeze([
   { id: "front", label: "正面", shortLabel: "Front", prompt: "eye-level front view, camera centered on the subject" },
@@ -68,7 +68,7 @@ export function createDefaultState() {
     result: null,
     schemaVersion: STATE_SCHEMA_VERSION,
     selectedPresetIds: [...DEFAULT_PRESET_IDS],
-    sourceNodeId: null,
+    sourceInputKey: null,
     subjectType: "character",
     toolId: null,
   }
@@ -110,15 +110,15 @@ function normalizeFailure(value) {
 function normalizeLastRun(value) {
   if (!isRecord(value)) return null
   const presetIds = uniquePresetIds(value.presetIds)
-  const sourceNodeId = safeId(value.sourceNodeId)
+  const sourceInputKey = safeId(value.sourceInputKey, 2048)
   const toolId = safeId(value.toolId, 256)
-  if (presetIds.length < MIN_SELECTED_PRESETS || !sourceNodeId || !toolId) return null
+  if (presetIds.length < MIN_SELECTED_PRESETS || !sourceInputKey || !toolId) return null
   if (value.status === "running") {
     return {
       completedAt: "",
       failure: { message: "插件页面在宫格图生成完成前关闭。宿主会保留已提交的 Canvas 结果。" },
       presetIds,
-      sourceNodeId,
+      sourceInputKey,
       startedAt: safeText(value.startedAt, 64),
       status: "interrupted",
       toolId,
@@ -129,7 +129,7 @@ function normalizeLastRun(value) {
     completedAt: safeText(value.completedAt, 64),
     failure: normalizeFailure(value.failure),
     presetIds,
-    sourceNodeId,
+    sourceInputKey,
     startedAt: safeText(value.startedAt, 64),
     status: value.status,
     toolId,
@@ -145,7 +145,7 @@ function hydrateCurrentState(value) {
     result: normalizePersistedResult(value.result),
     schemaVersion: STATE_SCHEMA_VERSION,
     selectedPresetIds: selectedPresetIds.length ? selectedPresetIds : fallback.selectedPresetIds,
-    sourceNodeId: safeId(value.sourceNodeId),
+    sourceInputKey: safeId(value.sourceInputKey, 2048),
     subjectType: SUBJECT_IDS.has(value.subjectType) ? value.subjectType : fallback.subjectType,
     toolId: safeId(value.toolId, 256),
   }
@@ -158,7 +158,9 @@ function migrateLegacyState(value) {
     ...fallback,
     notes: safeText(value.notes, 1000),
     selectedPresetIds: selectedPresetIds.length ? selectedPresetIds : fallback.selectedPresetIds,
-    sourceNodeId: safeId(value.sourceNodeId),
+    // The retired field was ambiguously named and may contain a historical
+    // node id. Never promote it into an API 2 opaque input capability.
+    sourceInputKey: null,
     subjectType: SUBJECT_IDS.has(value.subjectType) ? value.subjectType : fallback.subjectType,
     toolId: safeId(value.toolId, 256),
   }
@@ -168,7 +170,7 @@ export function hydratePluginState(value) {
   if (value === null || value === undefined) return { source: "empty", state: createDefaultState() }
   if (!isRecord(value)) return { source: "unsupported", state: createDefaultState() }
   if (value.schemaVersion === STATE_SCHEMA_VERSION) return { source: "current", state: hydrateCurrentState(value) }
-  if (value.schemaVersion === 1 || value.schemaVersion === 2) {
+  if (value.schemaVersion === 1 || value.schemaVersion === 2 || value.schemaVersion === 3) {
     return { source: "legacy", state: migrateLegacyState(value) }
   }
   return { source: "unsupported", state: createDefaultState() }
@@ -228,14 +230,14 @@ export function createMultiAngleGridPrompt(input) {
 }
 
 export function createGenerationRequest(input) {
-  const sourceNodeId = safeId(input.sourceNodeId)
+  const sourceInputKey = safeId(input.sourceInputKey, 2048)
   const toolId = safeId(input.toolId, 256)
   const prompt = safeText(input.prompt, 20_000).trim()
-  if (!sourceNodeId || !toolId || !prompt) throw new Error("生成请求无效")
+  if (!sourceInputKey || !toolId || !prompt) throw new Error("生成请求无效")
   return {
     output: "image",
     prompt,
-    references: [{ nodeId: sourceNodeId, role: "reference_image" }],
+    references: [{ inputKey: sourceInputKey, role: "reference_image" }],
     resultMode: "create-pending-node",
     toolId,
   }

@@ -4,7 +4,7 @@
   "id": "storyai-3d-director-desk",
   "name": "3D Director Desk",
   "description": "Plan and review spatial blocking, characters, props, and camera shots in the owned 3D Director Desk Plugin.",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "yanked": false,
   "ownerPluginId": "storyai-3d-director-desk"
 }

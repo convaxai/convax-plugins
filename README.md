@@ -61,13 +61,38 @@ Authoring source has exactly one publishable shape: package metadata uses
 `convax.package/2` has no compatibility escape hatch. Its explicit
 publication eligibility is not portable package metadata. The sole owner is
 `registry/host-capability-policy.json`, which reverse-binds every pending
-`docs/host-capability-requests/*.md` request to exact package versions. Each
+`docs/host-capability-requests/*.md` request to exact package versions and a sorted
+list of accepted Plugin API ids plus exact Catalog contract digests. Each
 affected workspace independently declares the request id in
 `package.json#convax.hostCapabilityRequests`, so rewriting business code cannot
 silently erase the obligation. Normal source validation admits and reports these
 blocked packages. Exact package packing rejects them; release selection and
 Marketplace composition omit them and their owner/owned-Skill closure while
 continuing with unrelated ready packages.
+
+One exact package version may carry up to 16 orthogonal request ids. Tooling
+deduplicates and deterministically orders that blocker set; it never merges
+requests or lets one decision receipt resolve another request. Resolving only a
+subset leaves the remaining exact request ids publication-blocking.
+
+Resolution is not a repository-local status edit. It requires a protected human
+decision receipt, an immutable Host Release containing the exact generated Catalog
+and runtime conformance evidence, exact matching accepted API contracts, and an
+immutable attested decision Release. The
+required-check verifier is loaded from protected base and treats author PR bytes
+only as data. See
+[`docs/host-capability-resolution.md`](docs/host-capability-resolution.md).
+
+Plugin SDK provenance is a separate release gate, not capability approval.
+Selected Plugin ZIPs require an npm-only frozen SDK/API lock, exact immutable Host
+package/API Release evidence, one keyless Sigstore bundle per Host asset with a
+Public Rekor inclusion proof, and a canonical statement binding the source
+manifest, build entrypoints, and final ZIP. The verifier pins the Host workflow,
+commit, branch, trigger, GitHub-hosted runner, and immutable repository/owner ids.
+npm SRI and byte equality prove only that npm mirrors those already verified
+bytes; they are not an independent origin claim. The current vendor Host packages
+are development bootstrap inputs and deliberately cannot pass publication. See
+[`docs/sdk-authoring-contract-rollout.md`](docs/sdk-authoring-contract-rollout.md).
 
 Immutable Registry history may still contain pre-cutover package and Plugin
 schemas. Clients may continue reading that history, but templates, source
@@ -296,7 +321,7 @@ bun run check               # complete fail-closed local CI sequence
 ```
 
 Marketplace publication consumes the public authoring contracts
-`@convax/plugin-api@1.0.0`, `@convax/plugin-sdk@0.1.0`, and
+`@convax/plugin-api@2.0.0`, `@convax/plugin-sdk@0.1.0`, and
 `@convax/marketplace-kit@0.2.0`. Local source links are validation aids, not valid
 publication dependencies. All three exact packages must be available from the
 configured registry before a clean frozen install or publication can succeed.

@@ -31,7 +31,7 @@ export function buildRelightGenerationRequest(options) {
   return {
     output: "image",
     prompt: options.prompt,
-    references: [{ nodeId: options.referenceNodeId, role: "reference_image" }],
+    references: [{ inputKey: options.referenceInputKey, role: "reference_image" }],
     resultMode: "create-pending-node",
     toolId: options.toolId,
   }

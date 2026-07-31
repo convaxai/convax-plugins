@@ -52,7 +52,9 @@ behavior.>
 
 ## Plugin-side plan after approval
 
-<Changes that remain entirely in convax-plugins.>
+<Changes that remain entirely in convax-plugins. The v2 policy request must carry
+sorted exact accepted API id and Catalog contract digest pairs, or an explicit
+empty list for a request that is not resolved by Plugin APIs.>
 
 ## Human decision audit record
 

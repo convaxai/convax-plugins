@@ -4,6 +4,8 @@ import {
   decodePanoramaImage,
   decodePanoramaUrl,
   inspectImageBytes,
+  selectReadableConnectedImage,
+  withPanoramaImageSession,
 } from "./panorama-image.js"
 import { createPanoramaRenderer } from "./panorama-renderer.js"
 import { acceptPluginHostConnection } from "./plugin-host-client.js"
@@ -63,6 +65,7 @@ let pendingSourceIntent = null
 let pendingSourceRequest = null
 let deferredContextIntent = null
 let loadSequence = 0
+let sourceLoadController = null
 let stateSaveTimer = 0
 let stateSaveInFlight = false
 let stateSaveDirty = false
@@ -181,12 +184,8 @@ function updateSourceSelect() {
   })
   setHidden(elements.sourceSelectShell, connectedImages.length === 0)
   const requested = currentSource.kind === "canvas" ? currentSource.inputKey : selectedSourceInputKey
-  const selected = connectedImages.find(function (image) {
-    return image.inputKey === requested && image.readable
-  })
-  const fallback = connectedImages.find(function (image) {
-    return image.inputKey === previous && image.readable
-  })
+  const selected = selectReadableConnectedImage(connectedImages, requested)
+  const fallback = selectReadableConnectedImage(connectedImages, previous)
   if (selected) elements.sourceSelect.value = selected.inputKey
   else if (fallback) elements.sourceSelect.value = fallback.inputKey
 }
@@ -271,9 +270,12 @@ function errorMessage(error, fallback) {
   return error instanceof Error && error.message ? error.message : fallback
 }
 
-async function hostRequest(method, params) {
+async function hostRequest(method, params, externalSignal) {
   if (!hostClient) throw new Error("插件尚未连接到 Convax 宿主")
   const controller = new AbortController()
+  const forwardAbort = function () { controller.abort(externalSignal.reason) }
+  if (externalSignal?.aborted) forwardAbort()
+  else externalSignal?.addEventListener("abort", forwardAbort, { once: true })
   const timeout = window.setTimeout(
     () => controller.abort(new Error("宿主请求超时，请重试")),
     REQUEST_TIMEOUT,
@@ -282,6 +284,7 @@ async function hostRequest(method, params) {
     return await hostClient.callHostApi(method, params, { signal: controller.signal })
   } finally {
     window.clearTimeout(timeout)
+    externalSignal?.removeEventListener("abort", forwardAbort)
   }
 }
 
@@ -323,6 +326,10 @@ async function initializeHostContext() {
     if (interactionGeneration === hydrationGeneration) {
       hydrateState(metadata && metadata.convaxPluginState)
     }
+    await Promise.all([
+      hostClient.requireHostApi("canvas.inputs.image.close"),
+      hostClient.requireHostApi("canvas.inputs.image.open"),
+    ])
     hostHydrated = true
     if (stateSaveDirty) queueStateSave()
     await refreshConnectedImages(true)
@@ -436,13 +443,17 @@ function updateCurrentSourceStatus() {
 
 function beginSourceLoad(intent, request) {
   const sequence = ++loadSequence
+  sourceLoadController?.abort(new Error("图片来源已切换"))
+  const controller = new AbortController()
+  sourceLoadController = controller
   pendingSourceIntent = intent
   pendingSourceRequest = request
-  return sequence
+  return { controller, sequence }
 }
 
-function finishSourceLoad(sequence) {
+function finishSourceLoad(sequence, controller) {
   if (sequence !== loadSequence) return
+  if (sourceLoadController === controller) sourceLoadController = null
   pendingSourceIntent = null
   pendingSourceRequest = null
   setLoading(false)
@@ -477,44 +488,40 @@ async function loadConnectedImage(image, options) {
     kind: "canvas",
     name: image.name,
   }
-  const sequence = beginSourceLoad(source, {
+  const load = beginSourceLoad(source, {
     image: image,
     kind: "canvas",
     userInitiated: Boolean(options && options.userInitiated),
   })
   setLoading(true, "正在读取画布图片…")
-  let opened
   try {
-    opened = await hostRequest("canvas.inputs.open", { inputKey: image.inputKey })
-    if (sequence !== loadSequence) return false
-    if (!opened
-      || typeof opened.sessionId !== "string"
-      || typeof opened.url !== "string"
-      || !opened.url.startsWith("convax-connected-media://")
-      || !opened.probe
-      || typeof opened.probe !== "object"
-      || opened.probe.kind !== "image") {
-      throw new Error("宿主没有返回可用图片")
-    }
-    const decoded = await decodePanoramaUrl(
-      opened.url,
-      {
-        height: opened.probe.height,
-        mimeType: opened.probe.mimeType,
-        size: opened.probe.size,
-        width: opened.probe.width,
+    return await withPanoramaImageSession({
+      close: (sessionId) => hostRequest("canvas.inputs.image.close", { sessionId }),
+      inputKey: image.inputKey,
+      open: (inputKey, signal) => hostRequest(
+        "canvas.inputs.image.open",
+        { inputKey },
+        signal,
+      ),
+      signal: load.controller.signal,
+      use: async (opened, signal) => {
+        const decoded = await decodePanoramaUrl(
+          opened.url,
+          opened.probe,
+          renderer.gl,
+          { signal },
+        )
+        await commitPanoramaDecode(decoded, source, load.sequence)
+        if (load.sequence !== loadSequence) return false
+        currentLocalFile = null
+        selectedSourceInputKey = image.inputKey
+        updateSourceSelect()
+        queueStateSave()
+        return true
       },
-      renderer.gl,
-    )
-    await commitPanoramaDecode(decoded, source, sequence)
-    if (sequence !== loadSequence) return false
-    currentLocalFile = null
-    selectedSourceInputKey = image.inputKey
-    updateSourceSelect()
-    queueStateSave()
-    return true
+    })
   } catch (error) {
-    if (sequence === loadSequence) {
+    if (load.sequence === loadSequence && !load.controller.signal.aborted) {
       const message = errorMessage(error, "画布图片载入失败")
       showToast(message, "error")
       updateSourceSelect()
@@ -525,10 +532,7 @@ async function loadConnectedImage(image, options) {
     if (options && options.rethrow) throw error
     return false
   } finally {
-    if (opened && typeof opened.sessionId === "string") {
-      await hostRequest("canvas.inputs.close", { sessionId: opened.sessionId }).catch(function () {})
-    }
-    finishSourceLoad(sequence)
+    finishSourceLoad(load.sequence, load.controller)
   }
 }
 
@@ -551,7 +555,7 @@ async function loadLocalFile(file, options) {
     return false
   }
   const source = { kind: "local", name: file.name }
-  const sequence = beginSourceLoad(source, {
+  const load = beginSourceLoad(source, {
     file: file,
     kind: "local",
     userInitiated: Boolean(options && options.userInitiated),
@@ -559,16 +563,16 @@ async function loadLocalFile(file, options) {
   setLoading(true, "正在解码本地图片…")
   try {
     const bytes = new Uint8Array(await file.arrayBuffer())
-    if (sequence !== loadSequence) return false
+    if (load.sequence !== loadSequence) return false
     const dimensions = inspectImageBytes(bytes, file.type)
-    await loadPanoramaSource(file, source, sequence, dimensions)
-    if (sequence !== loadSequence) return false
+    await loadPanoramaSource(file, source, load.sequence, dimensions)
+    if (load.sequence !== loadSequence) return false
     currentLocalFile = file
     updateSourceSelect()
     queueStateSave()
     return true
   } catch (error) {
-    if (sequence === loadSequence) {
+    if (load.sequence === loadSequence) {
       const message = errorMessage(error, "本地图片载入失败")
       showToast(message, "error")
       updateSourceSelect()
@@ -577,7 +581,7 @@ async function loadLocalFile(file, options) {
     if (options && options.rethrow) throw error
     return false
   } finally {
-    finishSourceLoad(sequence)
+    finishSourceLoad(load.sequence, load.controller)
   }
 }
 
@@ -627,6 +631,8 @@ function setPersistentViewerError(title, description) {
 }
 
 function clearPanorama() {
+  sourceLoadController?.abort(new Error("全景预览已清除"))
+  sourceLoadController = null
   loadSequence += 1
   renderer.clearTexture()
   updateCaptureControl()
@@ -871,6 +877,10 @@ function bindEvents() {
     window.clearTimeout(toastTimer)
     window.clearTimeout(lastInteractionHintTimer)
     if (animationFrame) window.cancelAnimationFrame(animationFrame)
+    sourceLoadController?.abort(new Error("插件页面正在关闭"))
+    sourceLoadController = null
+    // Unload cannot await an API close. Closing the SDK connection synchronously
+    // delegates final cleanup to Host closeConnection -> revokeFrame.
     hostClient?.close()
     hostClient = null
     renderer.clearTexture()
@@ -912,9 +922,10 @@ function bindEvents() {
   })
   elements.fovRange.addEventListener("change", function () { void flushStateSave() })
   elements.sourceSelect.addEventListener("change", function () {
-    const image = connectedImages.find(function (candidate) {
-      return candidate.id === elements.sourceSelect.value && candidate.readable
-    })
+    const image = selectReadableConnectedImage(
+      connectedImages,
+      elements.sourceSelect.value,
+    )
     if (image) {
       markUserInteraction()
       void loadConnectedImage(image, { userInitiated: true })
@@ -933,6 +944,8 @@ function bindEvents() {
   elements.canvas.addEventListener("webglcontextlost", function (event) {
     event.preventDefault()
     if (pendingSourceRequest) deferContextSource(pendingSourceRequest)
+    sourceLoadController?.abort(new Error("WebGL 上下文已丢失"))
+    sourceLoadController = null
     loadSequence += 1
     pendingSourceIntent = null
     pendingSourceRequest = null

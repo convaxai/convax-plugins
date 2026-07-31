@@ -105,7 +105,7 @@ describe("Marketplace preflight Catalog binding", () => {
         mismatchPath,
         fixture.catalogSource.replace(
           `"version": "${PLUGIN_API_CATALOG_VERSION}"`,
-          '"version": "2.0.0"',
+          '"version": "999.0.0"',
         ),
       );
       await expect(

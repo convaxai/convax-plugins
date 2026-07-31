@@ -4,7 +4,7 @@
   "id": "chatcut",
   "name": "ChatCut",
   "description": "Imports directly connected Canvas media into ChatCut and connects Convax Agent sessions to ChatCut's hosted MCP server for authenticated, editable video workflows.",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "companions": [
     {
       "command": "convax-chatcut-media-import-mcp",

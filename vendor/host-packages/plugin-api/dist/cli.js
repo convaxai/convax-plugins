@@ -38,6 +38,7 @@ function compareVersions(left, right) {
 function freezeDefinition(definition) {
   if (!API_ID.test(definition.id))
     throw new TypeError(`Plugin API id is invalid: ${definition.id}`);
+  assertVersion(definition.contractSince, `${definition.id} contractSince`);
   if (definition.grant !== null && !GRANT.test(definition.grant)) {
     throw new TypeError(`Plugin API grant is invalid: ${definition.grant}`);
   }
@@ -85,6 +86,7 @@ function definePluginApiCatalog(...releases) {
     throw new TypeError("Plugin API catalog requires at least one release");
   const ids = new Set;
   const apis = [];
+  const releaseVersions = new Set(releases.map((release) => release.version));
   let previous;
   for (const release of releases) {
     assertVersion(release.version, "Plugin API release version");
@@ -96,6 +98,12 @@ function definePluginApiCatalog(...releases) {
       const definition = freezeDefinition(candidate);
       if (ids.has(definition.id))
         throw new TypeError(`Plugin API id is duplicated: ${definition.id}`);
+      if (compareVersions(definition.contractSince, release.version) < 0) {
+        throw new TypeError(`Plugin API ${definition.id} contractSince must not precede since`);
+      }
+      if (!releaseVersions.has(definition.contractSince)) {
+        throw new TypeError(`Plugin API ${definition.id} contractSince must identify a Catalog release block`);
+      }
       ids.add(definition.id);
       apis.push(Object.freeze({ ...definition, since: release.version }));
     }
@@ -103,7 +111,6 @@ function definePluginApiCatalog(...releases) {
   if (apis.length === 0)
     throw new TypeError("Plugin API catalog must contain at least one API");
   return Object.freeze({
-    schema: "convax.plugin-api-catalog/1",
     version: releases[releases.length - 1].version,
     apis: Object.freeze(apis)
   });
@@ -114,13 +121,17 @@ var pluginApiContractInternals = Object.freeze({
 });
 
 // src/method-schemas.ts
-var pluginApiWireSchemaDialect = "convax.plugin-api-wire-schema/2";
+var pluginApiWireSchemaDialect = "convax.plugin-api-wire-schema/3";
 var KiB = 1024;
 var MiB = KiB * KiB;
+var maximumPluginApiConnectedImageBytes = 16 * MiB;
+var maximumPluginApiConnectedImageDimension = 8192;
+var maximumPluginApiConnectedImagePixels = 33554432;
 var none = { type: "none" };
 var bool = { type: "boolean" };
 var finite = { finite: true, type: "number" };
 var integer = { finite: true, minimum: 0, type: "integer" };
+var boundedPositiveInteger = (maximum) => ({ finite: true, maximum, minimum: 1, type: "integer" });
 var nil = { type: "null" };
 var literal = (value) => ({ const: value });
 var string = (maxLength = 2048, options = {}) => ({
@@ -132,9 +143,10 @@ var string = (maxLength = 2048, options = {}) => ({
   type: "string"
 });
 var array = (items, maxItems, minItems = 0, uniqueBy) => ({ items, maxItems, minItems, type: "array", ...uniqueBy ? { uniqueBy } : {} });
-var object = (properties, required) => ({
+var object = (properties, required, products) => ({
   additionalProperties: false,
   properties,
+  ...products ? { products } : {},
   required,
   type: "object"
 });
@@ -156,10 +168,12 @@ var stringList = (maximum = 1000) => array(string(), maximum);
 var availability = union(object({
   available: literal(true),
   catalogVersion: string(64),
+  contractSince: string(64),
   id: string(128),
   since: string(64)
-}, ["available", "catalogVersion", "id", "since"]), object({
+}, ["available", "catalogVersion", "contractSince", "id", "since"]), object({
   available: literal(false),
+  contractSince: string(64),
   id: string(128),
   reason: enumString([
     "unsupported-host",
@@ -183,7 +197,7 @@ var hostNode = object({
   style: jsonObject(),
   type: string(80)
 }, ["data", "id", "position", "revision", "type"]);
-var generationReference = object({ nodeId: string(), role: inputRole }, ["nodeId", "role"]);
+var generationReference = object({ inputKey: string(), role: inputRole }, ["inputKey", "role"]);
 var nodeQuery = object({
   ids: stringList(),
   kinds: stringList(),
@@ -235,6 +249,14 @@ var connectedInput = object({
   status: enumString(["error", "idle", "pending"]),
   width: finite
 }, ["inputKey", "kind", "label"]);
+var connectedImageProbe = object({
+  contentRevision: string(64, { refinement: "lowercase-sha256" }),
+  height: boundedPositiveInteger(maximumPluginApiConnectedImageDimension),
+  kind: literal("image"),
+  mimeType: enumString(["image/jpeg", "image/png", "image/webp"]),
+  size: boundedPositiveInteger(maximumPluginApiConnectedImageBytes),
+  width: boundedPositiveInteger(maximumPluginApiConnectedImageDimension)
+}, ["contentRevision", "height", "kind", "mimeType", "size", "width"], [{ fields: ["width", "height"], maximum: maximumPluginApiConnectedImagePixels }]);
 var generationTool = object({
   acceptedInputs: array(inputRole, 6),
   description: string(2000),
@@ -307,6 +329,7 @@ var hostContextResult = object({
   project: object({ id: string(256), name: string(512) }, ["id"])
 }, ["canvas", "hostApi", "node", "plugin", "project"]);
 var contract = (request, result, limits = {}) => ({
+  dialect: pluginApiWireSchemaDialect,
   request: { maxBytes: limits.request ?? 64 * KiB, schema: request },
   result: { maxBytes: limits.result ?? 64 * KiB, schema: result }
 });
@@ -315,6 +338,12 @@ var pluginApiWireContracts = Object.freeze({
   "canvas.inputs.list": contract(none, object({ inputs: array(connectedInput, 256) }, ["inputs"]), {
     result: MiB
   }),
+  "canvas.inputs.image.open": contract(object({ inputKey: string() }, ["inputKey"]), object({
+    probe: connectedImageProbe,
+    sessionId: string(128),
+    url: string(2048, { prefix: "convax-connected-media://" })
+  }, ["probe", "sessionId", "url"])),
+  "canvas.inputs.image.close": contract(object({ sessionId: string(128) }, ["sessionId"]), object({ closed: bool }, ["closed"])),
   "canvas.inputs.open": contract(object({ inputKey: string() }, ["inputKey"]), object({
     probe: object({
       duration: object({ estimated: bool, milliseconds: finite }, ["estimated", "milliseconds"]),
@@ -443,6 +472,7 @@ var pluginApiMethodContracts = Object.freeze(Object.fromEntries(pluginApiContrac
   return [
     id,
     {
+      dialect: wire.dialect,
       params: objectShape(wire.request.schema, `Plugin API ${id} params`),
       request: wire.request,
       response: wire.result,
@@ -480,8 +510,12 @@ var partialSuccessErrors = [
     recoverable: false
   }
 ];
+var defineV2Contract = (definition) => definePluginApi({
+  ...definition,
+  contractSince: "2.0.0"
+});
 var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
-  definePluginApi({
+  defineV2Contract({
     id: "host.context.get",
     completion: "cancelable",
     grant: null,
@@ -495,7 +529,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "The current Plugin, Project, Canvas, node, and negotiated Host API context when present."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.inputs.list",
     completion: "cancelable",
     grant: "canvas.connectedInputs.read",
@@ -509,7 +543,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "A bounded list of direct incoming input descriptors and opaque input keys."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.inputs.open",
     completion: "cancelable",
     grant: "canvas.connectedMedia.stream",
@@ -524,7 +558,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       remarks: "Call canvas.inputs.close when the stream is no longer needed."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.inputs.close",
     completion: "cancelable",
     grant: "canvas.connectedMedia.stream",
@@ -538,7 +572,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "An acknowledgement; closing an already closed handle is idempotent."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.node.get",
     completion: "cancelable",
     grant: "canvas.node.read",
@@ -552,7 +586,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "The owning node identity, revision, geometry, and Plugin state projection."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.node.state.replace",
     completion: "commit-preserving",
     grant: "canvas.node.write",
@@ -566,7 +600,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "`{ updated: true }` after the authoritative state replacement commits."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.resource.image.create",
     completion: "commit-preserving",
     grant: "canvas.image.write",
@@ -580,7 +614,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "The created renderer-safe image result after Project publication and Canvas commit."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "project.file.text.read",
     completion: "cancelable",
     grant: "project.files.read",
@@ -594,7 +628,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "The bounded UTF-8 file text."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "agent.prompt",
     completion: "commit-preserving",
     grant: "agent.prompt",
@@ -608,7 +642,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "`{ text }`, containing the bounded host acknowledgement."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "generation.tools.list",
     completion: "cancelable",
     grant: "generation.execute",
@@ -622,7 +656,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "A bounded list of available generation tools and their public input contracts."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "generation.execute",
     completion: "commit-preserving",
     grant: "generation.execute",
@@ -632,11 +666,11 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
     docs: {
       summary: "Execute one selected generation tool through the shared host executor.",
       description: "Revalidates the active Plugin, authorized executable, inputs, cancellation, and live resource guards immediately before execution.",
-      request: "`{ output?, prompt, references?, resultMode?, toolId? }`, validated against the selected tool.",
+      request: "`{ output?, prompt, references?: Array<{ inputKey, role }>, resultMode?, toolId? }`; every opaque input key must come from the current owning node's canvas.inputs.list result.",
       response: "The bounded selected tool result, created node ids, authoritative revision, and warnings."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "projects.list",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -651,7 +685,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "A bounded list of renderer-safe Project summaries."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.catalog.list",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -666,7 +700,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "A bounded list of portable Canvas catalog entries."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.document.get",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -681,7 +715,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "The requested pathless document projection and authoritative revision."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.nodes.query",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -696,7 +730,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "Matching node projections and the authoritative Canvas revision."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.transaction.execute",
     completion: "commit-preserving",
     audience: ["web-plugin", "companion"],
@@ -711,7 +745,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "The committed authoritative revision and bounded command results."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.events.subscribe",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -726,7 +760,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "A connection-bound subscription identifier."
     }
   }),
-  definePluginApi({
+  defineV2Contract({
     id: "canvas.events.unsubscribe",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -741,6 +775,36 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "An acknowledgement; closing an already closed subscription is idempotent."
     }
   })
+]), definePluginApiRelease("2.0.0", [
+  defineV2Contract({
+    id: "canvas.inputs.image.open",
+    completion: "cancelable",
+    grant: "canvas.connectedImages.read",
+    scope: "own-node",
+    sideEffect: "read",
+    errors: [...contextErrors, ...permissionErrors, ...resourceErrors],
+    docs: {
+      summary: "Open one directly connected image through the owning Plugin node.",
+      description: "Issues a revocable Host-owned session for signature-validated JPEG, PNG, or WebP content after validating the Plugin principal, owning node, direct edge, resource identity, and image limits. Every protocol read revalidates the issued principal and direct edge against current Host state.",
+      request: "`{ inputKey }`, using an opaque image key returned by canvas.inputs.list.",
+      response: "A connection-issued, revocable session with an opaque 128-bit bearer URL, bounded image probe, and lowercase SHA-256 content revision.",
+      remarks: "Electron protocol GET/HEAD requests have no trusted sender or frame principal. Possession of the convax-connected-media URL therefore carries bearer authority until the Host revokes the session or its principal/edge revalidation fails; the URL must be kept secret and closed promptly. The response contains no image bytes, native path, or unrestricted URL. The Host rejects images above 16 MiB, dimensions above 8192 pixels, or more than 33,554,432 pixels."
+    }
+  }),
+  defineV2Contract({
+    id: "canvas.inputs.image.close",
+    completion: "cancelable",
+    grant: "canvas.connectedImages.read",
+    scope: "own-node",
+    sideEffect: "write",
+    errors: [...contextErrors, ...permissionErrors],
+    docs: {
+      summary: "Close one revocable connected-image bearer session.",
+      description: "Revokes a session and bearer URL created by canvas.inputs.image.open after validating the calling Plugin principal, without changing Canvas or Project state.",
+      request: "`{ sessionId }`, using the opaque handle returned by canvas.inputs.image.open.",
+      response: "An acknowledgement that the caller's image session is closed; repeated close calls are idempotent."
+    }
+  })
 ]));
 var catalogIds = pluginApiCatalog.apis.map(({ id }) => id).sort();
 if (catalogIds.length !== pluginApiContractIds.length || catalogIds.some((id, index) => id !== pluginApiContractIds[index])) {
@@ -752,11 +816,21 @@ var pluginApiDefinitionsById = new Map(pluginApiCatalog.apis.map((definition) =>
 var pluginApiIds = new Set(pluginApiDefinitionsById.keys());
 
 // src/catalog-artifact.ts
-var PLUGIN_API_CATALOG_ARTIFACT_SCHEMA = "convax.plugin-api-catalog/2";
+var PLUGIN_API_CATALOG_ARTIFACT_SCHEMA = "convax.plugin-api-catalog/3";
 
 // src/generator.ts
+var PLUGIN_API_HISTORY_LEDGER_FILE = "ledger.json";
+var PLUGIN_API_HISTORY_LEDGER_SCHEMA = "convax.plugin-api-history-ledger/1";
+var MAXIMUM_HISTORY_ARTIFACT_BYTES = 16 * 1024 * 1024;
+var MAXIMUM_RETIRED_HISTORY_RECEIPTS = 32;
+var SHA256 = /^[a-f0-9]{64}$/;
+var CATALOG_ARTIFACT_TOKEN = /^convax\.plugin-api-catalog\/[1-9][0-9]*$/;
+var WIRE_SCHEMA_DIALECT_TOKEN = /^convax\.plugin-api-wire-schema\/[1-9][0-9]*$/;
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function historyLineage(snapshot) {
+  return snapshot.apis.map(({ id, since }) => ({ id, since }));
 }
 function sortRecord(value) {
   if (Array.isArray(value))
@@ -780,14 +854,14 @@ function assertExactKeys(record, allowed, label) {
   if (unknown)
     throw new TypeError(`${label} contains unknown field: ${unknown}`);
 }
-function contractDigest(contract2, dialect) {
-  return `sha256:${createHash("sha256").update(stableJson({ dialect, ...contract2 })).digest("hex")}`;
+function contractDigest(contract2) {
+  return `sha256:${createHash("sha256").update(stableJson(contract2)).digest("hex")}`;
 }
-function normalizedContract(contract2, dialect = pluginApiWireSchemaDialect) {
+function normalizedContract(contract2) {
   const portable = sortRecord(contract2);
   return {
-    dialect,
-    digest: contractDigest(portable, dialect),
+    dialect: portable.dialect,
+    digest: contractDigest(portable),
     request: portable.request,
     result: portable.result
   };
@@ -798,6 +872,7 @@ function normalizedDefinition(definition) {
     request: definition.contract.request,
     result: definition.contract.result
   } : pluginApiMethodContracts[definition.id] ? {
+    dialect: pluginApiMethodContracts[definition.id].dialect,
     request: pluginApiMethodContracts[definition.id].request,
     result: pluginApiMethodContracts[definition.id].response
   } : undefined;
@@ -807,6 +882,7 @@ function normalizedDefinition(definition) {
   return {
     id: definition.id,
     since: definition.since,
+    contractSince: definition.contractSince,
     audience: [...definition.audience].sort(),
     completion: definition.completion,
     grant: definition.grant,
@@ -814,7 +890,7 @@ function normalizedDefinition(definition) {
     sideEffect: definition.sideEffect,
     errors: [...definition.errors].sort((left, right) => left.code.localeCompare(right.code)).map((error) => ({ ...error })),
     docs: { ...definition.docs },
-    contract: normalizedContract(sourceContract, "dialect" in sourceContract ? sourceContract.dialect : pluginApiWireSchemaDialect)
+    contract: normalizedContract(sourceContract)
   };
 }
 function snapshotPluginApiCatalog(catalog = pluginApiCatalog) {
@@ -855,15 +931,15 @@ function renderPluginApiMarkdown(catalog = pluginApiCatalog) {
     "The code and recoverability must match the exact API error table below; malformed requests and transport failures use the separate SDK protocol-error namespace.",
     "Request and response byte limits are UTF-8 JSON envelope limits and are enforced per API.",
     "",
-    "| API | Since | Audience | Grant | Scope | Side effect | Completion | Errors |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- |"
+    "| API | Introduced | Current contract | Audience | Grant | Scope | Side effect | Completion | Errors |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
   ];
   for (const definition of snapshot.apis) {
-    lines.push(`| \`${definition.id}\` | ${definition.since} | ${definition.audience.join(", ")} | ${definition.grant ? `\`${definition.grant}\`` : "none"} | ${definition.scope} | ${definition.sideEffect} | ${definition.completion} | ${definition.errors.map((error) => `\`${error.code}\``).join(", ")} |`);
+    lines.push(`| \`${definition.id}\` | ${definition.since} | ${definition.contractSince} | ${definition.audience.join(", ")} | ${definition.grant ? `\`${definition.grant}\`` : "none"} | ${definition.scope} | ${definition.sideEffect} | ${definition.completion} | ${definition.errors.map((error) => `\`${error.code}\``).join(", ")} |`);
   }
   lines.push("");
   for (const definition of snapshot.apis) {
-    lines.push(`## \`${definition.id}\``, "", definition.docs.summary, "", definition.docs.description, "", `- Since: ${definition.since}`, `- Audience: ${definition.audience.join(", ")}`, `- Grant: ${definition.grant ? `\`${definition.grant}\`` : "none"}`, `- Scope: ${definition.scope}`, `- Side effect: ${definition.sideEffect}`, `- Completion: ${definition.completion}`, `- Request: ${definition.docs.request}`, `- Response: ${definition.docs.response}`, `- Request schema: ${renderMethodShape(pluginApiMethodContracts[definition.id].params)}`, `- Response schema: ${renderMethodShape(pluginApiMethodContracts[definition.id].result)}`, `- Request byte limit: ${definition.contract.request.maxBytes}`, `- Response byte limit: ${definition.contract.result.maxBytes}`, `- Contract digest: \`${definition.contract.digest}\``, `- Contract dialect: \`${definition.contract.dialect}\``);
+    lines.push(`## \`${definition.id}\``, "", definition.docs.summary, "", definition.docs.description, "", `- Introduced: ${definition.since}`, `- Current contract since: ${definition.contractSince}`, `- Audience: ${definition.audience.join(", ")}`, `- Grant: ${definition.grant ? `\`${definition.grant}\`` : "none"}`, `- Scope: ${definition.scope}`, `- Side effect: ${definition.sideEffect}`, `- Completion: ${definition.completion}`, `- Request: ${definition.docs.request}`, `- Response: ${definition.docs.response}`, `- Request schema: ${renderMethodShape(pluginApiMethodContracts[definition.id].params)}`, `- Response schema: ${renderMethodShape(pluginApiMethodContracts[definition.id].result)}`, `- Request byte limit: ${definition.contract.request.maxBytes}`, `- Response byte limit: ${definition.contract.result.maxBytes}`, `- Contract digest: \`${definition.contract.digest}\``, `- Contract dialect: \`${definition.contract.dialect}\``);
     if (definition.docs.remarks)
       lines.push(`- Remarks: ${definition.docs.remarks}`);
     lines.push("", "#### Request contract", "", "```json", stableJson(definition.contract.request).trimEnd(), "```", "", "#### Response contract", "", "```json", stableJson(definition.contract.result).trimEnd(), "```");
@@ -901,6 +977,9 @@ function breakingProjection(definition) {
     response: definition.docs.response,
     contract: "contract" in definition ? definition.contract : undefined
   };
+}
+function contractDigestOf(definition) {
+  return definition.contract.digest;
 }
 function checkPluginApiCompatibility(previousCatalog, nextCatalog) {
   const previous = snapshotPluginApiCatalog(previousCatalog);
@@ -940,6 +1019,23 @@ function checkPluginApiCompatibility(previousCatalog, nextCatalog) {
       });
       continue;
     }
+    const contractChanged = contractDigestOf(definition) !== contractDigestOf(nextDefinition);
+    if (contractChanged && nextDefinition.contractSince !== next.version) {
+      issues.push({
+        kind: "api-changed",
+        apiId: definition.id,
+        message: `Plugin API ${definition.id} changed contract must set contractSince to ${next.version}`
+      });
+      continue;
+    }
+    if (!contractChanged && definition.contractSince !== nextDefinition.contractSince) {
+      issues.push({
+        kind: "api-changed",
+        apiId: definition.id,
+        message: `Plugin API ${definition.id} unchanged contract must preserve contractSince`
+      });
+      continue;
+    }
     if (stableJson(breakingProjection(definition)) !== stableJson(breakingProjection(nextDefinition)) && !majorChanged) {
       issues.push({
         kind: "api-changed",
@@ -949,6 +1045,22 @@ function checkPluginApiCompatibility(previousCatalog, nextCatalog) {
     }
   }
   for (const definition of next.apis) {
+    if (!previousById.has(definition.id) && definition.since !== next.version) {
+      issues.push({
+        kind: "api-added",
+        apiId: definition.id,
+        message: `New Plugin API ${definition.id} since must equal Catalog ${next.version}`
+      });
+      continue;
+    }
+    if (!previousById.has(definition.id) && definition.contractSince !== next.version) {
+      issues.push({
+        kind: "api-added",
+        apiId: definition.id,
+        message: `New Plugin API ${definition.id} contractSince must equal Catalog ${next.version}`
+      });
+      continue;
+    }
     if (!previousById.has(definition.id) && !majorChanged && !minorChanged) {
       issues.push({
         kind: "api-added",
@@ -981,15 +1093,15 @@ function assertWireSchema(value, label, depth = 0) {
     return;
   }
   if (value.type === "integer" || value.type === "number") {
-    assertExactKeys(value, ["finite", "minimum", "type"], label);
-    if (value.finite !== true || value.minimum !== undefined && (typeof value.minimum !== "number" || !Number.isFinite(value.minimum))) {
+    assertExactKeys(value, ["finite", "maximum", "minimum", "type"], label);
+    if (value.finite !== true || value.minimum !== undefined && (typeof value.minimum !== "number" || !Number.isFinite(value.minimum)) || value.maximum !== undefined && (typeof value.maximum !== "number" || !Number.isFinite(value.maximum)) || typeof value.minimum === "number" && typeof value.maximum === "number" && value.maximum < value.minimum) {
       throw new TypeError(`${label} number contract is invalid`);
     }
     return;
   }
   if (value.type === "string") {
     assertExactKeys(value, ["controlCharacters", "enum", "maxLength", "minLength", "prefix", "refinement", "type"], label);
-    if (value.controlCharacters !== false || !Number.isSafeInteger(value.maxLength) || !Number.isSafeInteger(value.minLength) || Number(value.minLength) < 0 || Number(value.maxLength) < Number(value.minLength) || Number(value.maxLength) > 32 * 1024 * 1024 || !(value.prefix === undefined || typeof value.prefix === "string") || !(value.refinement === undefined || value.refinement === "portable-project-relative-path" || value.refinement === "safe-png-file-name" || value.refinement === "trimmed") || !(value.enum === undefined || Array.isArray(value.enum) && value.enum.length > 0 && value.enum.every((entry) => typeof entry === "string"))) {
+    if (value.controlCharacters !== false || !Number.isSafeInteger(value.maxLength) || !Number.isSafeInteger(value.minLength) || Number(value.minLength) < 0 || Number(value.maxLength) < Number(value.minLength) || Number(value.maxLength) > 32 * 1024 * 1024 || !(value.prefix === undefined || typeof value.prefix === "string") || !(value.refinement === undefined || value.refinement === "lowercase-sha256" || value.refinement === "portable-project-relative-path" || value.refinement === "safe-png-file-name" || value.refinement === "trimmed") || !(value.enum === undefined || Array.isArray(value.enum) && value.enum.length > 0 && value.enum.every((entry) => typeof entry === "string"))) {
       throw new TypeError(`${label} string contract is invalid`);
     }
     return;
@@ -1003,7 +1115,7 @@ function assertWireSchema(value, label, depth = 0) {
     return;
   }
   if (value.type === "object") {
-    assertExactKeys(value, ["additionalProperties", "properties", "required", "type"], label);
+    assertExactKeys(value, ["additionalProperties", "products", "properties", "required", "type"], label);
     if (value.additionalProperties !== false || !isRecord(value.properties) || !Array.isArray(value.required) || !value.required.every((entry) => typeof entry === "string") || new Set(value.required).size !== value.required.length || value.required.some((entry) => !Object.prototype.hasOwnProperty.call(value.properties, entry))) {
       throw new TypeError(`${label} object contract is invalid`);
     }
@@ -1011,6 +1123,28 @@ function assertWireSchema(value, label, depth = 0) {
       if (key.length < 1 || key.length > 128)
         throw new TypeError(`${label} property name is invalid`);
       assertWireSchema(entry, `${label}.properties.${key}`, depth + 1);
+    }
+    if (value.products !== undefined) {
+      if (!Array.isArray(value.products) || value.products.length < 1 || value.products.length > 16) {
+        throw new TypeError(`${label} product constraints are invalid`);
+      }
+      for (const [index, candidate] of value.products.entries()) {
+        const productLabel = `${label}.products[${index}]`;
+        if (!isRecord(candidate))
+          throw new TypeError(`${productLabel} must be an object`);
+        assertExactKeys(candidate, ["fields", "maximum"], productLabel);
+        if (!Array.isArray(candidate.fields) || candidate.fields.length < 2 || candidate.fields.length > 8 || !candidate.fields.every((field) => typeof field === "string" && field.length >= 1 && field.length <= 128) || new Set(candidate.fields).size !== candidate.fields.length || !Number.isSafeInteger(candidate.maximum) || Number(candidate.maximum) < 1) {
+          throw new TypeError(`${productLabel} is invalid`);
+        }
+        for (const field of candidate.fields) {
+          if (typeof field !== "string")
+            throw new TypeError(`${productLabel} field is invalid`);
+          const factor = value.properties[field];
+          if (!value.required.includes(field) || !isRecord(factor) || factor.type !== "integer" && factor.type !== "number" || factor.finite !== true || typeof factor.minimum !== "number" || factor.minimum < 0) {
+            throw new TypeError(`${productLabel}.${field} is not a required non-negative numeric property`);
+          }
+        }
+      }
     }
     return;
   }
@@ -1030,6 +1164,7 @@ function parseContractSnapshot(value, label) {
   if (value.dialect !== pluginApiWireSchemaDialect) {
     throw new TypeError(`${label} dialect is invalid`);
   }
+  const dialect = pluginApiWireSchemaDialect;
   if (typeof value.digest !== "string" || !/^sha256:[a-f0-9]{64}$/.test(value.digest)) {
     throw new TypeError(`${label} digest is invalid`);
   }
@@ -1048,7 +1183,7 @@ function parseContractSnapshot(value, label) {
   };
   const request = parseLimit(value.request, `${label}.request`);
   const result = parseLimit(value.result, `${label}.result`);
-  const normalized = normalizedContract({ request, result }, value.dialect);
+  const normalized = normalizedContract({ dialect, request, result });
   if (normalized.digest !== value.digest)
     throw new TypeError(`${label} digest does not match its contract`);
   return normalized;
@@ -1070,17 +1205,36 @@ function assertSnapshot(value, label) {
     if (!isRecord(entry))
       throw new TypeError(`${label} API is invalid`);
     const definition = entry;
-    assertExactKeys(definition, ["id", "since", "audience", "completion", "grant", "scope", "sideEffect", "errors", "docs", "contract"], `${label} API`);
+    assertExactKeys(definition, [
+      "id",
+      "since",
+      "contractSince",
+      "audience",
+      "completion",
+      "grant",
+      "scope",
+      "sideEffect",
+      "errors",
+      "docs",
+      "contract"
+    ], `${label} API`);
     if (typeof definition.id !== "string" || ids.has(definition.id))
       throw new TypeError(`${label} API id is invalid`);
     const id = definition.id;
     ids.add(id);
-    if (typeof definition.since !== "string") {
+    if (typeof definition.since !== "string" || typeof definition.contractSince !== "string") {
       throw new TypeError(`${label} API ${id} is incomplete`);
     }
     pluginApiContractInternals.assertVersion(definition.since, `${label} API ${id} since`);
+    pluginApiContractInternals.assertVersion(definition.contractSince, `${label} API ${id} contractSince`);
     if (pluginApiContractInternals.compareVersions(definition.since, record.version) > 0) {
       throw new TypeError(`${label} API ${id} has a future since version`);
+    }
+    if (pluginApiContractInternals.compareVersions(definition.contractSince, definition.since) < 0) {
+      throw new TypeError(`${label} API ${id} contractSince precedes since`);
+    }
+    if (pluginApiContractInternals.compareVersions(definition.contractSince, record.version) > 0) {
+      throw new TypeError(`${label} API ${id} has a future contractSince version`);
     }
     if (!Array.isArray(definition.audience) || !(typeof definition.grant === "string" || definition.grant === null) || typeof definition.completion !== "string" || typeof definition.scope !== "string" || typeof definition.sideEffect !== "string" || !Array.isArray(definition.errors) || !isRecord(definition.docs)) {
       throw new TypeError(`${label} API ${id} is incomplete`);
@@ -1112,6 +1266,7 @@ function assertSnapshot(value, label) {
     parseContractSnapshot(definition.contract, `${label} API ${id} contract`);
     definePluginApi({
       id,
+      contractSince: definition.contractSince,
       audience,
       completion,
       grant: definition.grant,
@@ -1160,36 +1315,192 @@ function parseCompletion(value, label) {
 function isMissingFileError(error) {
   return isRecord(error) && error.code === "ENOENT";
 }
+function parseHistoryLedger(value) {
+  if (!isRecord(value))
+    throw new TypeError("Plugin API history ledger must be an object");
+  assertExactKeys(value, ["schema", "retired"], "Plugin API history ledger");
+  if (value.schema !== PLUGIN_API_HISTORY_LEDGER_SCHEMA || !Array.isArray(value.retired)) {
+    throw new TypeError("Plugin API history ledger is invalid");
+  }
+  if (value.retired.length > MAXIMUM_RETIRED_HISTORY_RECEIPTS) {
+    throw new TypeError("Plugin API history ledger exceeds its retired receipt bound");
+  }
+  const versions = new Set;
+  return value.retired.map((candidate, index) => {
+    const label = `Plugin API history ledger retired receipt ${index}`;
+    if (!isRecord(candidate))
+      throw new TypeError(`${label} must be an object`);
+    assertExactKeys(candidate, ["artifactSchema", "sha256", "version", "wireSchemaDialect"], label);
+    if (typeof candidate.artifactSchema !== "string" || !CATALOG_ARTIFACT_TOKEN.test(candidate.artifactSchema) || typeof candidate.wireSchemaDialect !== "string" || !WIRE_SCHEMA_DIALECT_TOKEN.test(candidate.wireSchemaDialect) || typeof candidate.sha256 !== "string" || !SHA256.test(candidate.sha256) || typeof candidate.version !== "string") {
+      throw new TypeError(`${label} is invalid`);
+    }
+    pluginApiContractInternals.assertVersion(candidate.version, `${label} version`);
+    if (versions.has(candidate.version))
+      throw new TypeError(`${label} duplicates version ${candidate.version}`);
+    versions.add(candidate.version);
+    return {
+      artifactSchema: candidate.artifactSchema,
+      sha256: candidate.sha256,
+      version: candidate.version,
+      wireSchemaDialect: candidate.wireSchemaDialect
+    };
+  });
+}
+function parseRetiredHistory(value, bytes, receipt, label) {
+  const actualDigest = createHash("sha256").update(bytes).digest("hex");
+  if (actualDigest !== receipt.sha256)
+    throw new TypeError(`${label} differs from its immutable ledger digest`);
+  if (!isRecord(value))
+    throw new TypeError(`${label} must be an object`);
+  assertExactKeys(value, ["schema", "version", "apis"], label);
+  if (value.schema !== receipt.artifactSchema || value.version !== receipt.version || !Array.isArray(value.apis)) {
+    throw new TypeError(`${label} does not match its retired ledger identity`);
+  }
+  if (value.apis.length < 1 || value.apis.length > 1024) {
+    throw new TypeError(`${label} APIs are outside the retired audit bound`);
+  }
+  const ids = new Set;
+  const lineage = value.apis.map((candidate, index) => {
+    const apiLabel = `${label} API ${index}`;
+    if (!isRecord(candidate) || !isRecord(candidate.contract)) {
+      throw new TypeError(`${apiLabel} is incomplete`);
+    }
+    assertExactKeys(candidate.contract, ["dialect", "digest", "request", "result"], `${apiLabel} contract`);
+    if (typeof candidate.id !== "string" || !/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+$/.test(candidate.id) || ids.has(candidate.id) || typeof candidate.since !== "string" || candidate.contract.dialect !== receipt.wireSchemaDialect || typeof candidate.contract.digest !== "string" || !/^sha256:[a-f0-9]{64}$/.test(candidate.contract.digest)) {
+      throw new TypeError(`${apiLabel} has invalid retired audit tokens`);
+    }
+    const opaqueContract = {
+      dialect: candidate.contract.dialect,
+      request: candidate.contract.request,
+      result: candidate.contract.result
+    };
+    const opaqueDigest = `sha256:${createHash("sha256").update(stableJson(opaqueContract)).digest("hex")}`;
+    if (candidate.contract.digest !== opaqueDigest) {
+      throw new TypeError(`${apiLabel} digest does not match its opaque contract bytes`);
+    }
+    pluginApiContractInternals.assertVersion(candidate.since, `${apiLabel} since`);
+    if (pluginApiContractInternals.compareVersions(candidate.since, receipt.version) > 0) {
+      throw new TypeError(`${apiLabel} has a future since version`);
+    }
+    ids.add(candidate.id);
+    return { id: candidate.id, since: candidate.since };
+  });
+  return { version: receipt.version, lineage };
+}
+function historyMajor(version) {
+  return Number(version.split(".")[0]);
+}
+function checkOpaqueMajorLineage(previous, next) {
+  if (historyMajor(next.version) <= historyMajor(previous.version)) {
+    return [
+      {
+        kind: "invalid-version",
+        message: `Retired Plugin API history ${previous.version} can only transition to a later major, received ${next.version}`
+      }
+    ];
+  }
+  const previousById = new Map(previous.lineage.map((definition) => [definition.id, definition]));
+  const nextById = new Map(next.lineage.map((definition) => [definition.id, definition]));
+  const issues = [];
+  for (const definition of previous.lineage) {
+    const nextDefinition = nextById.get(definition.id);
+    if (nextDefinition && nextDefinition.since !== definition.since) {
+      issues.push({
+        kind: "api-changed",
+        apiId: definition.id,
+        message: `Plugin API ${definition.id} since is immutable`
+      });
+    }
+  }
+  for (const definition of next.lineage) {
+    if (!previousById.has(definition.id) && pluginApiContractInternals.compareVersions(definition.since, previous.version) <= 0) {
+      issues.push({
+        kind: "api-added",
+        apiId: definition.id,
+        message: `Plugin API ${definition.id} cannot claim introduction before retired history ${previous.version}`
+      });
+    }
+  }
+  return issues;
+}
+function checkHistoryCompatibility(previous, next) {
+  if (previous.snapshot && next.snapshot)
+    return checkPluginApiCompatibility(previous.snapshot, next.snapshot);
+  return checkOpaqueMajorLineage(previous, next);
+}
+function assertHistoryContractReleases(history) {
+  const releases = new Set(history.map(({ version }) => version));
+  for (const entry of history) {
+    if (!entry.snapshot)
+      continue;
+    for (const definition of entry.snapshot.apis) {
+      if (!releases.has(definition.contractSince)) {
+        throw new TypeError(`Plugin API ${definition.id} contractSince ${definition.contractSince} has no corresponding history release`);
+      }
+    }
+  }
+}
 async function readHistory(historyDirectory) {
   const entries = await readdir(historyDirectory, { withFileTypes: true }).catch((error) => {
     if (isMissingFileError(error))
       return [];
     throw error;
   });
+  const ledgerPath = join(historyDirectory, PLUGIN_API_HISTORY_LEDGER_FILE);
+  const ledgerValue = await readFile(ledgerPath, "utf8").then((bytes) => JSON.parse(bytes)).catch((error) => {
+    if (isMissingFileError(error))
+      return { schema: PLUGIN_API_HISTORY_LEDGER_SCHEMA, retired: [] };
+    if (error instanceof SyntaxError)
+      throw new TypeError(`Plugin API history ledger is not valid JSON: ${ledgerPath}`);
+    throw error;
+  });
+  const receipts = parseHistoryLedger(ledgerValue);
+  const receiptsByVersion = new Map(receipts.map((receipt) => [receipt.version, receipt]));
+  const seenReceipts = new Set;
   const snapshots = [];
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
-    if (!entry.isFile() || !entry.name.endsWith(".json"))
+    if (!entry.isFile() || !entry.name.endsWith(".json") || entry.name === PLUGIN_API_HISTORY_LEDGER_FILE) {
       continue;
+    }
     const path = join(historyDirectory, entry.name);
+    const bytes = await readFile(path, "utf8");
+    if (new TextEncoder().encode(bytes).byteLength > MAXIMUM_HISTORY_ARTIFACT_BYTES) {
+      throw new TypeError(`Plugin API history exceeds its byte bound: ${path}`);
+    }
     let value;
     try {
-      value = JSON.parse(await readFile(path, "utf8"));
+      value = JSON.parse(bytes);
     } catch {
       throw new TypeError(`Plugin API history is not valid JSON: ${path}`);
     }
+    const version = basename(entry.name, ".json");
+    pluginApiContractInternals.assertVersion(version, `Plugin API history filename ${entry.name}`);
+    const receipt = receiptsByVersion.get(version);
+    if (receipt) {
+      snapshots.push(parseRetiredHistory(value, bytes, receipt, `Plugin API history ${entry.name}`));
+      seenReceipts.add(receipt.version);
+      continue;
+    }
     assertSnapshot(value, `Plugin API history ${entry.name}`);
-    if (basename(entry.name, ".json") !== value.version) {
+    if (version !== value.version) {
       throw new TypeError(`Plugin API history filename must match version: ${entry.name}`);
     }
-    snapshots.push(snapshotPluginApiCatalog(value));
+    const snapshot = snapshotPluginApiCatalog(value);
+    snapshots.push({ version: snapshot.version, lineage: historyLineage(snapshot), snapshot });
+  }
+  for (const receipt of receipts) {
+    if (!seenReceipts.has(receipt.version)) {
+      throw new TypeError(`Plugin API history ledger receipt is missing artifact ${receipt.version}.json`);
+    }
   }
   snapshots.sort((left, right) => pluginApiContractInternals.compareVersions(left.version, right.version));
   for (let index = 1;index < snapshots.length; index += 1) {
-    const issues = checkPluginApiCompatibility(snapshots[index - 1], snapshots[index]);
+    const issues = checkHistoryCompatibility(snapshots[index - 1], snapshots[index]);
     if (issues.length > 0)
       throw new TypeError(issues.map((issue) => issue.message).join(`
 `));
   }
+  assertHistoryContractReleases(snapshots);
   return snapshots;
 }
 function assertCurrentHistory(history, catalog) {
@@ -1201,13 +1512,14 @@ function assertCurrentHistory(history, catalog) {
   if (comparison > 0)
     throw new TypeError(`Plugin API history ${latest.version} is newer than catalog ${current.version}`);
   if (comparison < 0) {
-    const issues = checkPluginApiCompatibility(latest, current);
+    const currentEntry = { version: current.version, lineage: historyLineage(current), snapshot: current };
+    const issues = checkHistoryCompatibility(latest, currentEntry);
     if (issues.length > 0)
       throw new TypeError(issues.map((issue) => issue.message).join(`
 `));
     throw new TypeError(`Plugin API history is missing current catalog ${current.version}; run history:append`);
   }
-  if (renderPluginApiJson(latest) !== renderPluginApiJson(current)) {
+  if (!latest.snapshot || renderPluginApiJson(latest.snapshot) !== renderPluginApiJson(current)) {
     throw new TypeError(`Plugin API catalog ${current.version} differs from its immutable history snapshot`);
   }
 }
@@ -1253,6 +1565,7 @@ async function checkPluginApiHistory(historyDirectory) {
 async function appendPluginApiHistory(historyDirectory) {
   const history = await readHistory(historyDirectory);
   const current = snapshotPluginApiCatalog(pluginApiCatalog);
+  const currentEntry = { version: current.version, lineage: historyLineage(current), snapshot: current };
   const latest = history.at(-1);
   if (latest) {
     const comparison = pluginApiContractInternals.compareVersions(latest.version, current.version);
@@ -1262,14 +1575,14 @@ async function appendPluginApiHistory(historyDirectory) {
       assertCurrentHistory(history, current);
       return join(historyDirectory, `${current.version}.json`);
     }
-    const issues = checkPluginApiCompatibility(latest, current);
+    const issues = checkHistoryCompatibility(latest, currentEntry);
     if (issues.length > 0)
       throw new TypeError(issues.map((issue) => issue.message).join(`
 `));
   }
   await mkdir(historyDirectory, { recursive: true });
   const path = join(historyDirectory, `${current.version}.json`);
-  await atomicWrite(path, renderPluginApiJson(current));
+  await writeFile(path, renderPluginApiJson(current), { encoding: "utf8", flag: "wx", mode: 420 });
   return path;
 }
 
@@ -1307,5 +1620,5 @@ ${result.changed.join(`
     throw new TypeError(`Unknown command: ${command}`);
 }
 
-//# debugId=DA018DC165B9497464756E2164756E21
+//# debugId=7EE7289D4A62221C64756E2164756E21
 //# sourceMappingURL=cli.js.map

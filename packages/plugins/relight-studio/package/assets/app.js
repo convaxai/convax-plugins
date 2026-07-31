@@ -1,6 +1,6 @@
 import { RelightRenderer } from "./relight-renderer.js"
 import { buildRelightGenerationRequest, normalizeGenerationTools } from "./generation.js"
-import { normalizeImageInputs, parseOpenedImageStream } from "./image-inputs.js"
+import { normalizeImageInputs, withOpenedImageSession } from "./image-inputs.js"
 import { mountRadixControls } from "./radix-controls.js"
 import { acceptPluginHostConnection } from "./plugin-host-client.js"
 
@@ -220,7 +220,7 @@ const sliderDefinitions = {
 const renderer = new RelightRenderer(document.getElementById("relightCanvas"))
 let settings = copyPreset(PRESETS.cinematic)
 let presetId = "cinematic"
-let selectedSourceNodeId = null
+let selectedSourceInputKey = null
 let selectedGenerationToolId = null
 let connectedImages = []
 let generationTools = []
@@ -230,6 +230,7 @@ let hostClient = null
 let hostReady = false
 let generationInFlight = false
 let loadSequence = 0
+let sourceLoadController = null
 let refreshPromise = null
 let refreshQueued = false
 let saveTimer = 0
@@ -362,10 +363,10 @@ function markCustom() {
 
 function snapshotState() {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     relightProject: {
-      version: 1,
-      selectedSourceNodeId,
+      version: 2,
+      selectedSourceInputKey,
       generation: {
         toolId: selectedGenerationToolId,
         additionalPrompt: elements.additionalPrompt.value.trim(),
@@ -407,14 +408,16 @@ function color(value, fallback) {
 
 function hydrateState(value) {
   const project = isRecord(value) && isRecord(value.relightProject) ? value.relightProject : null
-  if (!project || project.version !== 1) return
+  if (!project || (project.version !== 1 && project.version !== 2)) return
   const light = isRecord(project.light) ? project.light : {}
   const grading = isRecord(project.grading) ? project.grading : {}
   const generation = isRecord(project.generation) ? project.generation : {}
   const fallbackPreset = PRESETS[typeof project.presetId === "string" ? project.presetId : ""] || PRESETS.cinematic
   presetId = typeof project.presetId === "string" ? project.presetId : "cinematic"
   if (!PRESETS[presetId] && presetId !== "custom") presetId = "cinematic"
-  selectedSourceNodeId = typeof project.selectedSourceNodeId === "string" ? project.selectedSourceNodeId : null
+  selectedSourceInputKey = project.version === 2 && typeof project.selectedSourceInputKey === "string"
+    ? project.selectedSourceInputKey
+    : null
   selectedGenerationToolId = typeof generation.toolId === "string" ? generation.toolId : null
   elements.additionalPrompt.value = typeof generation.additionalPrompt === "string"
     ? generation.additionalPrompt.slice(0, 1_000)
@@ -509,18 +512,23 @@ function postStateSnapshotBestEffort() {
   })
 }
 
-async function hostRequest(method, params, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
+async function hostRequest(method, params, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, externalSignal) {
   if (!hostClient) throw new Error("插件尚未连接宿主")
-  if (timeoutMs === null) return hostClient.callHostApi(method, params)
   const controller = new AbortController()
-  const timeout = window.setTimeout(
-    () => controller.abort(new Error("宿主请求超时")),
-    timeoutMs,
-  )
+  const forwardAbort = function () { controller.abort(externalSignal.reason) }
+  if (externalSignal?.aborted) forwardAbort()
+  else externalSignal?.addEventListener("abort", forwardAbort, { once: true })
+  const timeout = timeoutMs === null
+    ? 0
+    : window.setTimeout(
+        () => controller.abort(new Error("宿主请求超时")),
+        timeoutMs,
+      )
   try {
     return await hostClient.callHostApi(method, params, { signal: controller.signal })
   } finally {
-    window.clearTimeout(timeout)
+    if (timeout) window.clearTimeout(timeout)
+    externalSignal?.removeEventListener("abort", forwardAbort)
   }
 }
 
@@ -534,8 +542,8 @@ function updateSourceSelect() {
     elements.sourceSelect.append(option)
   })
   setHidden(elements.sourceSelectShell, connectedImages.length === 0)
-  if (currentSource.kind === "canvas") elements.sourceSelect.value = currentSource.nodeId
-  else if (selectedSourceNodeId) elements.sourceSelect.value = selectedSourceNodeId
+  if (currentSource.kind === "canvas") elements.sourceSelect.value = currentSource.inputKey
+  else if (selectedSourceInputKey) elements.sourceSelect.value = selectedSourceInputKey
   syncRadixControls()
 }
 
@@ -569,7 +577,7 @@ function updateGenerationAvailability() {
   if (!elements.generateButton) return
   const tool = generationTools.find((candidate) => candidate.id === selectedGenerationToolId)
   const canvasSource = currentSource.kind === "canvas" && connectedImages.some(function (image) {
-    return image.id === currentSource.nodeId && image.readable
+    return image.id === currentSource.inputKey && image.readable
   })
   elements.generateButton.disabled = !hostReady || generationInFlight || !tool || !canvasSource
   elements.generateButton.classList.toggle("is-busy", generationInFlight)
@@ -606,11 +614,11 @@ async function refreshConnectedImages(forceReload) {
       }
       const current = currentSource.kind === "canvas"
         ? connectedImages.find(function (image) {
-            return image.id === currentSource.nodeId && image.readable
+            return image.id === currentSource.inputKey && image.readable
           })
         : null
       const preferred = connectedImages.find(function (image) {
-        return image.id === selectedSourceNodeId && image.readable
+        return image.id === selectedSourceInputKey && image.readable
       })
       const readable = connectedImages.filter(function (image) {
         return image.readable
@@ -659,14 +667,18 @@ async function decodeImage(source) {
   return bitmap
 }
 
-async function decodeStreamImage(url) {
+async function decodeStreamImage(url, signal) {
   const image = new Image()
+  const abort = function () { image.removeAttribute("src") }
+  signal?.addEventListener("abort", abort, { once: true })
   image.decoding = "async"
   image.src = url
   try {
     await image.decode()
+    if (signal?.aborted) throw signal.reason
     return decodeImage(image)
   } finally {
+    signal?.removeEventListener("abort", abort)
     image.removeAttribute("src")
   }
 }
@@ -682,28 +694,45 @@ function replaceBitmap(bitmap, source) {
 
 async function loadConnectedImage(image) {
   const sequence = ++loadSequence
-  let opened
+  sourceLoadController?.abort(new Error("图片来源已切换"))
+  const controller = new AbortController()
+  sourceLoadController = controller
   setLoading(true, "正在读取画布图片…")
   try {
-    opened = parseOpenedImageStream(
-      await hostRequest("canvas.inputs.open", { inputKey: image.id }),
-    )
-    const bitmap = await decodeStreamImage(opened.url)
-    if (sequence !== loadSequence) {
-      bitmap.close()
-      return
-    }
-    replaceBitmap(bitmap, { kind: "canvas", name: image.name, nodeId: image.id })
-    selectedSourceNodeId = image.id
-    updateSourceSelect()
-    setSourceStatus("Canvas · " + image.name + " · " + String(bitmap.width) + "×" + String(bitmap.height))
-    queueStateSave()
+    await withOpenedImageSession({
+      close: (sessionId) => hostRequest("canvas.inputs.image.close", { sessionId }),
+      inputKey: image.id,
+      open: (inputKey, signal) => hostRequest(
+        "canvas.inputs.image.open",
+        { inputKey },
+        DEFAULT_REQUEST_TIMEOUT_MS,
+        signal,
+      ),
+      signal: controller.signal,
+      use: async (opened, signal) => {
+        const bitmap = await decodeStreamImage(opened.url, signal)
+        if (sequence !== loadSequence || signal.aborted) {
+          bitmap.close()
+          return
+        }
+        replaceBitmap(bitmap, {
+          inputKey: image.id,
+          kind: "canvas",
+          mediaRevision: image.mediaRevision,
+          name: image.name,
+        })
+        selectedSourceInputKey = image.id
+        updateSourceSelect()
+        setSourceStatus("Canvas · " + image.name + " · " + String(bitmap.width) + "×" + String(bitmap.height))
+        queueStateSave()
+      },
+    })
   } catch (error) {
-    if (sequence === loadSequence) showToast(errorMessage(error, "画布图片载入失败"), "error")
-  } finally {
-    if (opened?.sessionId) {
-      await hostRequest("canvas.inputs.close", { sessionId: opened.sessionId }).catch(() => undefined)
+    if (sequence === loadSequence && !controller.signal.aborted) {
+      showToast(errorMessage(error, "画布图片载入失败"), "error")
     }
+  } finally {
+    if (sourceLoadController === controller) sourceLoadController = null
     if (sequence === loadSequence) setLoading(false)
     updateGenerationAvailability()
   }
@@ -719,6 +748,8 @@ async function loadLocalImage(file) {
     return
   }
   const sequence = ++loadSequence
+  sourceLoadController?.abort(new Error("图片来源已切换"))
+  sourceLoadController = null
   setLoading(true, "正在解码本地图片…")
   try {
     const bitmap = await decodeImage(file)
@@ -737,6 +768,8 @@ async function loadLocalImage(file) {
 }
 
 function clearSource(status) {
+  sourceLoadController?.abort(new Error("图片来源已清除"))
+  sourceLoadController = null
   loadSequence += 1
   if (currentBitmap) currentBitmap.close()
   currentBitmap = null
@@ -765,6 +798,10 @@ async function initializeHost() {
       : null
     const state = isRecord(metadata) ? metadata.convaxPluginState : null
     hydrateState(state)
+    await Promise.all([
+      hostClient.requireHostApi("canvas.inputs.image.close"),
+      hostClient.requireHostApi("canvas.inputs.image.open"),
+    ])
     hostReady = true
     setConnectionState(true)
     await Promise.all([refreshConnectedImages(false), refreshGenerationTools()])
@@ -872,7 +909,7 @@ async function generateRelight() {
     showToast("请先选择一张直接连接的 Canvas 图片；本地图片只能预览。", "error")
     return
   }
-  const image = connectedImages.find((candidate) => candidate.id === currentSource.nodeId && candidate.readable)
+  const image = connectedImages.find((candidate) => candidate.id === currentSource.inputKey && candidate.readable)
   if (!image) {
     showToast("当前 Canvas 图片已断开或不可读取。", "error")
     return
@@ -888,7 +925,7 @@ async function generateRelight() {
       "generation.execute",
       buildRelightGenerationRequest({
         prompt: buildRelightPrompt(),
-        referenceNodeId: image.id,
+        referenceInputKey: image.id,
         toolId: tool.id,
       }),
       null,
@@ -1029,6 +1066,10 @@ function bindLifecycle() {
     window.clearTimeout(saveTimer)
     window.clearTimeout(toastTimer)
     if (renderFrame) window.cancelAnimationFrame(renderFrame)
+    sourceLoadController?.abort(new Error("插件页面正在关闭"))
+    sourceLoadController = null
+    // Never pretend unload awaited an API close. The Host connection teardown
+    // revokes every remaining frame-bound image session.
     hostClient?.close()
     hostClient = null
     if (currentBitmap) currentBitmap.close()

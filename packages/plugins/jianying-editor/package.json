@@ -1,8 +1,11 @@
 {
   "name": "@microvoid/convax-plugin-jianying-editor",
-  "version": "2.1.2",
+  "version": "3.0.0",
   "private": true,
   "type": "module",
+  "convax.hostCapabilityRequests": [
+    "web-plugin-generation-input-binding"
+  ],
   "dependencies": {
     "@microvoid/convax-jianying-editor-mcp": "workspace:*",
     "@microvoid/convax-skill-jianying-editor": "workspace:*"

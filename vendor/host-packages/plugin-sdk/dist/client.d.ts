@@ -12,6 +12,7 @@ export interface PluginHostMessageEvent {
  */
 export interface PluginHostMessagePort {
     addEventListener(type: "message", listener: (event: PluginHostMessageEvent) => void): void;
+    close(): void;
     removeEventListener(type: "message", listener: (event: PluginHostMessageEvent) => void): void;
     postMessage(message: unknown): void;
     start?(): void;

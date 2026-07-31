@@ -1,9 +1,8 @@
 import type { PluginApiDefinition, PluginApiVersion } from "./contracts";
-import { pluginApiWireSchemaDialect, type PluginApiWireContract } from "./method-schemas";
-/** Canonical schema token for generated Catalog JSON and compatibility history. */
-export declare const PLUGIN_API_CATALOG_ARTIFACT_SCHEMA: "convax.plugin-api-catalog/2";
+import type { PluginApiWireContract } from "./method-schemas";
+/** Artifact token for the only Catalog format admitted by the current package. */
+export declare const PLUGIN_API_CATALOG_ARTIFACT_SCHEMA: "convax.plugin-api-catalog/3";
 export interface PluginApiContractSnapshot extends PluginApiWireContract {
-    readonly dialect: typeof pluginApiWireSchemaDialect;
     readonly digest: `sha256:${string}`;
 }
 export interface PluginApiDefinitionSnapshot extends PluginApiDefinition {

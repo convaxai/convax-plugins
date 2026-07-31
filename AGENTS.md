@@ -93,8 +93,9 @@ These rules apply to people and AI agents in this repository.
   workspace must declare that request id in
   `package.json#convax.hostCapabilityRequests`; the publication policy binds the
   same request to exact package versions, and tooling requires a two-way match.
-- A pending request's semantic core is append-only until an external human receipt
-  verifier exists; only generated Catalog evidence may refresh. A new Plugin that
+- A pending request's semantic core is append-only until the protected external
+  human receipt verifier accepts an immutable decision Release; only generated
+  Catalog evidence may refresh. A new Plugin that
   uses only published APIs is reviewed as Plugin source through protected
   CODEOWNERS and must not fabricate a Host request. Known gaps use validated
   contracts: `convax.pet-host/1` is Manifest-gated, while
@@ -102,9 +103,12 @@ These rules apply to people and AI agents in this repository.
   the explicit pending image-input request; never reinterpret the stream contract
   or edit Host code.
 - Do not weaken `.github/CODEOWNERS`, the protected-main ruleset, required current
-  checks, stale-approval dismissal, bot-approval rejection, or the
-  `plugin-marketplace-production` environment. Repository text does not substitute
-  for verifying those external controls.
+  checks, stale-approval dismissal, bot-approval rejection,
+  `plugin-marketplace-production`, `plugin-host-capability-governance`, or
+  immutable Releases. The governance Environment requires named reviewers,
+  prevents self-review and administrator bypass, and the required
+  `pull_request_target` checker must execute from protected base. Repository text
+  does not substitute for verifying those external controls.
 - Every v8 manifest has an explicit `hostApi` declaration. Web Plugins with
   `entry` require `host.context.get`; headless Plugins keep an explicit empty
   declaration. A Skill required API must be top-level required, while a Skill

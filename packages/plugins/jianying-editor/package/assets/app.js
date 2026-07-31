@@ -95,7 +95,10 @@ import { acceptPluginHostConnection } from "./plugin-host-client.js"
     try {
       elements.result.textContent = action === "inspect"
         ? await execute("draft.status")
-        : await execute("media.export", inputs.map((input) => ({ nodeId: input.inputKey, role: input.role })))
+        : await execute("media.export", inputs.map((input) => ({
+            inputKey: input.inputKey,
+            role: input.role,
+          })))
     } catch (error) {
       elements.result.textContent = error instanceof Error ? error.message : String(error)
     } finally {

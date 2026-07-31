@@ -9,6 +9,7 @@ export interface PluginApiNoParamsShape {
     readonly type: "none";
 }
 export interface PluginApiMethodContract {
+    readonly dialect: PluginApiWireContract["dialect"];
     readonly request: PluginApiWireContract["request"];
     readonly params: PluginApiNoParamsShape | PluginApiObjectShape;
     readonly result: PluginApiObjectShape;

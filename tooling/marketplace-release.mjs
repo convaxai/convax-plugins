@@ -410,6 +410,7 @@ async function main(argv) {
   await verifyPendingHostCapabilityHistory(
     repositoryRoot,
     args["governance-base"],
+    { catalogPath: args.catalog },
   )
   const current = await packageVersionSnapshot(repositoryRoot)
   const changed = await changedMarketplaceVersions(

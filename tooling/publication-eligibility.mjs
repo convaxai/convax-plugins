@@ -53,17 +53,21 @@ export function effectivePackagePublications(packages) {
           status: "ready",
         }]
       }
-      const blockersByCode = new Map()
+      const blockersByIdentity = new Map()
       for (const cause of causes) {
         const source = byIdentity.get(cause)
         for (const blocker of source.metadata.publication.blockers) {
-          if (!blockersByCode.has(blocker.code)) {
-            blockersByCode.set(blocker.code, blocker)
+          const blockerIdentity = `${blocker.code}\0${blocker.note}`
+          if (!blockersByIdentity.has(blockerIdentity)) {
+            blockersByIdentity.set(blockerIdentity, blocker)
           }
         }
       }
       return [identity, {
-        blockers: [...blockersByCode.values()],
+        blockers: [...blockersByIdentity.values()].sort((left, right) =>
+          left.code.localeCompare(right.code, "en") ||
+          left.note.localeCompare(right.note, "en"),
+        ),
         blockedBy: causes,
         status: "blocked",
       }]

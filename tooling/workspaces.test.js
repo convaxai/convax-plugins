@@ -100,7 +100,7 @@ describe("Bun workspace ownership", () => {
     const hostCandidates = {
       marketplace: ["@convax/marketplace", "0.2.0"],
       "marketplace-kit": ["@convax/marketplace-kit", "0.2.0"],
-      "plugin-api": ["@convax/plugin-api", "1.0.0"],
+      "plugin-api": ["@convax/plugin-api", "2.0.0"],
       "plugin-sdk": ["@convax/plugin-sdk", "0.1.0"],
     }
     for (const [directory, [packageName, version]] of Object.entries(hostCandidates)) {
@@ -210,7 +210,7 @@ describe("Bun workspace ownership", () => {
     }))
     expect(pet.manifest).toEqual(expect.objectContaining({
       schema: "convax.plugin/8",
-      hostApi: { major: 1, required: [], optional: [] },
+      hostApi: { major: 2, required: [], optional: [] },
     }))
     expect(pet.manifest.contributes.pet).toEqual({
       library: "pet-library.json",
@@ -344,6 +344,7 @@ describe("Bun workspace ownership", () => {
       const siblingFile = path.join(outputDirectory, "skill-existing-v1.0.0", "keep.txt")
       const catalogPath = path.join(outputDirectory, "plugin-api.json")
       const catalogSource = renderPluginApiJson()
+      const catalog = JSON.parse(catalogSource)
       await fs.mkdir(path.dirname(siblingFile), { recursive: true })
       await fs.writeFile(siblingFile, "keep")
       await fs.writeFile(catalogPath, catalogSource)
@@ -386,8 +387,12 @@ describe("Bun workspace ownership", () => {
       )
 
       expect(await fs.readFile(siblingFile, "utf8")).toBe("keep")
-      expect(packed.tag).toBe("plugin-hello-convax-v0.1.3")
-      expect(packed.catalogVersion).toBe("1.0.0")
+      expect(packed.tag).toBe("plugin-hello-convax-v0.2.0")
+      expect(catalog).toMatchObject({
+        schema: "convax.plugin-api-catalog/3",
+        version: "2.0.0",
+      })
+      expect(packed.catalogVersion).toBe(catalog.version)
       expect(packed.catalogDigest).toBe(
         createHash("sha256").update(catalogSource).digest("hex"),
       )

@@ -1,6 +1,6 @@
 ---
 name: chatcut
-version: 0.3.2
+version: 0.4.0
 description: Import directly connected Convax Canvas media and operate authenticated ChatCut video projects through the ChatCut MCP server, including selecting or creating projects, editing timelines, captions, or audio, verifying results, and exporting only on request. Use for video editing or creation work that should remain editable in ChatCut.
 ---
 
@@ -74,7 +74,7 @@ authorization to upload and must never trigger this workflow automatically.
 5. Immediately call the installed local operation
    `convax_plugin_chatcut_import_connected_media`. Pass the host-provided ChatCut
    `ownerNodeId` at the operation's top level. Its fixed legacy-shaped schema names
-   the opaque input field `references[].nodeId`; copy each host-provided `inputKey`
+   the opaque input field `references[].inputKey`; copy each host-provided `inputKey`
    into that field verbatim, preserve order and role, and do not interpret it as a
    Canvas node id. Pass only `session_token` (set to the exact remote `token`) and
    `endpoint` as scalar `toolInput` fields.

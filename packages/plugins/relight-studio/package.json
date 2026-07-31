@@ -1,9 +1,10 @@
 {
   "name": "@microvoid/convax-plugin-relight-studio",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "convax.hostCapabilityRequests": [
+    "web-plugin-generation-input-binding",
     "web-plugin-image-input-read"
   ],
   "dependencies": {

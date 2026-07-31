@@ -56,7 +56,20 @@ export interface PluginApiDocumentation {
  */
 export interface PluginApiDefinition<Id extends string = string> {
     readonly id: Id;
+    /**
+     * Catalog version that first introduced this stable API id.
+     *
+     * This is identity lineage, not the minimum version that understands the
+     * current request/result contract.
+     */
     readonly since: PluginApiVersion;
+    /**
+     * Catalog release that introduced the currently published wire contract.
+     *
+     * A contract digest change advances this value to that exact release while
+     * `since` remains immutable.
+     */
+    readonly contractSince: PluginApiVersion;
     readonly audience: readonly PluginApiAudience[];
     readonly completion: PluginApiCompletion;
     readonly grant: string | null;
@@ -66,7 +79,9 @@ export interface PluginApiDefinition<Id extends string = string> {
     readonly docs: PluginApiDocumentation;
 }
 /**
- * Authoring form of a Host API contract. `since` is assigned by its release block.
+ * Authoring form of a Host API contract. `since` is assigned by its release block;
+ * `contractSince` explicitly identifies the release that owns the current wire
+ * contract.
  *
  * @public
  */
@@ -88,7 +103,6 @@ export interface PluginApiRelease<Version extends PluginApiVersion = PluginApiVe
  * @public
  */
 export interface PluginApiCatalog<Definition extends PluginApiDefinition = PluginApiDefinition> {
-    readonly schema: "convax.plugin-api-catalog/1";
     readonly version: PluginApiVersion;
     readonly apis: readonly Definition[];
 }
@@ -117,11 +131,13 @@ export type ApiAvailability<Id extends string = string> = {
     readonly available: true;
     readonly id: Id;
     readonly since: PluginApiVersion;
+    readonly contractSince: PluginApiVersion;
     readonly catalogVersion: PluginApiVersion;
 } | {
     readonly available: false;
     readonly id: Id;
     readonly since?: PluginApiVersion;
+    readonly contractSince?: PluginApiVersion;
     readonly reason: PluginApiUnavailableReason;
     readonly recoverable: boolean;
 };
