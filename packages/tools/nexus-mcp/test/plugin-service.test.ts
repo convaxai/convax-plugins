@@ -100,8 +100,8 @@ describe("NexusPluginService", () => {
       async createCheckout(planKey: string, idempotencyKey: string) {
         createCalls.push({ idempotencyKey, planKey });
         return {
+          browserUrl: "https://checkout.creem.test/session/hosted-user",
           checkoutId: "26010000-0000-4000-8000-000000000009",
-          externalUrl: "https://checkout.creem.test/session/hosted-user",
           status: "CREATED",
         };
       },

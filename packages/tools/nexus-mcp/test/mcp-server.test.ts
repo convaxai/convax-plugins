@@ -53,7 +53,7 @@ async function listedToolNames(
             token_type: "Bearer",
           });
         }
-        if (url.pathname === "/user/v1/provider-connections") {
+        if (url.pathname === "/api/v1/user/provider-connections") {
           return Response.json([
             {
               gatewayBaseUrl:
@@ -222,7 +222,7 @@ test("MCP excludes automatic routers only from live image model choices", async 
             token_type: "Bearer",
           });
         }
-        if (url.pathname === "/user/v1/provider-connections") {
+        if (url.pathname === "/api/v1/user/provider-connections") {
           return Response.json([
             {
               gatewayBaseUrl:
@@ -363,7 +363,7 @@ test("image.generate returns bounded correlated HTTP diagnostics", async () => {
             token_type: "Bearer",
           });
         }
-        if (url.pathname === "/user/v1/provider-connections") {
+        if (url.pathname === "/api/v1/user/provider-connections") {
           return Response.json([
             {
               gatewayBaseUrl:

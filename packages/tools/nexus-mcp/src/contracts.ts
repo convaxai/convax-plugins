@@ -170,8 +170,8 @@ export interface HostedQuota {
 }
 
 export interface HostedCheckout {
+  browserUrl: string;
   checkoutId: string;
-  externalUrl: string;
   status: string;
 }
 

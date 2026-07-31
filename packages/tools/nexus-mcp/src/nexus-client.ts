@@ -16,6 +16,8 @@ import type { NexusSessionStore } from "./session-store.ts";
 
 const localNexusOrigin = "http://localhost:3000";
 const productionNexusOrigin = "https://nexus.microvoid.io";
+const hostedUserApiBasePath = "/api/v1/user";
+const hostedWorkspaceApiBasePath = `/api/v1/workspace/${workspaceSlug}`;
 const refreshSkewMs = 30_000;
 const maximumModelCatalogBytes = 8 * 1024 * 1024;
 const maximumModelCatalogEntries = 2_048;
@@ -127,7 +129,7 @@ export class NexusClient {
     const session = await this.ensureAccessSession();
     return parseHostedAccess(
       await this.#authorizedJson<unknown>(
-        new URL("/user/v1/me/access", session.nexusOrigin),
+        new URL(hostedUserApiPath("me/access"), session.nexusOrigin),
         session.accessToken,
       ),
     );
@@ -137,7 +139,7 @@ export class NexusClient {
     const session = await this.ensureAccessSession();
     return parseHostedQuota(
       await this.#authorizedJson<unknown>(
-        new URL("/user/v1/me/quota", session.nexusOrigin),
+        new URL(hostedUserApiPath("me/quota"), session.nexusOrigin),
         session.accessToken,
       ),
       "Nexus quota",
@@ -158,7 +160,7 @@ export class NexusClient {
     const session = await this.ensureAccessSession();
     return parseHostedCheckout(
       await this.#authorizedJson<unknown>(
-        new URL("/user/v1/billing-checkouts", session.nexusOrigin),
+        new URL(hostedUserApiPath("billing-checkouts"), session.nexusOrigin),
         session.accessToken,
         {
           body: JSON.stringify({ planKey }),
@@ -169,6 +171,7 @@ export class NexusClient {
           method: "POST",
         },
       ),
+      session.nexusOrigin,
     );
   }
 
@@ -179,7 +182,9 @@ export class NexusClient {
     return parseHostedCheckoutStatus(
       await this.#authorizedJson<unknown>(
         new URL(
-          `/user/v1/billing-checkouts/${encodeURIComponent(checkoutId)}`,
+          hostedUserApiPath(
+            `billing-checkouts/${encodeURIComponent(checkoutId)}`,
+          ),
           session.nexusOrigin,
         ),
         session.accessToken,
@@ -190,7 +195,7 @@ export class NexusClient {
   async providers(): Promise<readonly HostedProviderConnection[]> {
     const session = await this.ensureAccessSession();
     const providers = await this.#authorizedJson<unknown>(
-      new URL("/user/v1/provider-connections", session.nexusOrigin),
+      new URL(hostedUserApiPath("provider-connections"), session.nexusOrigin),
       session.accessToken,
     );
     if (!Array.isArray(providers))
@@ -371,7 +376,7 @@ export class NexusClient {
 
   async #refreshDataSession(session: HostedSession): Promise<HostedSession> {
     const result = await this.#authorizedJson<unknown>(
-      new URL("/user/v1/data-tokens", session.nexusOrigin),
+      new URL(hostedUserApiPath("data-tokens"), session.nexusOrigin),
       session.accessToken,
       { method: "POST" },
     );
@@ -399,7 +404,7 @@ export class NexusClient {
     try {
       if (grant) {
         await this.#fetch(
-          new URL(`/workspace/${workspaceSlug}/auth/revoke`, grant.nexusOrigin),
+          new URL(hostedWorkspaceAuthApiPath("revoke"), grant.nexusOrigin),
           {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -440,7 +445,7 @@ export class NexusClient {
       | { grantType: "refresh_token"; refreshToken: string },
   ): Promise<HostedTokenResponse> {
     const response = await this.#fetch(
-      new URL(`/workspace/${workspaceSlug}/auth/token`, nexusOrigin),
+      new URL(hostedWorkspaceAuthApiPath("token"), nexusOrigin),
       {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -496,6 +501,14 @@ export class NexusClient {
       throw new Error(`Nexus User API failed with HTTP ${response.status}`);
     return (await response.json()) as T;
   }
+}
+
+function hostedUserApiPath(path: string): string {
+  return `${hostedUserApiBasePath}/${path}`;
+}
+
+function hostedWorkspaceAuthApiPath(action: "revoke" | "token"): string {
+  return `${hostedWorkspaceApiBasePath}/auth/${action}`;
 }
 
 async function parseImageHttpError(response: Response): Promise<{ code?: string }> {
@@ -699,28 +712,72 @@ function parseHostedPlan(value: unknown, label: string) {
   };
 }
 
-function parseHostedCheckout(value: unknown): HostedCheckout {
+function parseHostedCheckout(
+  value: unknown,
+  nexusOrigin: string,
+): HostedCheckout {
   const input = record(value, "Nexus Checkout response");
-  const externalUrl = boundedString(
-    input.externalUrl,
-    "Nexus Checkout URL",
-    4_096,
+  const checkoutId = boundedString(
+    input.checkoutId,
+    "Nexus Checkout id",
+    191,
   );
-  const url = new URL(externalUrl);
+  const browserUrl =
+    input.action === undefined
+      ? validatedHttpsCheckoutUrl(input.externalUrl)
+      : checkoutActionBrowserUrl(input.action, nexusOrigin, checkoutId);
+  return {
+    browserUrl,
+    checkoutId,
+    status: boundedString(input.status, "Nexus Checkout status", 32),
+  };
+}
+
+function checkoutActionBrowserUrl(
+  value: unknown,
+  nexusOrigin: string,
+  checkoutId: string,
+): string {
+  const action = record(value, "Nexus Checkout action");
+  const kind = boundedString(action.kind, "Nexus Checkout action kind", 32);
+  if (kind === "REDIRECT") return validatedHttpsCheckoutUrl(action.url);
+  if (kind !== "QR_CODE") {
+    throw new Error("Nexus Checkout action is invalid");
+  }
+  boundedString(action.codeUrl, "Nexus Checkout QR code URL", 4_096);
+  const origin = new URL(nexusOrigin);
+  if (
+    origin.protocol !== "https:" ||
+    origin.username ||
+    origin.password ||
+    origin.pathname !== "/" ||
+    origin.search ||
+    origin.hash
+  ) {
+    throw new Error("Nexus Account Portal origin is invalid");
+  }
+  const portal = new URL(
+    `/workspace/${encodeURIComponent(workspaceSlug)}/account/subscription`,
+    origin,
+  );
+  portal.searchParams.set("checkout", checkoutId);
+  portal.searchParams.set("source", "convax-plugin");
+  return portal.href;
+}
+
+function validatedHttpsCheckoutUrl(value: unknown): string {
+  const checkoutUrl = boundedString(value, "Nexus Checkout URL", 4_096);
+  const url = new URL(checkoutUrl);
   if (
     url.protocol !== "https:" ||
     url.username ||
     url.password ||
     url.hash ||
-    url.href !== externalUrl
+    url.href !== checkoutUrl
   ) {
     throw new Error("Nexus Checkout URL is invalid");
   }
-  return {
-    checkoutId: boundedString(input.checkoutId, "Nexus Checkout id", 191),
-    externalUrl,
-    status: boundedString(input.status, "Nexus Checkout status", 32),
-  };
+  return checkoutUrl;
 }
 
 function parseHostedCheckoutStatus(value: unknown): HostedCheckoutStatus {

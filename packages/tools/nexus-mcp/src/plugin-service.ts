@@ -191,7 +191,7 @@ export class NexusPluginService {
     });
     return {
       checkout_id: checkout.checkoutId,
-      checkout_url: checkout.externalUrl,
+      checkout_url: checkout.browserUrl,
       schema: pluginServiceCheckoutSchema,
     };
   }

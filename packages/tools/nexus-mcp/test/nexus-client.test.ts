@@ -49,7 +49,7 @@ describe("NexusClient", () => {
             token_type: "Bearer",
           });
         }
-        if (url.pathname === "/user/v1/me/access") {
+        if (url.pathname === "/api/v1/user/me/access") {
           return Response.json({
             subject: "pairwise-subject",
             workspace: {
@@ -91,7 +91,7 @@ describe("NexusClient", () => {
             },
           });
         }
-        if (url.pathname === "/user/v1/billing-checkouts") {
+        if (url.pathname === "/api/v1/user/billing-checkouts") {
           checkoutRequests.push({
             body: JSON.parse(String(init?.body)),
             idempotencyKey: new Headers(init?.headers).get("idempotency-key"),
@@ -120,8 +120,8 @@ describe("NexusClient", () => {
     expect(
       await client.createCheckout("pro", "checkout_attempt_12345678"),
     ).toEqual({
+      browserUrl: "https://checkout.creem.test/session/hosted-user",
       checkoutId: "26010000-0000-4000-8000-000000000009",
-      externalUrl: "https://checkout.creem.test/session/hosted-user",
       status: "CREATED",
     });
     expect(checkoutRequests).toEqual([
@@ -130,6 +130,56 @@ describe("NexusClient", () => {
         idempotencyKey: "checkout_attempt_12345678",
       },
     ]);
+  });
+
+  test("opens QR Checkouts in the trusted Nexus Account Portal", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "convax-nexus-client-"),
+    );
+    roots.push(root);
+    const sessions = new NexusSessionStore({ XDG_CONFIG_HOME: root });
+    await sessions.write({
+      nexusOrigin: "https://nexus.microvoid.io",
+      refreshToken: "original-refresh-token-value",
+      schema: "convax.nexus-refresh-grant/1",
+      workspaceSlug: "convax",
+    });
+    const client = new NexusClient(sessions, {
+      fetch: async (input) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (url.pathname.endsWith("/auth/token")) {
+          return Response.json({
+            access_token: "fresh-access-token-with-sufficient-length",
+            data_token: "fresh-data-token-with-sufficient-length",
+            data_token_expires_at: "2026-07-26T08:10:00.000Z",
+            expires_in: 900,
+            refresh_token: "rotated-refresh-token-with-sufficient-length",
+            token_type: "Bearer",
+          });
+        }
+        if (url.pathname === "/api/v1/user/billing-checkouts") {
+          return Response.json({
+            action: {
+              codeUrl: "weixin://wxpay/bizpayurl?pr=test",
+              kind: "QR_CODE",
+            },
+            checkoutId: "26010000-0000-4000-8000-000000000009",
+            status: "CREATED",
+          });
+        }
+        throw new Error(`Unexpected request: ${url.pathname}`);
+      },
+      now: () => new Date("2026-07-26T08:00:00.000Z"),
+    });
+
+    expect(
+      await client.createCheckout("pro", "checkout_attempt_12345678"),
+    ).toEqual({
+      browserUrl:
+        "https://nexus.microvoid.io/workspace/convax/account/subscription?checkout=26010000-0000-4000-8000-000000000009&source=convax-plugin",
+      checkoutId: "26010000-0000-4000-8000-000000000009",
+      status: "CREATED",
+    });
   });
 
   test("accepts the deployed base Access shape and reads Quota from its dedicated endpoint", async () => {
@@ -157,7 +207,7 @@ describe("NexusClient", () => {
             token_type: "Bearer",
           });
         }
-        if (url.pathname === "/user/v1/me/access") {
+        if (url.pathname === "/api/v1/user/me/access") {
           return Response.json({
             subject: "pairwise-subject",
             workspace: {
@@ -173,7 +223,7 @@ describe("NexusClient", () => {
             },
           });
         }
-        if (url.pathname === "/user/v1/me/quota") {
+        if (url.pathname === "/api/v1/user/me/quota") {
           return Response.json({
             availableUnits: "998800",
             consumedUnits: "1200",
@@ -235,7 +285,7 @@ describe("NexusClient", () => {
           token_type: "Bearer",
         });
       }
-      if (url.pathname === "/user/v1/provider-connections") {
+      if (url.pathname === "/api/v1/user/provider-connections") {
         return Response.json([
           {
             gatewayBaseUrl:
@@ -263,11 +313,11 @@ describe("NexusClient", () => {
         grantType: "refresh_token",
         refreshToken: "original-refresh-token-value",
       },
-      pathname: "/workspace/convax/auth/token",
+      pathname: "/api/v1/workspace/convax/auth/token",
     });
     expect(requests[1]).toMatchObject({
       authorization: "Bearer fresh-access-token-with-sufficient-length",
-      pathname: "/user/v1/provider-connections",
+      pathname: "/api/v1/user/provider-connections",
     });
     expect((await sessions.read())?.refreshToken).toBe(
       "rotated-refresh-token-with-sufficient-length",
@@ -326,6 +376,69 @@ describe("NexusClient", () => {
     });
   });
 
+  test("uses versioned Hosted API routes when refreshing data access and signing out", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "convax-nexus-client-"),
+    );
+    roots.push(root);
+    const sessions = new NexusSessionStore({ XDG_CONFIG_HOME: root });
+    await sessions.write({
+      nexusOrigin: "http://localhost:3000",
+      refreshToken: "original-refresh-token-value",
+      schema: "convax.nexus-refresh-grant/1",
+      workspaceSlug: "convax",
+    });
+    const requests: Array<{ method: string; pathname: string }> = [];
+    const client = new NexusClient(sessions, {
+      fetch: async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        requests.push({
+          method: init?.method ?? "GET",
+          pathname: url.pathname,
+        });
+        if (url.pathname.endsWith("/auth/token")) {
+          return Response.json({
+            access_token: "fresh-access-token-with-sufficient-length",
+            data_token: "expired-data-token-with-sufficient-length",
+            data_token_expires_at: "2026-07-26T08:00:01.000Z",
+            expires_in: 900,
+            refresh_token: "rotated-refresh-token-with-sufficient-length",
+            token_type: "Bearer",
+          });
+        }
+        if (url.pathname === "/api/v1/user/data-tokens") {
+          return Response.json({
+            data_token: "refreshed-data-token-with-sufficient-length",
+            expires_at: "2026-07-26T08:10:00.000Z",
+          });
+        }
+        if (url.pathname.endsWith("/auth/revoke")) {
+          return new Response(null, { status: 204 });
+        }
+        throw new Error(`Unexpected request: ${url.pathname}`);
+      },
+      now: () => new Date("2026-07-26T08:00:00.000Z"),
+    });
+
+    expect((await client.ensureDataSession()).dataToken).toBe(
+      "refreshed-data-token-with-sufficient-length",
+    );
+    await client.signOut();
+
+    expect(requests).toEqual([
+      {
+        method: "POST",
+        pathname: "/api/v1/workspace/convax/auth/token",
+      },
+      { method: "POST", pathname: "/api/v1/user/data-tokens" },
+      {
+        method: "POST",
+        pathname: "/api/v1/workspace/convax/auth/revoke",
+      },
+    ]);
+    expect(await sessions.read()).toBeNull();
+  });
+
   test("keeps automatic routers in the LLM catalog but excludes them from image models", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "convax-nexus-client-"),
@@ -362,7 +475,7 @@ describe("NexusClient", () => {
             token_type: "Bearer",
           });
         }
-        if (url.pathname === "/user/v1/provider-connections") {
+        if (url.pathname === "/api/v1/user/provider-connections") {
           return Response.json([
             {
               gatewayBaseUrl:
@@ -473,7 +586,7 @@ describe("NexusClient", () => {
             token_type: "Bearer",
           });
         }
-        if (url.pathname === "/user/v1/provider-connections") {
+        if (url.pathname === "/api/v1/user/provider-connections") {
           return Response.json([
             {
               gatewayBaseUrl:
