@@ -278,6 +278,12 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
     !publishShell.includes("convax.vendored-host-package-closure/1") ||
     !publishShell.includes("convax.plugin-bundle-provenance/1") ||
     !publishShell.includes("Release version reuse is forbidden") ||
+    !publishShell.includes(
+      'gh release view "$tag" \\\n    --repo "$GITHUB_REPOSITORY"',
+    ) ||
+    !publishShell.includes(
+      'gh release create "$tag" \\\n    --repo "$GITHUB_REPOSITORY"',
+    ) ||
     !publishShell.includes('--target "$GITHUB_SHA"')
   ) {
     fail("publish job does not re-verify exact artifact-only provenance")

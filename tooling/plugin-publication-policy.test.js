@@ -147,6 +147,17 @@ describe("protected Plugin publication policy", () => {
       await fs.writeFile(
         path.join(fixture, ".github", "workflows", "release-on-main.yml"),
         release.replace(
+          'gh release create "$tag" \\\n              --repo "$GITHUB_REPOSITORY"',
+          'gh release create "$tag"',
+        ),
+      )
+      await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
+        "does not re-verify exact artifact-only provenance",
+      )
+
+      await fs.writeFile(
+        path.join(fixture, ".github", "workflows", "release-on-main.yml"),
+        release.replace(
           "tooling/vendored-host-package-closure.mjs",
           "tooling/workspace-closure-disabled.mjs",
         ),

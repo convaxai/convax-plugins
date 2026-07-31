@@ -664,7 +664,8 @@ jobs:
             tag="$(jq -r '.tag' <<<"$item")"
             package_dir="dist/$(jq -r '.directory' <<<"$item")"
             test -d "$package_dir"
-            if gh release view "$tag" >/dev/null 2>&1; then
+            if gh release view "$tag" \
+              --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
               echo "Release version reuse is forbidden: $tag" >&2
               exit 1
             fi
@@ -676,6 +677,7 @@ jobs:
             assets=("$package_dir"/*)
             test "${#assets[@]}" -gt 0
             gh release create "$tag" \
+              --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
               --title "$tag" \
               --notes "Deterministic Convax Marketplace package generated from protected main." \
