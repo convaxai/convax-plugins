@@ -52,11 +52,7 @@ export class NexusImageHttpError extends Error {
   readonly requestId: string;
   readonly status: number;
 
-  constructor(
-    status: number,
-    requestId: string,
-    code?: unknown,
-  ) {
+  constructor(status: number, requestId: string, code?: unknown) {
     super("Nexus image generation request was rejected");
     if (!Number.isInteger(status) || status < 100 || status > 599) {
       throw new Error("Nexus image HTTP diagnostic status is invalid");
@@ -78,6 +74,25 @@ export interface NexusClientOptions {
   productionOrigin?: string;
 }
 
+interface NexusGatewayContext {
+  credentialEpoch: number;
+  dataToken: string;
+  dataTokenExpiresAt: string;
+  provider: HostedProviderConnection;
+}
+
+export interface NexusImageRoute {
+  readonly maximumAgeMs: number;
+  readonly models: readonly NexusProviderModel[];
+  isCurrent(): boolean;
+  complete(
+    model: Pick<NexusProviderModel, "id" | "outputModalities">,
+    prompt: string,
+    operationId: string,
+    signal: AbortSignal,
+  ): Promise<unknown>;
+}
+
 export class NexusClient {
   readonly #fetch: (
     input: RequestInfo | URL,
@@ -87,6 +102,10 @@ export class NexusClient {
   readonly #now: () => Date;
   readonly #productionOrigin: string;
   #accessSessionRequest: Promise<HostedSession> | undefined;
+  #credentialEpoch = 0;
+  #credentialGeneration = 0;
+  #credentialStoreTail: Promise<void> = Promise.resolve();
+  #credentialTransition: number | undefined;
   #dataSessionRequest: Promise<HostedSession> | undefined;
   #resolvedOrigin: Promise<string> | undefined;
   #session: HostedSession | undefined;
@@ -113,16 +132,25 @@ export class NexusClient {
     nexusOrigin: string;
     redirectUri: string;
   }): Promise<HostedSession> {
-    const tokens = await this.#tokenRequest(input.nexusOrigin, {
-      grantType: "authorization_code",
-      code: input.code,
-      codeVerifier: input.codeVerifier,
-      redirectUri: input.redirectUri,
-    });
-    const session = this.#sessionFromTokens(input.nexusOrigin, tokens);
-    await this.sessions.write(refreshGrant(session));
-    this.#session = session;
-    return session;
+    const generation = this.#beginCredentialTransition();
+    try {
+      const tokens = await this.#tokenRequest(input.nexusOrigin, {
+        grantType: "authorization_code",
+        code: input.code,
+        codeVerifier: input.codeVerifier,
+        redirectUri: input.redirectUri,
+      });
+      const session = this.#sessionFromTokens(input.nexusOrigin, tokens);
+      return await this.#withCredentialStore(async () => {
+        this.#assertCredentialGeneration(generation);
+        await this.sessions.write(refreshGrant(session));
+        this.#assertCredentialGeneration(generation);
+        this.#replaceSession(session);
+        return session;
+      });
+    } finally {
+      this.#finishCredentialTransition(generation);
+    }
   }
 
   async access(): Promise<HostedAccess> {
@@ -194,6 +222,12 @@ export class NexusClient {
 
   async providers(): Promise<readonly HostedProviderConnection[]> {
     const session = await this.ensureAccessSession();
+    return this.#providers(session);
+  }
+
+  async #providers(
+    session: HostedSession,
+  ): Promise<readonly HostedProviderConnection[]> {
     const providers = await this.#authorizedJson<unknown>(
       new URL(hostedUserApiPath("provider-connections"), session.nexusOrigin),
       session.accessToken,
@@ -207,8 +241,20 @@ export class NexusClient {
     dataToken: string;
     provider: HostedProviderConnection;
   }> {
+    const { dataToken, provider } = await this.#gatewayContext();
+    return { dataToken, provider };
+  }
+
+  async #gatewayContext(): Promise<NexusGatewayContext> {
     const session = await this.ensureDataSession();
-    const providers = await this.providers();
+    const credentialEpoch = this.#credentialEpoch;
+    const providers = await this.#providers(session);
+    if (
+      credentialEpoch !== this.#credentialEpoch ||
+      session !== this.#session
+    ) {
+      throw new Error("Nexus credentials changed during route discovery");
+    }
     const provider = providers.find(
       (connection) =>
         connection.status === "ACTIVE" &&
@@ -217,7 +263,12 @@ export class NexusClient {
     );
     if (!provider)
       throw new Error("The Convax Workspace has no active OpenRouter Provider");
-    return { dataToken: session.dataToken, provider };
+    return {
+      credentialEpoch,
+      dataToken: session.dataToken,
+      dataTokenExpiresAt: session.dataTokenExpiresAt,
+      provider,
+    };
   }
 
   async models(signal?: AbortSignal): Promise<LlmModelCatalog> {
@@ -229,16 +280,49 @@ export class NexusClient {
     return { models, schema: llmModelCatalogSchema };
   }
 
-  async imageModels(signal?: AbortSignal): Promise<readonly NexusProviderModel[]> {
-    return (await this.providerModels(signal)).filter(
-      ({ id, outputModalities }) =>
-        outputModalities.includes("image") &&
-        !automaticOpenRouterModelIds.has(id),
-    );
+  async imageModels(
+    signal?: AbortSignal,
+  ): Promise<readonly NexusProviderModel[]> {
+    return (await this.providerModels(signal)).filter(isExecutableImageModel);
   }
 
-  async providerModels(signal?: AbortSignal): Promise<readonly NexusProviderModel[]> {
-    const context = await this.gatewayContext();
+  async providerModels(
+    signal?: AbortSignal,
+  ): Promise<readonly NexusProviderModel[]> {
+    return this.#providerModels(await this.#gatewayContext(), signal);
+  }
+
+  async imageRoute(signal?: AbortSignal): Promise<NexusImageRoute> {
+    const context = await this.#gatewayContext();
+    const models = (await this.#providerModels(context, signal)).filter(
+      isExecutableImageModel,
+    );
+    this.#assertCurrentContext(context);
+    const maximumAgeMs = Math.max(
+      0,
+      new Date(context.dataTokenExpiresAt).getTime() -
+        this.#now().getTime() -
+        refreshSkewMs,
+    );
+    return {
+      complete: (model, prompt, operationId, completionSignal) =>
+        this.#imageCompletion(
+          context,
+          model,
+          prompt,
+          operationId,
+          completionSignal,
+        ),
+      isCurrent: () => context.credentialEpoch === this.#credentialEpoch,
+      maximumAgeMs,
+      models,
+    };
+  }
+
+  async #providerModels(
+    context: NexusGatewayContext,
+    signal?: AbortSignal,
+  ): Promise<readonly NexusProviderModel[]> {
     const requestSignal = signal
       ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
       : AbortSignal.timeout(15_000);
@@ -268,26 +352,48 @@ export class NexusClient {
     } catch {
       throw new Error("Nexus model catalog response is invalid");
     }
-    return parseModelCatalog(parsed);
+    const models = parseModelCatalog(parsed);
+    this.#assertCurrentContext(context);
+    return models;
   }
 
   async imageCompletion(
-    model: string,
+    model: Pick<NexusProviderModel, "id" | "outputModalities">,
     prompt: string,
     operationId: string,
     signal: AbortSignal,
   ): Promise<unknown> {
+    return this.#imageCompletion(
+      await this.#gatewayContext(),
+      model,
+      prompt,
+      operationId,
+      signal,
+    );
+  }
+
+  async #imageCompletion(
+    context: NexusGatewayContext,
+    model: Pick<NexusProviderModel, "id" | "outputModalities">,
+    prompt: string,
+    operationId: string,
+    signal: AbortSignal,
+  ): Promise<unknown> {
+    this.#assertCurrentContext(context);
+    if (!openRouterModelIdPattern.test(model.id)) {
+      throw new Error("Nexus image model is invalid");
+    }
     if (!nexusRequestIdPattern.test(operationId)) {
       throw new Error("Nexus image generation operation id is invalid");
     }
-    const context = await this.gatewayContext();
+    const modalities = imageCompletionModalities(model.outputModalities);
     const response = await this.#fetch(
       new URL(`${context.provider.gatewayBaseUrl}/chat/completions`),
       {
         body: JSON.stringify({
           messages: [{ content: prompt, role: "user" }],
-          modalities: ["image", "text"],
-          model,
+          modalities,
+          model: model.id,
           stream: false,
         }),
         headers: {
@@ -301,11 +407,7 @@ export class NexusClient {
     );
     if (!response.ok) {
       const error = await parseImageHttpError(response);
-      throw new NexusImageHttpError(
-        response.status,
-        operationId,
-        error.code,
-      );
+      throw new NexusImageHttpError(response.status, operationId, error.code);
     }
     const declared = Number(response.headers.get("content-length") ?? 0);
     if (Number.isFinite(declared) && declared > maximumImageCompletionBytes) {
@@ -326,6 +428,9 @@ export class NexusClient {
   }
 
   async ensureAccessSession(): Promise<HostedSession> {
+    if (this.#credentialTransition !== undefined) {
+      throw new Error("Nexus credentials are changing");
+    }
     const session = this.#session;
     if (
       session &&
@@ -335,46 +440,75 @@ export class NexusClient {
       return session;
     }
     if (this.#accessSessionRequest) return this.#accessSessionRequest;
-    const request = this.#refreshAccessSession();
+    const generation = this.#credentialGeneration;
+    const request = this.#refreshAccessSession(generation);
     this.#accessSessionRequest = request;
-    void request.finally(() => {
-      if (this.#accessSessionRequest === request)
-        this.#accessSessionRequest = undefined;
-    });
+    void request.then(
+      () => {
+        if (this.#accessSessionRequest === request)
+          this.#accessSessionRequest = undefined;
+      },
+      () => {
+        if (this.#accessSessionRequest === request)
+          this.#accessSessionRequest = undefined;
+      },
+    );
     return request;
   }
 
-  async #refreshAccessSession(): Promise<HostedSession> {
-    const grant = await this.sessions.read();
+  async #refreshAccessSession(generation: number): Promise<HostedSession> {
+    const grant = await this.#withCredentialStore(async () => {
+      this.#assertCredentialGeneration(generation);
+      const stored = await this.sessions.read();
+      this.#assertCredentialGeneration(generation);
+      return stored;
+    });
     if (!grant) throw new Error("Nexus is not connected");
     const tokens = await this.#tokenRequest(grant.nexusOrigin, {
       grantType: "refresh_token",
       refreshToken: grant.refreshToken,
     });
     const refreshed = this.#sessionFromTokens(grant.nexusOrigin, tokens);
-    await this.sessions.write(refreshGrant(refreshed));
-    this.#session = refreshed;
-    return refreshed;
+    return this.#withCredentialStore(async () => {
+      this.#assertCredentialGeneration(generation);
+      await this.sessions.write(refreshGrant(refreshed));
+      this.#assertCredentialGeneration(generation);
+      this.#replaceSession(refreshed);
+      return refreshed;
+    });
   }
 
   async ensureDataSession(): Promise<HostedSession> {
     const session = await this.ensureAccessSession();
+    if (this.#credentialTransition !== undefined || session !== this.#session) {
+      throw new Error("Nexus credentials changed before Data Token refresh");
+    }
     if (
       new Date(session.dataTokenExpiresAt).getTime() >
       this.#now().getTime() + refreshSkewMs
     )
       return session;
     if (this.#dataSessionRequest) return this.#dataSessionRequest;
-    const request = this.#refreshDataSession(session);
+    const generation = this.#credentialGeneration;
+    const request = this.#refreshDataSession(session, generation);
     this.#dataSessionRequest = request;
-    void request.finally(() => {
-      if (this.#dataSessionRequest === request)
-        this.#dataSessionRequest = undefined;
-    });
+    void request.then(
+      () => {
+        if (this.#dataSessionRequest === request)
+          this.#dataSessionRequest = undefined;
+      },
+      () => {
+        if (this.#dataSessionRequest === request)
+          this.#dataSessionRequest = undefined;
+      },
+    );
     return request;
   }
 
-  async #refreshDataSession(session: HostedSession): Promise<HostedSession> {
+  async #refreshDataSession(
+    session: HostedSession,
+    generation: number,
+  ): Promise<HostedSession> {
     const result = await this.#authorizedJson<unknown>(
       new URL(hostedUserApiPath("data-tokens"), session.nexusOrigin),
       session.accessToken,
@@ -392,16 +526,26 @@ export class NexusClient {
       dataToken,
       dataTokenExpiresAt: expiresAt,
     };
-    this.#session = updated;
+    this.#assertCredentialGeneration(generation);
+    if (session !== this.#session) {
+      throw new Error("Nexus credentials changed during Data Token refresh");
+    }
+    this.#replaceSession(updated);
     return updated;
   }
 
   async signOut(): Promise<void> {
-    const grant = this.#session
-      ? refreshGrant(this.#session)
-      : await this.sessions.read().catch(() => null);
-    this.#session = undefined;
+    const memoryGrant = this.#session ? refreshGrant(this.#session) : null;
+    const generation = this.#beginCredentialTransition();
     try {
+      const storedGrant = await this.#withCredentialStore(async () => {
+        this.#assertCredentialGeneration(generation);
+        const grant = await this.sessions.read().catch(() => null);
+        this.#assertCredentialGeneration(generation);
+        await this.sessions.clear();
+        return grant;
+      });
+      const grant = memoryGrant ?? storedGrant;
       if (grant) {
         await this.#fetch(
           new URL(hostedWorkspaceAuthApiPath("revoke"), grant.nexusOrigin),
@@ -414,8 +558,50 @@ export class NexusClient {
         );
       }
     } finally {
-      await this.sessions.clear();
+      this.#finishCredentialTransition(generation);
     }
+  }
+
+  #assertCurrentContext(context: NexusGatewayContext) {
+    if (context.credentialEpoch !== this.#credentialEpoch) {
+      throw new Error("Nexus image route credentials changed");
+    }
+  }
+
+  #replaceSession(session: HostedSession) {
+    this.#credentialEpoch += 1;
+    this.#session = session;
+  }
+
+  #beginCredentialTransition(): number {
+    const generation = ++this.#credentialGeneration;
+    this.#credentialEpoch += 1;
+    this.#session = undefined;
+    this.#accessSessionRequest = undefined;
+    this.#dataSessionRequest = undefined;
+    this.#credentialTransition = generation;
+    return generation;
+  }
+
+  #finishCredentialTransition(generation: number) {
+    if (this.#credentialTransition === generation) {
+      this.#credentialTransition = undefined;
+    }
+  }
+
+  #assertCredentialGeneration(generation: number) {
+    if (generation !== this.#credentialGeneration) {
+      throw new Error("Nexus credentials changed during the request");
+    }
+  }
+
+  #withCredentialStore<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.#credentialStoreTail.then(operation);
+    this.#credentialStoreTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
   }
 
   async #detectOrigin(): Promise<string> {
@@ -503,6 +689,20 @@ export class NexusClient {
   }
 }
 
+function imageCompletionModalities(
+  outputModalities: readonly string[],
+): readonly ["image", "text"] {
+  if (
+    !outputModalities.includes("image") ||
+    !outputModalities.includes("text")
+  ) {
+    throw new Error(
+      "Nexus image model is incompatible with the metered Chat Completions route",
+    );
+  }
+  return ["image", "text"];
+}
+
 function hostedUserApiPath(path: string): string {
   return `${hostedUserApiBasePath}/${path}`;
 }
@@ -511,7 +711,9 @@ function hostedWorkspaceAuthApiPath(action: "revoke" | "token"): string {
   return `${hostedWorkspaceApiBasePath}/auth/${action}`;
 }
 
-async function parseImageHttpError(response: Response): Promise<{ code?: string }> {
+async function parseImageHttpError(
+  response: Response,
+): Promise<{ code?: string }> {
   const serialized = await readBoundedResponseText(
     response,
     maximumImageErrorBytes,
@@ -528,7 +730,9 @@ async function parseImageHttpError(response: Response): Promise<{ code?: string 
   }
   const input = parsed as Record<string, unknown>;
   const error =
-    input.error && typeof input.error === "object" && !Array.isArray(input.error)
+    input.error &&
+    typeof input.error === "object" &&
+    !Array.isArray(input.error)
       ? (input.error as Record<string, unknown>)
       : undefined;
   const code = validErrorCode(error?.code);
@@ -684,7 +888,10 @@ function parseHostedQuota(value: unknown, label: string): HostedQuota {
           budgetUsd: decimalUsd(input.budgetUsd, "Nexus quota budget"),
           reservedUsd: decimalUsd(input.reservedUsd, "Nexus reserved budget"),
           consumedUsd: decimalUsd(input.consumedUsd, "Nexus consumed budget"),
-          availableUsd: decimalUsd(input.availableUsd, "Nexus available budget"),
+          availableUsd: decimalUsd(
+            input.availableUsd,
+            "Nexus available budget",
+          ),
         }),
     availableUnits: decimalUnits(input.availableUnits, "Nexus available quota"),
     consumedUnits: decimalUnits(input.consumedUnits, "Nexus consumed quota"),
@@ -882,6 +1089,17 @@ function parseProviderConnection(value: unknown): HostedProviderConnection {
     status: boundedString(input.status, "Nexus ProviderConnection status", 40),
     workspaceId: boundedString(input.workspaceId, "Nexus Workspace id", 160),
   };
+}
+
+function isExecutableImageModel({
+  id,
+  outputModalities,
+}: NexusProviderModel): boolean {
+  return (
+    outputModalities.includes("image") &&
+    outputModalities.includes("text") &&
+    !automaticOpenRouterModelIds.has(id)
+  );
 }
 
 function parseModelCatalog(value: unknown): readonly NexusProviderModel[] {

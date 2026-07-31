@@ -5,6 +5,7 @@ import {
   NexusClient,
   NexusImageHttpError,
   type NexusClientOptions,
+  type NexusImageRoute,
 } from "./nexus-client.ts";
 import { NexusImageGenerator } from "./image-generator.ts";
 import { NexusLlmGateway } from "./llm-gateway.ts";
@@ -33,6 +34,15 @@ const generationCallProperties = {
   references: { maxItems: 0, type: "array" },
   schema: { const: "convax.generation-call/1", type: "string" },
 } as const;
+
+function imageModelChoices(models: readonly { id: string; name: string }[]) {
+  return models
+    .map(({ id, name }) => ({ id, name }))
+    .sort(
+      (left, right) =>
+        left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
+    );
+}
 
 export function imageGenerationTool(
   models: readonly { id: string; name: string }[],
@@ -205,10 +215,10 @@ export class NexusMcpServer {
   readonly #sendValue: (value: unknown) => void;
   readonly #service: NexusPluginService;
   readonly #imageGenerator: NexusImageGenerator;
-  #imageModelsRequest:
-    | Promise<readonly { id: string; name: string }[]>
-    | undefined;
-  #imageModelsLoadedAt = 0;
+  #activeImageRoute: NexusImageRoute | undefined;
+  #imageRouteEpoch = 0;
+  #imageRouteExpiresAt = 0;
+  #imageRouteRequest: Promise<NexusImageRoute> | undefined;
   #closed = false;
   #reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
 
@@ -227,7 +237,7 @@ export class NexusMcpServer {
       checkouts,
     );
     this.#gateway = new NexusLlmGateway(client);
-    this.#imageGenerator = new NexusImageGenerator(client);
+    this.#imageGenerator = new NexusImageGenerator();
     this.#sendValue =
       options.send ??
       ((value) => {
@@ -305,7 +315,7 @@ export class NexusMcpServer {
       this.#sendResult(value.id, {
         capabilities: { tools: {} },
         protocolVersion,
-        serverInfo: { name: "convax-nexus-mcp", version: "0.3.11" },
+        serverInfo: { name: "convax-nexus-mcp", version: "0.3.13" },
       });
       return;
     }
@@ -362,6 +372,7 @@ export class NexusMcpServer {
       } else if (params.name === "service.reauthorize") {
         structuredContent = await this.#service.reauthorize();
       } else if (params.name === "service.authorization.complete") {
+        this.#invalidateImageRoute();
         structuredContent = await this.#service.complete(
           input,
           controller.signal,
@@ -369,6 +380,7 @@ export class NexusMcpServer {
       } else if (params.name === "service.authorization.cancel") {
         structuredContent = await this.#service.cancel();
       } else if (params.name === "service.sign_out") {
+        this.#invalidateImageRoute();
         structuredContent = await this.#service.signOut();
       } else if (params.name === "service.checkout") {
         structuredContent = await this.#service.checkout(
@@ -378,6 +390,7 @@ export class NexusMcpServer {
         structuredContent = {
           artifacts: await this.#imageGenerator.generate(
             input,
+            () => this.#currentImageRoute(),
             controller.signal,
           ),
         };
@@ -415,46 +428,76 @@ export class NexusMcpServer {
 
   async #listedTools() {
     try {
-      const models = await this.#loadImageModels();
-      return [imageGenerationTool(models), ...fixedTools];
+      const route = await this.#loadImageRoute();
+      return [
+        imageGenerationTool(imageModelChoices(route.models)),
+        ...fixedTools,
+      ];
     } catch {
       return tools;
     }
   }
 
-  #loadImageModels() {
+  #loadImageRoute(): Promise<NexusImageRoute> {
     if (
-      this.#imageModelsRequest &&
-      (this.#imageModelsLoadedAt === 0 ||
-        Date.now() - this.#imageModelsLoadedAt < imageModelCatalogTtlMs)
+      this.#imageRouteRequest &&
+      (this.#activeImageRoute === undefined ||
+        (Date.now() < this.#imageRouteExpiresAt &&
+          this.#activeImageRoute.isCurrent()))
     ) {
-      return this.#imageModelsRequest;
+      return this.#imageRouteRequest;
     }
-    const request = this.#client.imageModels().then((models) =>
-      models
-        .map(({ id, name }) => ({ id, name }))
-        .sort(
-          (left, right) =>
-            left.name.localeCompare(right.name) ||
-            left.id.localeCompare(right.id),
-        ),
-    );
-    this.#imageModelsLoadedAt = 0;
-    this.#imageModelsRequest = request;
+    this.#invalidateImageRoute();
+    const epoch = this.#imageRouteEpoch;
+    const request = this.#client.imageRoute().then((route) => {
+      if (epoch !== this.#imageRouteEpoch) {
+        throw new Error("Nexus image route request was invalidated");
+      }
+      imageGenerationTool(imageModelChoices(route.models));
+      if (!Number.isFinite(route.maximumAgeMs) || route.maximumAgeMs <= 0) {
+        throw new Error("Nexus image route expires too soon");
+      }
+      return route;
+    });
+    this.#imageRouteRequest = request;
     void request.then(
-      () => {
-        if (this.#imageModelsRequest === request)
-          this.#imageModelsLoadedAt = Date.now();
+      (route) => {
+        if (
+          epoch !== this.#imageRouteEpoch ||
+          this.#imageRouteRequest !== request
+        ) {
+          return;
+        }
+        this.#activeImageRoute = route;
+        this.#imageRouteExpiresAt =
+          Date.now() + Math.min(imageModelCatalogTtlMs, route.maximumAgeMs);
       },
       () => undefined,
     );
     void request.catch(() => {
-      if (this.#imageModelsRequest === request) {
-        this.#imageModelsRequest = undefined;
-        this.#imageModelsLoadedAt = 0;
-      }
+      if (this.#imageRouteRequest === request) this.#invalidateImageRoute();
     });
     return request;
+  }
+
+  #currentImageRoute(): NexusImageRoute {
+    const route = this.#activeImageRoute;
+    if (
+      !route ||
+      Date.now() >= this.#imageRouteExpiresAt ||
+      !route.isCurrent()
+    ) {
+      this.#invalidateImageRoute();
+      throw new Error("Nexus image models must be refreshed before generation");
+    }
+    return route;
+  }
+
+  #invalidateImageRoute() {
+    this.#imageRouteEpoch += 1;
+    this.#activeImageRoute = undefined;
+    this.#imageRouteExpiresAt = 0;
+    this.#imageRouteRequest = undefined;
   }
 
   #sendResult(id: number | string, result: unknown) {

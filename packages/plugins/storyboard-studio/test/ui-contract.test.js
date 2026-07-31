@@ -69,4 +69,12 @@ describe("storyboard production workbench", () => {
     expect(app).toContain("故事板已创建，部分载入")
     expect(app).toContain("已刷新，故事板部分载入")
   })
+
+  test("lets both stacked launcher cards size to their content at the packaged viewport", async () => {
+    const css = await readFile(path.join(packageRoot, "assets/styles.css"), "utf8")
+
+    expect(css).toMatch(
+      /@media \(max-width: 840px\) \{[\s\S]*?\.launch-composer,\s*\.pipeline-panel\s*\{\s*min-height:\s*auto;/u,
+    )
+  })
 })

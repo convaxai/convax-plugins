@@ -9,7 +9,7 @@ import {
   type GenerationArtifact,
   type GenerationCall,
 } from "./contracts.ts";
-import type { NexusClient } from "./nexus-client.ts";
+import type { NexusImageRoute } from "./nexus-client.ts";
 
 const maximumPromptBytes = 20_000;
 const maximumImageBytes = 12 * 1024 * 1024;
@@ -33,10 +33,9 @@ interface DecodedImage {
 export class NexusImageGenerator {
   readonly #operations = new Map<string, TrackedOperation>();
 
-  constructor(private readonly client: NexusClient) {}
-
   generate(
     value: unknown,
+    resolveRoute: () => NexusImageRoute,
     signal: AbortSignal,
   ): Promise<readonly GenerationArtifact[]> {
     const call = parseGenerationCall(value);
@@ -57,25 +56,28 @@ export class NexusImageGenerator {
         "Nexus generation operation history is full; restart the companion before generating again",
       );
     }
-    const result = this.#generate(call, signal);
+    const result = this.#generate(call, resolveRoute, signal);
     this.#operations.set(call.operation_id, { fingerprint, result });
     return result;
   }
 
   async #generate(
     call: GenerationCall,
+    resolveRoute: () => NexusImageRoute,
     signal: AbortSignal,
   ): Promise<readonly GenerationArtifact[]> {
     if (signal.aborted) throw abortError();
-    const available = await this.client.imageModels(signal);
-    if (!available.some(({ id }) => id === call.model)) {
-      throw new Error("The selected Nexus image model is unavailable");
-    }
     const outputDirectory = await validateOutputDirectory(
       call.output_directory,
     );
-    const response = await this.client.imageCompletion(
-      call.model,
+    if (signal.aborted) throw abortError();
+    const route = resolveRoute();
+    const model = route.models.find(({ id }) => id === call.model);
+    if (!model) {
+      throw new Error("The selected Nexus image model is unavailable");
+    }
+    const response = await route.complete(
+      model,
       call.prompt,
       call.operation_id,
       signal,
@@ -148,7 +150,12 @@ function parseGenerationCall(value: unknown): GenerationCall {
   const model = trimmedString(input.model, "Nexus image model", 191);
   if (!modelIdPattern.test(model))
     throw new Error("Nexus image model is invalid");
-  const prompt = trimmedString(input.prompt, "Nexus image prompt", 20_000, true);
+  const prompt = trimmedString(
+    input.prompt,
+    "Nexus image prompt",
+    20_000,
+    true,
+  );
   if (Buffer.byteLength(prompt, "utf8") > maximumPromptBytes) {
     throw new Error("Nexus image prompt is too large");
   }
@@ -195,7 +202,11 @@ function parseImages(value: unknown): readonly DecodedImage[] {
     throw new Error("Nexus image response choices are invalid");
   }
   const images: DecodedImage[] = [];
-  for (let choiceIndex = 0; choiceIndex < response.choices.length; choiceIndex += 1) {
+  for (
+    let choiceIndex = 0;
+    choiceIndex < response.choices.length;
+    choiceIndex += 1
+  ) {
     const choice = asRecord(
       response.choices[choiceIndex],
       `Nexus image response choice ${choiceIndex}`,
@@ -205,7 +216,10 @@ function parseImages(value: unknown): readonly DecodedImage[] {
       `Nexus image response choice ${choiceIndex} message`,
     );
     if (message.images === undefined) continue;
-    if (!Array.isArray(message.images) || message.images.length > maximumImages) {
+    if (
+      !Array.isArray(message.images) ||
+      message.images.length > maximumImages
+    ) {
       throw new Error("Nexus image response image list is invalid");
     }
     for (const image of message.images) {
@@ -228,11 +242,14 @@ function decodeImageDataUrl(value: unknown): DecodedImage {
   if (typeof value !== "string" || value.length > maximumImageBytes * 2) {
     throw new Error("Nexus generated image URL is invalid");
   }
-  const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/u.exec(
-    value,
-  );
+  const match =
+    /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/u.exec(
+      value,
+    );
   if (!match?.[1] || !match[2])
-    throw new Error("Nexus generated image must be an embedded supported image");
+    throw new Error(
+      "Nexus generated image must be an embedded supported image",
+    );
   if (match[2].length % 4 !== 0)
     throw new Error("Nexus generated image encoding is invalid");
   const decoded = Buffer.from(match[2], "base64");
@@ -244,7 +261,9 @@ function decodeImageDataUrl(value: unknown): DecodedImage {
   }
   const mimeType = match[1] as DecodedImage["mimeType"];
   if (!matchesImageSignature(bytes, mimeType)) {
-    throw new Error("Nexus generated image bytes do not match their media type");
+    throw new Error(
+      "Nexus generated image bytes do not match their media type",
+    );
   }
   return {
     bytes,
@@ -263,10 +282,18 @@ function matchesImageSignature(
   mimeType: DecodedImage["mimeType"],
 ) {
   if (mimeType === "image/jpeg")
-    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    return (
+      bytes.length >= 3 &&
+      bytes[0] === 0xff &&
+      bytes[1] === 0xd8 &&
+      bytes[2] === 0xff
+    );
   if (mimeType === "image/png") {
     const signature = [137, 80, 78, 71, 13, 10, 26, 10];
-    return bytes.length >= signature.length && signature.every((value, index) => bytes[index] === value);
+    return (
+      bytes.length >= signature.length &&
+      signature.every((value, index) => bytes[index] === value)
+    );
   }
   return (
     bytes.length >= 12 &&

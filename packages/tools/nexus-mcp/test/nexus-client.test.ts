@@ -3,13 +3,20 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import {
-  NexusClient,
-  NexusImageHttpError,
-} from "../src/nexus-client.ts";
+import { NexusClient, NexusImageHttpError } from "../src/nexus-client.ts";
 import { NexusSessionStore } from "../src/session-store.ts";
 
 const roots: string[] = [];
+
+function deferred<T>() {
+  let reject!: (reason?: unknown) => void;
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
+}
 
 afterEach(async () => {
   await Promise.all(
@@ -376,6 +383,144 @@ describe("NexusClient", () => {
     });
   });
 
+  test("sign-out prevents a delayed refresh response from restoring the old grant", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "convax-nexus-client-"),
+    );
+    roots.push(root);
+    const sessions = new NexusSessionStore({ XDG_CONFIG_HOME: root });
+    await sessions.write({
+      nexusOrigin: "http://localhost:3000",
+      refreshToken: "original-refresh-token-value",
+      schema: "convax.nexus-refresh-grant/1",
+      workspaceSlug: "convax",
+    });
+    const refreshStarted = deferred<void>();
+    const refreshResponse = deferred<Response>();
+    let revokeRequests = 0;
+    const client = new NexusClient(sessions, {
+      fetch: async (input) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (url.pathname.endsWith("/auth/token")) {
+          refreshStarted.resolve();
+          return refreshResponse.promise;
+        }
+        if (url.pathname.endsWith("/auth/revoke")) {
+          revokeRequests += 1;
+          return Response.json({});
+        }
+        throw new Error(`Unexpected request: ${url.pathname}`);
+      },
+      now: () => new Date("2026-07-26T08:00:00.000Z"),
+    });
+
+    const staleRefresh = client.ensureAccessSession();
+    await refreshStarted.promise;
+    await client.signOut();
+    expect(await sessions.read()).toBeNull();
+
+    refreshResponse.resolve(
+      Response.json({
+        access_token: "stale-access-token-with-sufficient-length",
+        data_token: "stale-data-token-with-sufficient-length",
+        data_token_expires_at: "2026-07-26T08:10:00.000Z",
+        expires_in: 900,
+        refresh_token: "stale-rotated-refresh-token-with-sufficient-length",
+        token_type: "Bearer",
+      }),
+    );
+
+    await expect(staleRefresh).rejects.toThrow(
+      "credentials changed during the request",
+    );
+    expect(revokeRequests).toBe(1);
+    expect(await sessions.read()).toBeNull();
+    await expect(client.ensureAccessSession()).rejects.toThrow(
+      "Nexus is not connected",
+    );
+  });
+
+  test("authorization completion prevents a delayed Data Token from replacing the new session", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "convax-nexus-client-"),
+    );
+    roots.push(root);
+    const sessions = new NexusSessionStore({ XDG_CONFIG_HOME: root });
+    await sessions.write({
+      nexusOrigin: "http://localhost:3000",
+      refreshToken: "original-refresh-token-value",
+      schema: "convax.nexus-refresh-grant/1",
+      workspaceSlug: "convax",
+    });
+    const dataRefreshStarted = deferred<void>();
+    const dataRefreshResponse = deferred<Response>();
+    const client = new NexusClient(sessions, {
+      fetch: async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (url.pathname.endsWith("/auth/token")) {
+          const body = JSON.parse(String(init?.body)) as {
+            grantType?: string;
+          };
+          if (body.grantType === "authorization_code") {
+            return Response.json({
+              access_token: "reauthorized-access-token-with-sufficient-length",
+              data_token: "reauthorized-data-token-with-sufficient-length",
+              data_token_expires_at: "2026-07-26T08:20:00.000Z",
+              expires_in: 900,
+              refresh_token:
+                "reauthorized-refresh-token-with-sufficient-length",
+              token_type: "Bearer",
+            });
+          }
+          return Response.json({
+            access_token: "old-access-token-with-sufficient-length",
+            data_token: "expired-data-token-with-sufficient-length",
+            data_token_expires_at: "2026-07-26T08:00:10.000Z",
+            expires_in: 900,
+            refresh_token: "rotated-old-refresh-token-with-sufficient-length",
+            token_type: "Bearer",
+          });
+        }
+        if (url.pathname === "/api/v1/user/data-tokens") {
+          dataRefreshStarted.resolve();
+          return dataRefreshResponse.promise;
+        }
+        throw new Error(`Unexpected request: ${url.pathname}`);
+      },
+      now: () => new Date("2026-07-26T08:00:00.000Z"),
+    });
+
+    await client.ensureAccessSession();
+    const staleDataRefresh = client.ensureDataSession();
+    await dataRefreshStarted.promise;
+    const reauthorized = await client.exchangeAuthorizationCode({
+      code: "authorization-code",
+      codeVerifier: "authorization-code-verifier",
+      nexusOrigin: "http://localhost:3000",
+      redirectUri: "http://127.0.0.1:43123/callback",
+    });
+    expect(reauthorized.refreshToken).toBe(
+      "reauthorized-refresh-token-with-sufficient-length",
+    );
+
+    dataRefreshResponse.resolve(
+      Response.json({
+        data_token: "stale-refreshed-data-token-with-sufficient-length",
+        expires_at: "2026-07-26T08:30:00.000Z",
+      }),
+    );
+
+    await expect(staleDataRefresh).rejects.toThrow(
+      "credentials changed during the request",
+    );
+    expect((await sessions.read())?.refreshToken).toBe(
+      "reauthorized-refresh-token-with-sufficient-length",
+    );
+    expect((await client.ensureDataSession()).dataToken).toBe(
+      "reauthorized-data-token-with-sufficient-length",
+    );
+  });
+
   test("uses versioned Hosted API routes when refreshing data access and signing out", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "convax-nexus-client-"),
@@ -439,7 +584,7 @@ describe("NexusClient", () => {
     expect(await sessions.read()).toBeNull();
   });
 
-  test("keeps automatic routers in the LLM catalog but excludes them from image models", async () => {
+  test("keeps automatic routers in the LLM catalog and exposes only metered image-and-text models for generation", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "convax-nexus-client-"),
     );
@@ -520,6 +665,11 @@ describe("NexusClient", () => {
                 id: "openai/gpt-image-1",
                 name: "GPT Image 1",
               },
+              {
+                architecture: { output_modalities: ["image"] },
+                id: "black-forest-labs/flux.2-flex",
+                name: "FLUX.2 Flex",
+              },
             ],
           });
         }
@@ -553,6 +703,99 @@ describe("NexusClient", () => {
         outputModalities: ["image", "text"],
       },
     ]);
+    const route = await client.imageRoute();
+    expect(route.maximumAgeMs).toBe(570_000);
+    expect(route.models).toEqual([
+      {
+        id: "openai/gpt-image-1",
+        name: "GPT Image 1",
+        outputModalities: ["image", "text"],
+      },
+    ]);
+    expect(route).not.toHaveProperty("dataToken");
+    expect(route).not.toHaveProperty("provider");
+  });
+
+  test("invalidates a prepared image route when the credential session refreshes", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "convax-nexus-client-"),
+    );
+    roots.push(root);
+    const sessions = new NexusSessionStore({ XDG_CONFIG_HOME: root });
+    await sessions.write({
+      nexusOrigin: "http://localhost:3000",
+      refreshToken: "original-refresh-token-value",
+      schema: "convax.nexus-refresh-grant/1",
+      workspaceSlug: "convax",
+    });
+    let now = new Date("2026-07-27T08:00:00.000Z");
+    let completionRequests = 0;
+    let tokenRequests = 0;
+    const client = new NexusClient(sessions, {
+      fetch: async (input) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (url.pathname.endsWith("/auth/token")) {
+          tokenRequests += 1;
+          return Response.json({
+            access_token: `access-token-${tokenRequests}-with-sufficient-length`,
+            data_token: `data-token-${tokenRequests}-with-sufficient-length`,
+            data_token_expires_at: new Date(
+              now.getTime() + 10 * 60_000,
+            ).toISOString(),
+            expires_in: 900,
+            refresh_token: `refresh-token-${tokenRequests}-with-sufficient-length`,
+            token_type: "Bearer",
+          });
+        }
+        if (url.pathname === "/api/v1/user/provider-connections") {
+          return Response.json([
+            {
+              gatewayBaseUrl:
+                "http://localhost:4000/providers/26010000-0000-4000-8000-000000000010",
+              id: "26010000-0000-4000-8000-000000000010",
+              name: "OpenRouter",
+              protocolProfile: "openai-compatible",
+              status: "ACTIVE",
+              workspaceId: "26010000-0000-4000-8000-000000000003",
+            },
+          ]);
+        }
+        if (url.pathname.endsWith("/models")) {
+          return Response.json({
+            data: [
+              {
+                architecture: { output_modalities: ["image", "text"] },
+                id: "openai/gpt-image-1",
+                name: "GPT Image 1",
+              },
+            ],
+          });
+        }
+        if (url.pathname.endsWith("/chat/completions")) {
+          completionRequests += 1;
+          return Response.json({ choices: [] });
+        }
+        throw new Error(`Unexpected request: ${url.pathname}`);
+      },
+      now: () => now,
+    });
+
+    const route = await client.imageRoute();
+    expect(route.isCurrent()).toBe(true);
+    now = new Date("2026-07-27T08:20:00.000Z");
+    await client.ensureAccessSession();
+
+    expect(tokenRequests).toBe(2);
+    expect(route.isCurrent()).toBe(false);
+    await expect(
+      route.complete(
+        route.models[0]!,
+        "Draw a circle.",
+        "operation-stale-route",
+        new AbortController().signal,
+      ),
+    ).rejects.toThrow("credentials changed");
+    expect(completionRequests).toBe(0);
   });
 
   test("correlates image requests and exposes only bounded HTTP diagnostics", async () => {
@@ -655,7 +898,10 @@ describe("NexusClient", () => {
     let rejected: unknown;
     try {
       await client.imageCompletion(
-        "openai/gpt-image-1",
+        {
+          id: "openai/gpt-image-1",
+          outputModalities: ["image", "text"],
+        },
         "secret-prompt",
         "operation-123",
         new AbortController().signal,
@@ -682,10 +928,26 @@ describe("NexusClient", () => {
       requestId: "operation-123",
     });
 
+    await expect(
+      client.imageCompletion(
+        {
+          id: "black-forest-labs/flux.2-flex",
+          outputModalities: ["image"],
+        },
+        "unsupported image-only prompt",
+        "operation-image-only",
+        new AbortController().signal,
+      ),
+    ).rejects.toThrow("incompatible with the metered Chat Completions route");
+    expect(imageRequests).toHaveLength(1);
+
     let oversized: unknown;
     try {
       await client.imageCompletion(
-        "openai/gpt-image-1",
+        {
+          id: "openai/gpt-image-1",
+          outputModalities: ["image", "text"],
+        },
         "another prompt",
         "operation-oversized",
         new AbortController().signal,
@@ -703,7 +965,10 @@ describe("NexusClient", () => {
     let untrustedDiagnostics: unknown;
     try {
       await client.imageCompletion(
-        "openai/gpt-image-1",
+        {
+          id: "openai/gpt-image-1",
+          outputModalities: ["image", "text"],
+        },
         "third prompt",
         "operation-json",
         new AbortController().signal,
@@ -720,5 +985,9 @@ describe("NexusClient", () => {
     expect(JSON.stringify(untrustedDiagnostics)).not.toContain(
       "sk-or-v1-secret-token",
     );
+    expect(imageRequests[1]?.body).toMatchObject({
+      modalities: ["image", "text"],
+      model: "openai/gpt-image-1",
+    });
   });
 });

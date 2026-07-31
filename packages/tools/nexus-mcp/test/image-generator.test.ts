@@ -6,9 +6,7 @@ import path from "node:path";
 import { NexusImageGenerator } from "../src/image-generator.ts";
 
 const roots: string[] = [];
-const png = Buffer.from([
-  137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0,
-]);
+const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
 
 afterEach(async () => {
   await Promise.all(
@@ -20,22 +18,36 @@ afterEach(async () => {
 
 describe("NexusImageGenerator", () => {
   test("validates the live image catalog and writes embedded image bytes once", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "convax-nexus-image-"));
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "convax-nexus-image-"),
+    );
     roots.push(root);
     let completions = 0;
-    const generator = new NexusImageGenerator({
-      imageModels: async () => [
+    const generator = new NexusImageGenerator();
+    const route = {
+      isCurrent: () => true,
+      maximumAgeMs: 60_000,
+      models: [
         {
           id: "openai/gpt-image-1",
           name: "GPT Image 1",
           outputModalities: ["image", "text"],
         },
       ],
-      imageCompletion: async (
-        _model: string,
+      complete: async (
+        model: {
+          id: string;
+          name?: string;
+          outputModalities: readonly string[];
+        },
         _prompt: string,
         operationId: string,
       ) => {
+        expect(model).toEqual({
+          id: "openai/gpt-image-1",
+          name: "GPT Image 1",
+          outputModalities: ["image", "text"],
+        });
         expect(operationId).toBe("operation-123");
         completions += 1;
         return {
@@ -55,7 +67,7 @@ describe("NexusImageGenerator", () => {
           ],
         };
       },
-    } as never);
+    };
     const input = {
       model: "openai/gpt-image-1",
       operation_id: "operation-123",
@@ -66,8 +78,18 @@ describe("NexusImageGenerator", () => {
       schema: "convax.generation-call/1",
     };
 
-    const first = await generator.generate(input, new AbortController().signal);
-    const second = await generator.generate(input, new AbortController().signal);
+    const first = await generator.generate(
+      input,
+      () => route,
+      new AbortController().signal,
+    );
+    const second = await generator.generate(
+      input,
+      () => {
+        throw new Error("A completed operation must not resolve a new route");
+      },
+      new AbortController().signal,
+    );
 
     expect(completions).toBe(1);
     expect(second).toEqual(first);
@@ -82,16 +104,21 @@ describe("NexusImageGenerator", () => {
   });
 
   test("rejects a model that is no longer in the image-output catalog", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "convax-nexus-image-"));
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "convax-nexus-image-"),
+    );
     roots.push(root);
     let completions = 0;
-    const generator = new NexusImageGenerator({
-      imageModels: async () => [],
-      imageCompletion: async () => {
+    const generator = new NexusImageGenerator();
+    const route = {
+      isCurrent: () => true,
+      maximumAgeMs: 60_000,
+      models: [],
+      complete: async () => {
         completions += 1;
         return {};
       },
-    } as never);
+    };
 
     await expect(
       generator.generate(
@@ -104,6 +131,7 @@ describe("NexusImageGenerator", () => {
           references: [],
           schema: "convax.generation-call/1",
         },
+        () => route,
         new AbortController().signal,
       ),
     ).rejects.toThrow("unavailable");
