@@ -38,6 +38,10 @@ jobs:
           git diff --exit-code -- bun.lock
       - name: Fetch the current production closure
         run: bun tooling/fetch-marketplace-previous.mjs
+      - name: Build deterministic version-selection inputs
+        run: |
+          bun run workspaces:build:packages
+          bun run build:companions
       - name: Select exact unpublished version changes
         id: plan
         run: |

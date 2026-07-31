@@ -126,6 +126,20 @@ describe("Convax Plugin authoring governance", () => {
     expect(releaseWorkflow).toContain(
       "environment: plugin-marketplace-production",
     );
+    const packageBuild = releaseWorkflow.indexOf(
+      "bun run workspaces:build:packages",
+    );
+    const companionBuild = releaseWorkflow.indexOf(
+      "bun run build:companions",
+    );
+    const releaseSelection = releaseWorkflow.indexOf(
+      "bun tooling/marketplace-release.mjs",
+    );
+    expect(packageBuild).toBeGreaterThanOrEqual(0);
+    expect(companionBuild).toBeGreaterThanOrEqual(0);
+    expect(releaseSelection).toBeGreaterThanOrEqual(0);
+    expect(packageBuild).toBeLessThan(releaseSelection);
+    expect(companionBuild).toBeLessThan(releaseSelection);
     expect(codeowners).toContain("@fearclear");
     expect(codeowners).toContain(
       "/tooling/host-capability-history.mjs",
