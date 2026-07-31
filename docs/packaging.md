@@ -277,6 +277,11 @@ an exact-byte comparison. This lets a reviewed publication-workflow repair resto
 the descriptor, Registry v2, and Showcase without inventing a package version
 change or bypassing the ordinary release closure.
 
+The reusable Pages verifier installs the frozen workspace graph with lifecycle
+scripts disabled before importing repository tooling. It must not rely on Bun's
+automatic dependency installation, because that can resolve a published package
+with the same version instead of the reviewed vendored Host package closure.
+
 The one-time Plugin v8 cutover additionally admits only the pinned production
 Registry sequence 55 and revision
 `47c67a00afd6d3d5aba9373eab742f14597100945ef4d29873ff799bc001521f`.

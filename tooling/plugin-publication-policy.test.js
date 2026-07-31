@@ -24,10 +24,14 @@ describe("protected Plugin publication policy", () => {
         recursive: true,
       })
       await fs.mkdir(path.join(fixture, "tooling"), { recursive: true })
-      const [release, governance, approval, decision, sigstoreVerifier] =
+      const [release, pages, governance, approval, decision, sigstoreVerifier] =
         await Promise.all([
         fs.readFile(
           path.join(root, ".github", "workflows", "release-on-main.yml"),
+          "utf8",
+        ),
+        fs.readFile(
+          path.join(root, ".github", "workflows", "pages.yml"),
           "utf8",
         ),
         fs.readFile(
@@ -59,6 +63,10 @@ describe("protected Plugin publication policy", () => {
             "steps:\n      - name: Download verified exact bytes",
             "steps:\n      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0\n      - name: Download verified exact bytes",
           ),
+        ),
+        fs.writeFile(
+          path.join(fixture, ".github", "workflows", "pages.yml"),
+          pages,
         ),
         fs.writeFile(
           path.join(
@@ -207,6 +215,21 @@ describe("protected Plugin publication policy", () => {
       )
       await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
         "prior protected-base digest transition",
+      )
+
+      await fs.writeFile(
+        path.join(fixture, "tooling", "host-sigstore-bundle.mjs"),
+        sigstoreVerifier,
+      )
+      await fs.writeFile(
+        path.join(fixture, ".github", "workflows", "pages.yml"),
+        pages.replace(
+          "bun install --frozen-lockfile --ignore-scripts",
+          "bun install",
+        ),
+      )
+      await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
+        "Pages build must install frozen workspace dependencies",
       )
     } finally {
       await fs.rm(fixture, { force: true, recursive: true })

@@ -92,6 +92,12 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
     "workflows",
     "release-on-main.yml",
   )
+  const pagesPath = path.join(
+    workspaceRoot,
+    ".github",
+    "workflows",
+    "pages.yml",
+  )
   const governancePath = path.join(
     workspaceRoot,
     ".github",
@@ -100,6 +106,7 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
   )
   const [
     releaseSource,
+    pagesSource,
     governanceSource,
     approvalSource,
     capabilityDecisionSource,
@@ -107,6 +114,7 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
   ] =
     await Promise.all([
       fs.readFile(releasePath, "utf8"),
+      fs.readFile(pagesPath, "utf8"),
       fs.readFile(governancePath, "utf8"),
       fs.readFile(
         path.join(
@@ -134,11 +142,14 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
     )
   }
   const release = Bun.YAML.parse(releaseSource)
+  const pages = Bun.YAML.parse(pagesSource)
   const governance = Bun.YAML.parse(governanceSource)
   const approval = Bun.YAML.parse(approvalSource)
   if (
     !isRecord(release) ||
     !isRecord(release.jobs) ||
+    !isRecord(pages) ||
+    !isRecord(pages.jobs) ||
     !isRecord(governance) ||
     !isRecord(governance.jobs) ||
     !isRecord(approval) ||
@@ -148,6 +159,7 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
   }
   const verifySteps = stepsFor(release, "verify")
   const publishSteps = stepsFor(release, "publish")
+  const pagesBuildSteps = stepsFor(pages, "build")
   const approvalSteps = stepsFor(approval, "issue")
   const verifyShell = commandText(verifySteps)
   const approvalShell = commandText(approvalSteps)
@@ -230,6 +242,30 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
     !verifyShell.includes("realpath node_modules/@convax/plugin-api")
   ) {
     fail("unprivileged publication workflow omits a frozen-lock or Host Sigstore gate")
+  }
+  const pagesInstallIndex = pagesBuildSteps.findIndex(
+    (step) => step?.name === "Install inert workspace dependencies",
+  )
+  const pagesDownloadIndex = pagesBuildSteps.findIndex(
+    (step) => step?.name === "Download the exact low-privilege build",
+  )
+  const pagesVerifyIndex = pagesBuildSteps.findIndex(
+    (step) => step?.name === "Reverify and stage strict catalogs",
+  )
+  const pagesInstallShell = pagesBuildSteps[pagesInstallIndex]?.run
+  if (
+    pagesInstallIndex < 0 ||
+    pagesDownloadIndex <= pagesInstallIndex ||
+    pagesVerifyIndex <= pagesDownloadIndex ||
+    typeof pagesInstallShell !== "string" ||
+    !pagesInstallShell.includes(
+      "bun install --frozen-lockfile --ignore-scripts",
+    ) ||
+    !pagesInstallShell.includes("git diff --exit-code -- bun.lock")
+  ) {
+    fail(
+      "Pages build must install frozen workspace dependencies before catalog verification",
+    )
   }
   for (const asset of [
     "$CATALOG_ASSET",
@@ -334,7 +370,7 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
       fail("publish job must not execute repository-capable runtimes")
     }
   }
-  for (const step of [...verifySteps, ...publishSteps]) {
+  for (const step of [...verifySteps, ...publishSteps, ...pagesBuildSteps]) {
     if (typeof step?.uses === "string" &&
       !/^[^@\s]+@[a-f0-9]{40}$/u.test(step.uses)) {
       fail(`workflow Action must be pinned by full SHA: ${step.uses}`)
