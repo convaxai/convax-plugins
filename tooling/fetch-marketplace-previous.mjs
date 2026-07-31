@@ -1,6 +1,10 @@
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import { parseRegistryV2 } from "@convax/marketplace-kit"
+import {
+  officialV8CutoverBaseline,
+  parsePinnedV8CutoverRegistry,
+} from "./marketplace-v8-cutover.mjs"
 import { assertOfficialMarketplaceDescriptor } from "./official-marketplace.mjs"
 
 const maximumBytes = 8 * 1024 * 1024
@@ -46,13 +50,35 @@ function parseJson(bytes, label) {
   }
 }
 
-function parseRegistryInput(bytes) {
-  let registry
+function parseRegistryInput(bytes, cutoverBaseline) {
+  const value = parseJson(bytes, "production Registry v2")
+  const containsLegacyPluginSchema = Array.isArray(value?.packages) &&
+    value.packages.some((entry) => (
+      entry?.kind === "plugin" &&
+      typeof entry?.manifest?.schema === "string" &&
+      /^convax\.plugin\/[1-7]$/.test(entry.manifest.schema)
+    ))
+  if (containsLegacyPluginSchema) {
+    try {
+      return {
+        cutover: true,
+        registry: parsePinnedV8CutoverRegistry(value, cutoverBaseline),
+      }
+    } catch (cause) {
+      throw new Error("production Registry v2 strict validation failed", { cause })
+    }
+  }
   try {
-    registry = parseRegistryV2(parseJson(bytes, "production Registry v2"))
+    return {
+      cutover: false,
+      registry: parseRegistryV2(value),
+    }
   } catch (cause) {
     throw new Error("production Registry v2 strict validation failed", { cause })
   }
+}
+
+function assertRegistrySequence(registry) {
   if (
     !registry ||
     typeof registry !== "object" ||
@@ -66,7 +92,6 @@ function parseRegistryInput(bytes) {
   ) {
     throw new Error("production Registry v2 is not a strict sequence input")
   }
-  return registry
 }
 
 function parseDescriptorInput(bytes) {
@@ -174,6 +199,7 @@ async function writeSnapshot(outputDirectory, name, bytes) {
 }
 
 export async function fetchPreviousRegistry({
+  cutoverBaseline = officialV8CutoverBaseline,
   descriptorUrl,
   fetchImpl = fetch,
   outputDirectory,
@@ -205,7 +231,11 @@ export async function fetchPreviousRegistry({
     throw new Error(`production Registry v2 returned HTTP ${registryResponse.status}`)
   }
   const registryBytes = await responseBytes(registryResponse, "production Registry v2")
-  const registry = parseRegistryInput(registryBytes)
+  const { cutover, registry } = parseRegistryInput(
+    registryBytes,
+    cutoverBaseline,
+  )
+  assertRegistrySequence(registry)
 
   const showcaseResponse = await fetchExact(fetchImpl, showcaseUrl, "production Showcase v2")
   if (showcaseResponse.status !== 200) {
@@ -226,6 +256,7 @@ export async function fetchPreviousRegistry({
     showcaseBytes,
   )
   return {
+    cutover,
     registry,
     snapshot,
     baseRevision: `registry-v2-${registry.revision}`,
@@ -247,11 +278,20 @@ async function main() {
   const environment = process.env.GITHUB_ENV
   if (!environment) throw new Error("GITHUB_ENV is required for the publication workflow")
   const lines = [
-    `CONVAX_MARKETPLACE_PREVIOUS=${path.relative(process.cwd(), result.snapshot)}`,
     `CONVAX_MARKETPLACE_BASE_SHA=${result.baseRevision}`,
-    `CONVAX_MARKETPLACE_PREVIOUS_DESCRIPTOR=${path.relative(process.cwd(), result.descriptorSnapshot)}`,
-    `CONVAX_MARKETPLACE_PREVIOUS_SHOWCASE=${path.relative(process.cwd(), result.showcaseSnapshot)}`,
   ]
+  if (result.cutover) {
+    lines.push(
+      `CONVAX_MARKETPLACE_CUTOVER_PREVIOUS=${path.relative(process.cwd(), result.snapshot)}`,
+      `CONVAX_MARKETPLACE_INITIAL_SEQUENCE=${result.registry.sequence + 1}`,
+    )
+  } else {
+    lines.push(
+      `CONVAX_MARKETPLACE_PREVIOUS=${path.relative(process.cwd(), result.snapshot)}`,
+      `CONVAX_MARKETPLACE_PREVIOUS_DESCRIPTOR=${path.relative(process.cwd(), result.descriptorSnapshot)}`,
+      `CONVAX_MARKETPLACE_PREVIOUS_SHOWCASE=${path.relative(process.cwd(), result.showcaseSnapshot)}`,
+    )
+  }
   await fs.appendFile(environment, `${lines.join("\n")}\n`)
   console.log(`Using strict production Registry v2 sequence ${result.registry.sequence}.`)
 }

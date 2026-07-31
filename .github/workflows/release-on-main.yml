@@ -45,9 +45,14 @@ jobs:
       - name: Select exact unpublished version changes
         id: plan
         run: |
+          cutover_args=()
+          if [[ -n "${CONVAX_MARKETPLACE_CUTOVER_PREVIOUS:-}" ]]; then
+            cutover_args+=(--cutover-registry "$CONVAX_MARKETPLACE_CUTOVER_PREVIOUS")
+          fi
           bun tooling/marketplace-release.mjs \
             --base "$CONVAX_MARKETPLACE_BASE_SHA" \
             --catalog "$CONVAX_PLUGIN_API_CATALOG" \
+            "${cutover_args[@]}" \
             --governance-base "${{ github.event.before }}" \
             --head "$GITHUB_SHA" \
             --omissions-output dist/release-omissions.json \

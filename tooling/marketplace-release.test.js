@@ -9,6 +9,7 @@ import {
   createReleaseSelectionPlan,
   packageVersionSnapshot,
 } from "./marketplace-release.mjs"
+import { createV8CutoverSelections } from "./marketplace-v8-cutover.mjs"
 import { currentPluginApiCatalogEvidence } from "./host-capability-request.mjs"
 import { composePublicationPlan } from "./publication-plan.mjs"
 
@@ -164,6 +165,53 @@ afterAll(async () => {
 })
 
 describe("Marketplace Kit release selection and publication policy", () => {
+  test("requires every legacy production package to advance during the v8 cutover", () => {
+    const previous = {
+      packages: [{
+        kind: "plugin",
+        id: "example-plugin",
+        version: "1.0.0",
+      }],
+    }
+    const current = new Map([
+      ["plugin\0example-plugin", {
+        kind: "plugin",
+        id: "example-plugin",
+        version: "2.0.0",
+        releaseTag: "plugin-example-plugin-v2.0.0",
+      }],
+      ["skill\0new-skill", {
+        kind: "skill",
+        id: "new-skill",
+        version: "1.0.0",
+        releaseTag: "skill-new-skill-v1.0.0",
+      }],
+    ])
+    expect(createV8CutoverSelections(previous, current)).toEqual([
+      {
+        kind: "plugin",
+        id: "example-plugin",
+        version: "2.0.0",
+        previousVersion: "1.0.0",
+        releaseTag: "plugin-example-plugin-v2.0.0",
+      },
+      {
+        kind: "skill",
+        id: "new-skill",
+        version: "1.0.0",
+        releaseTag: "skill-new-skill-v1.0.0",
+      },
+    ])
+    expect(() => createV8CutoverSelections(previous, new Map([
+      ["plugin\0example-plugin", {
+        ...current.get("plugin\0example-plugin"),
+        version: "1.0.0",
+      }],
+    ]))).toThrow("version must advance beyond 1.0.0")
+    expect(() => createV8CutoverSelections(previous, new Map()))
+      .toThrow("cannot silently remove plugin/example-plugin")
+  })
+
   test("packageVersionSnapshot carries effective publication state without globally rejecting blocked source", async () => {
     const snapshot = await packageVersionSnapshot(
       path.resolve(import.meta.dir, ".."),

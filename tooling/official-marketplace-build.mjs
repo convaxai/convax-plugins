@@ -15,6 +15,7 @@ import { effectivePublicationOmissions } from "./publication-eligibility.mjs"
 
 export function officialBuildArgs({
   changed,
+  initialSequence,
   previous,
   previousDescriptor,
   previousShowcase,
@@ -31,6 +32,15 @@ export function officialBuildArgs({
     throw new Error(
       "Non-initial Official build requires an exact ready-only change selection",
     )
+  }
+  if (
+    initialSequence !== undefined &&
+    (!Number.isSafeInteger(initialSequence) || initialSequence <= 0)
+  ) {
+    throw new Error("Initial Official sequence must be a positive safe integer")
+  }
+  if (hasPrevious && initialSequence !== undefined) {
+    throw new Error("Selective Official build cannot set an initial sequence")
   }
   const args = [
     "build-index",
@@ -51,7 +61,13 @@ export function officialBuildArgs({
       previousShowcase,
     ]
   }
-  return [...args, "--initial"]
+  return [
+    ...args,
+    "--initial",
+    ...(initialSequence === undefined
+      ? []
+      : ["--sequence", String(initialSequence)]),
+  ]
 }
 
 export function officialBuildInvocation(args) {
@@ -98,6 +114,17 @@ export async function runOfficialBuild({
     environment.CONVAX_MARKETPLACE_PREVIOUS_DESCRIPTOR &&
     environment.CONVAX_MARKETPLACE_PREVIOUS_SHOWCASE,
   )
+  const initialSequence = environment.CONVAX_MARKETPLACE_INITIAL_SEQUENCE === undefined
+    ? undefined
+    : Number(environment.CONVAX_MARKETPLACE_INITIAL_SEQUENCE)
+  if (
+    initialSequence !== undefined &&
+    (!Number.isSafeInteger(initialSequence) || initialSequence <= 0)
+  ) {
+    throw new Error(
+      "CONVAX_MARKETPLACE_INITIAL_SEQUENCE must be a positive safe integer",
+    )
+  }
   if (!hasPrevious && omissions.omitted.length > 0) {
     const candidates = await discover(workspaceRoot)
     const view = await createView({
@@ -111,6 +138,7 @@ export async function runOfficialBuild({
         official: true,
         outDir: path.join(workspaceRoot, "dist", "catalog"),
         root: view.root,
+        ...(initialSequence === undefined ? {} : { sequence: initialSequence }),
       })
       return
     } finally {
@@ -119,6 +147,7 @@ export async function runOfficialBuild({
   }
   const args = officialBuildArgs({
     changed: environment.CONVAX_MARKETPLACE_CHANGED,
+    initialSequence,
     previous: environment.CONVAX_MARKETPLACE_PREVIOUS,
     previousDescriptor: environment.CONVAX_MARKETPLACE_PREVIOUS_DESCRIPTOR,
     previousShowcase: environment.CONVAX_MARKETPLACE_PREVIOUS_SHOWCASE,

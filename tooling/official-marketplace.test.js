@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { createHash } from "node:crypto"
 import { promises as fs } from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -16,6 +17,7 @@ import { fetchPreviousRegistry } from "./fetch-marketplace-previous.mjs"
 import { root } from "./lib.mjs"
 
 const registryUrl = "https://microvoid.github.io/convax-plugins/registry/v2/index.json"
+const legacyRegistryUrl = "https://microvoid.github.io/convax-plugins/registry/v1/index.json"
 const showcaseUrl = "https://microvoid.github.io/convax-plugins/showcase/v2/index.json"
 const emptyRegistryRevision = "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
 
@@ -36,6 +38,45 @@ function officialDescriptor() {
     },
     compatibility: { convax: ">=0.1.0" },
     delivery: { kind: "github-pages-releases" },
+  }
+}
+
+function legacyProductionDescriptor() {
+  return {
+    ...officialDescriptor(),
+    registry: {
+      v2: { url: registryUrl },
+      v1: { url: legacyRegistryUrl },
+    },
+  }
+}
+
+function canonicalJson(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`
+  return `{${Object.keys(value).sort().map((key) =>
+    `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`
+}
+
+function legacyRegistryFixture() {
+  const packages = [{
+    kind: "plugin",
+    id: "legacy-plugin",
+    version: "0.9.0",
+    manifest: {
+      schema: "convax.plugin/7",
+      id: "legacy-plugin",
+      version: "0.9.0",
+    },
+  }]
+  return {
+    schema: "convax.registry/2",
+    marketplaceId: "convax-official",
+    sequence: 55,
+    revision: createHash("sha256")
+      .update(canonicalJson(packages))
+      .digest("hex"),
+    packages,
   }
 }
 
@@ -146,6 +187,16 @@ describe("Official Marketplace tooling", () => {
       "dist/catalog",
       "--official",
       "--initial",
+    ])
+    expect(officialBuildArgs({ initialSequence: 56 })).toEqual([
+      "build-index",
+      ".",
+      "--out",
+      "dist/catalog",
+      "--official",
+      "--initial",
+      "--sequence",
+      "56",
     ])
     expect(() => officialBuildArgs({
       previous: "dist/production/registry-v2.json",
@@ -261,6 +312,7 @@ describe("Official Marketplace tooling", () => {
         disposed = true
       },
       environment: {
+        CONVAX_MARKETPLACE_INITIAL_SEQUENCE: "56",
         CONVAX_PLUGIN_API_CATALOG: "fixtures/plugin-api.json",
       },
       preflight: async () => ({
@@ -289,6 +341,7 @@ describe("Official Marketplace tooling", () => {
       official: true,
       outDir: path.join(root, "dist", "catalog"),
       root: "/tmp/ready-only-publication-view",
+      sequence: 56,
     })
     expect(disposed).toBe(true)
   })
@@ -372,33 +425,54 @@ describe("Official Marketplace tooling", () => {
     }
   })
 
-  test("normalizes the retired Registry v1 pointer while fetching the production closure", async () => {
-    const output = await fs.mkdtemp(path.join(os.tmpdir(), "convax-marketplace-retired-v1-"))
+  test("normalizes the retired v1 pointer and admits only the pinned legacy v2 cutover", async () => {
+    const output = await fs.mkdtemp(path.join(os.tmpdir(), "convax-marketplace-cutover-"))
     try {
-      const descriptor = officialDescriptor()
-      descriptor.registry.v1 = {
-        url: "https://microvoid.github.io/convax-plugins/registry/v1/index.json",
+      const descriptor = legacyProductionDescriptor()
+      const registry = legacyRegistryFixture()
+      const cutoverBaseline = {
+        marketplaceId: registry.marketplaceId,
+        sequence: registry.sequence,
+        revision: registry.revision,
+      }
+      const fetchImpl = async (url) => {
+        if (url.endsWith("/descriptor")) {
+          return new Response(JSON.stringify(descriptor), { status: 200 })
+        }
+        if (url === registryUrl) {
+          return new Response(JSON.stringify(registry), { status: 200 })
+        }
+        if (url === showcaseUrl) {
+          return new Response(JSON.stringify(showcaseFixture({
+            revision: registry.revision,
+            packages: [],
+          })), { status: 200 })
+        }
+        return new Response("", { status: 404 })
       }
       const result = await fetchPreviousRegistry({
-        fetchImpl: async (url) => {
-          if (url.endsWith("/descriptor")) {
-            return new Response(JSON.stringify(descriptor), { status: 200 })
-          }
-          if (url === registryUrl) {
-            return new Response(JSON.stringify(registryFixture()), { status: 200 })
-          }
-          if (url === showcaseUrl) {
-            return new Response(JSON.stringify(showcaseFixture()), { status: 200 })
-          }
-          return new Response("", { status: 404 })
-        },
+        cutoverBaseline,
+        fetchImpl,
         descriptorUrl: "https://example.test/descriptor",
         outputDirectory: output,
         registryUrl,
         showcaseUrl,
       })
+      expect(result.cutover).toBe(true)
       expect(JSON.parse(await fs.readFile(result.descriptorSnapshot, "utf8")))
         .toEqual(officialDescriptor())
+
+      await expect(fetchPreviousRegistry({
+        cutoverBaseline: {
+          ...cutoverBaseline,
+          revision: "a".repeat(64),
+        },
+        fetchImpl,
+        descriptorUrl: "https://example.test/descriptor",
+        outputDirectory: output,
+        registryUrl,
+        showcaseUrl,
+      })).rejects.toThrow("Registry v2 strict validation failed")
     } finally {
       await fs.rm(output, { recursive: true, force: true })
     }

@@ -264,6 +264,16 @@ an exact-byte comparison. This lets a reviewed publication-workflow repair resto
 the descriptor, Registry v2, and Showcase without inventing a package version
 change or bypassing the ordinary release closure.
 
+The one-time Plugin v8 cutover additionally admits only the pinned production
+Registry sequence 55 and revision
+`47c67a00afd6d3d5aba9373eab742f14597100945ef4d29873ff799bc001521f`.
+Its package-array digest, descriptor URLs, identities, and versions are checked
+before use. Every legacy identity must remain in source and advance to a new
+immutable version; blocked packages are then omitted through the normal
+publication policy. The replacement v8-only Registry is sequence 56. Any other
+legacy closure fails closed, and later v8 publications return to the ordinary
+strict selective path.
+
 The production Registry is:
 
 `https://microvoid.github.io/convax-plugins/registry/v2/index.json`

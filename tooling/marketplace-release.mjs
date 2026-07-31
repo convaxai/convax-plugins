@@ -17,6 +17,10 @@ import {
   generateSkillApiReferences,
 } from "./generate-skill-api-references.mjs"
 import { verifyPendingHostCapabilityHistory } from "./host-capability-history.mjs"
+import {
+  createV8CutoverSelections,
+  parsePinnedV8CutoverRegistry,
+} from "./marketplace-v8-cutover.mjs"
 import { effectivePackagePublications } from "./publication-eligibility.mjs"
 
 function sha256(input) {
@@ -364,7 +368,15 @@ function parseCliArgs(argv) {
     }
     const key = argument.slice(2)
     if (
-      !["base", "catalog", "governance-base", "head", "omissions-output", "output"].includes(key) ||
+      ![
+        "base",
+        "catalog",
+        "cutover-registry",
+        "governance-base",
+        "head",
+        "omissions-output",
+        "output",
+      ].includes(key) ||
       result[key] !== undefined
     ) {
       throw new Error(`Unsupported or duplicate argument ${argument}`)
@@ -384,7 +396,7 @@ function parseCliArgs(argv) {
     !result["omissions-output"]
   ) {
     throw new Error(
-      "Usage: marketplace-release --base <sha> --governance-base <protected-main-sha> --catalog <external-plugin-api.json> --output <ready-file> --omissions-output <diagnostics-file> [--head <sha>]",
+      "Usage: marketplace-release --base <sha> --governance-base <protected-main-sha> --catalog <external-plugin-api.json> --output <ready-file> --omissions-output <diagnostics-file> [--cutover-registry <production-v2.json>] [--head <sha>]",
     )
   }
   return result
@@ -413,10 +425,17 @@ async function main(argv) {
     { catalogPath: args.catalog },
   )
   const current = await packageVersionSnapshot(repositoryRoot)
-  const changed = await changedMarketplaceVersions(
-    repositoryRoot,
-    args.base,
-  )
+  const changed = args["cutover-registry"]
+    ? createV8CutoverSelections(
+        parsePinnedV8CutoverRegistry(
+          JSON.parse(await fs.readFile(
+            path.resolve(repositoryRoot, args["cutover-registry"]),
+            "utf8",
+          )),
+        ),
+        current,
+      )
+    : await changedMarketplaceVersions(repositoryRoot, args.base)
   const plan = createReleaseSelectionPlan(changed, current)
   const output = path.resolve(repositoryRoot, args.output)
   const omissionsOutput = path.resolve(
