@@ -372,6 +372,38 @@ describe("Official Marketplace tooling", () => {
     }
   })
 
+  test("normalizes the retired Registry v1 pointer while fetching the production closure", async () => {
+    const output = await fs.mkdtemp(path.join(os.tmpdir(), "convax-marketplace-retired-v1-"))
+    try {
+      const descriptor = officialDescriptor()
+      descriptor.registry.v1 = {
+        url: "https://microvoid.github.io/convax-plugins/registry/v1/index.json",
+      }
+      const result = await fetchPreviousRegistry({
+        fetchImpl: async (url) => {
+          if (url.endsWith("/descriptor")) {
+            return new Response(JSON.stringify(descriptor), { status: 200 })
+          }
+          if (url === registryUrl) {
+            return new Response(JSON.stringify(registryFixture()), { status: 200 })
+          }
+          if (url === showcaseUrl) {
+            return new Response(JSON.stringify(showcaseFixture()), { status: 200 })
+          }
+          return new Response("", { status: 404 })
+        },
+        descriptorUrl: "https://example.test/descriptor",
+        outputDirectory: output,
+        registryUrl,
+        showcaseUrl,
+      })
+      expect(JSON.parse(await fs.readFile(result.descriptorSnapshot, "utf8")))
+        .toEqual(officialDescriptor())
+    } finally {
+      await fs.rm(output, { recursive: true, force: true })
+    }
+  })
+
   test("fails closed on missing or inconsistent v2 production inputs", async () => {
     const output = await fs.mkdtemp(path.join(os.tmpdir(), "convax-marketplace-invalid-"))
     const fetchClosure = (fetchImpl, overrides = {}) => fetchPreviousRegistry({
@@ -400,6 +432,20 @@ describe("Official Marketplace tooling", () => {
         }
         return new Response(JSON.stringify(showcaseFixture()), { status: 200 })
       })).rejects.toThrow("Registry v2 strict validation failed")
+
+      const invalidLegacyDescriptor = officialDescriptor()
+      invalidLegacyDescriptor.registry.v1 = {
+        url: "https://attacker.example/registry/v1/index.json",
+      }
+      await expect(fetchClosure(async (url) => {
+        if (url.endsWith("/descriptor")) {
+          return new Response(JSON.stringify(invalidLegacyDescriptor), { status: 200 })
+        }
+        if (url === registryUrl) {
+          return new Response(JSON.stringify(registryFixture()), { status: 200 })
+        }
+        return new Response(JSON.stringify(showcaseFixture()), { status: 200 })
+      })).rejects.toThrow("invalid retired Registry v1 pointer")
 
       await expect(fetchClosure(async (url) => {
         if (url.endsWith("/descriptor")) return new Response(descriptorBytes, { status: 200 })

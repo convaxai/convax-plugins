@@ -98,8 +98,8 @@ describe("Bun workspace ownership", () => {
     expect(candidateReadme).toContain("own or modify their source")
     expect(candidateReadme).toContain("workspace:*")
     const hostCandidates = {
-      marketplace: ["@convax/marketplace", "0.2.0"],
-      "marketplace-kit": ["@convax/marketplace-kit", "0.2.0"],
+      marketplace: ["@convax/marketplace", "0.2.1"],
+      "marketplace-kit": ["@convax/marketplace-kit", "0.2.1"],
       "plugin-api": ["@convax/plugin-api", "2.0.0"],
       "plugin-sdk": ["@convax/plugin-sdk", "0.1.0"],
     }

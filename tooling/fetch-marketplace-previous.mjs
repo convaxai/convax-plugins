@@ -4,6 +4,8 @@ import { parseRegistryV2 } from "@convax/marketplace-kit"
 import { assertOfficialMarketplaceDescriptor } from "./official-marketplace.mjs"
 
 const maximumBytes = 8 * 1024 * 1024
+const retiredRegistryV1Url =
+  "https://microvoid.github.io/convax-plugins/registry/v1/index.json"
 
 async function responseBytes(response, label) {
   const declared = response.headers.get("content-length")
@@ -69,12 +71,47 @@ function parseRegistryInput(bytes) {
 
 function parseDescriptorInput(bytes) {
   const descriptor = parseJson(bytes, "production Marketplace descriptor")
+  let normalized = descriptor
+  if (
+    descriptor &&
+    typeof descriptor === "object" &&
+    !Array.isArray(descriptor) &&
+    descriptor.registry &&
+    typeof descriptor.registry === "object" &&
+    !Array.isArray(descriptor.registry) &&
+    Object.hasOwn(descriptor.registry, "v1")
+  ) {
+    const registryKeys = Object.keys(descriptor.registry).sort()
+    const legacy = descriptor.registry.v1
+    if (
+      registryKeys.join(",") !== "v1,v2" ||
+      !legacy ||
+      typeof legacy !== "object" ||
+      Array.isArray(legacy) ||
+      Object.keys(legacy).join(",") !== "url" ||
+      legacy.url !== retiredRegistryV1Url
+    ) {
+      throw new Error("production Marketplace descriptor has an invalid retired Registry v1 pointer")
+    }
+    normalized = {
+      ...descriptor,
+      registry: {
+        v2: descriptor.registry.v2,
+      },
+    }
+  }
   try {
-    assertOfficialMarketplaceDescriptor(descriptor)
+    assertOfficialMarketplaceDescriptor(normalized)
   } catch (cause) {
     throw new Error("production Marketplace descriptor strict validation failed", { cause })
   }
-  return descriptor
+  return {
+    descriptor: normalized,
+    snapshotBytes:
+      normalized === descriptor
+        ? bytes
+        : new TextEncoder().encode(`${JSON.stringify(normalized, null, 2)}\n`),
+  }
 }
 
 function parseShowcaseInput(bytes, registry) {
@@ -155,7 +192,10 @@ export async function fetchPreviousRegistry({
     descriptorResponse,
     "production Marketplace descriptor",
   )
-  const descriptor = parseDescriptorInput(descriptorBytes)
+  const {
+    descriptor,
+    snapshotBytes: descriptorSnapshotBytes,
+  } = parseDescriptorInput(descriptorBytes)
   if (descriptor.registry.v2.url !== registryUrl || descriptor.showcase.v2.url !== showcaseUrl) {
     throw new Error("production Marketplace descriptor URLs differ from the pinned Official closure")
   }
@@ -177,7 +217,7 @@ export async function fetchPreviousRegistry({
   const descriptorSnapshot = await writeSnapshot(
     outputDirectory,
     "marketplace.json",
-    descriptorBytes,
+    descriptorSnapshotBytes,
   )
   const snapshot = await writeSnapshot(outputDirectory, "registry-v2.json", registryBytes)
   const showcaseSnapshot = await writeSnapshot(

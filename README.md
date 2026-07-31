@@ -322,7 +322,7 @@ bun run check               # complete fail-closed local CI sequence
 
 Marketplace publication consumes the public authoring contracts
 `@convax/plugin-api@2.0.0`, `@convax/plugin-sdk@0.1.0`, and
-`@convax/marketplace-kit@0.2.0`. Local source links are validation aids, not valid
+`@convax/marketplace-kit@0.2.1`. Local source links are validation aids, not valid
 publication dependencies. All three exact packages must be available from the
 configured registry before a clean frozen install or publication can succeed.
 See the [SDK authoring rollout blocker](docs/sdk-authoring-contract-rollout.md).

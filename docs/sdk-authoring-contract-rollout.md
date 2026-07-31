@@ -7,9 +7,9 @@ Status: consumer gate implemented; npm/immutable Host evidence still unavailable
 - `convax-plugins` admits only `convax.package/2` and `convax.plugin/8`
   authoring input through the Host-owned SDK and Marketplace Kit.
 - The required dependency versions are `@convax/plugin-api@2.0.0`,
-  `@convax/plugin-sdk@0.1.0`, and `@convax/marketplace-kit@0.2.0`.
-- As of 2026-07-31, npm returns 404 for Plugin API and SDK and exposes
-  Marketplace Kit only through `0.1.1`. A clean frozen install therefore cannot
+  `@convax/plugin-sdk@0.1.0`, and `@convax/marketplace-kit@0.2.1`.
+- As of 2026-07-31, npm returns 404 for Plugin API and SDK and does not yet expose
+  Marketplace Kit `0.2.1`. A clean frozen install therefore cannot
   reproduce the approved local package set.
 
 ## Use case
