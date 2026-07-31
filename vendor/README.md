@@ -10,5 +10,9 @@ dependencies are removed so these workspaces behave like installed release
 artifacts rather than importing the Host repository's toolchain.
 
 Plugin validation binds the generated Host API Catalog by version and digest.
-Replace these candidate workspaces with the same published npm versions after the
-Host packages are released.
+While the required public npm packages return 404, protected publication emits
+and attests one `convax.vendored-host-package-closure/1` document that binds the
+commit, lockfile, exact installed workspace resolutions, Catalog digest, and all
+admitted package bytes. This is a temporary package-delivery exception only; it
+does not relax Host capability approval. Replace these candidate workspaces with
+the same published npm versions after the Host packages are released.

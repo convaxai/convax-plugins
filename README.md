@@ -84,14 +84,14 @@ only as data. See
 [`docs/host-capability-resolution.md`](docs/host-capability-resolution.md).
 
 Plugin SDK provenance is a separate release gate, not capability approval.
-Selected Plugin ZIPs require an npm-only frozen SDK/API lock, exact immutable Host
-package/API Release evidence, one keyless Sigstore bundle per Host asset with a
-Public Rekor inclusion proof, and a canonical statement binding the source
-manifest, build entrypoints, and final ZIP. The verifier pins the Host workflow,
-commit, branch, trigger, GitHub-hosted runner, and immutable repository/owner ids.
-npm SRI and byte equality prove only that npm mirrors those already verified
-bytes; they are not an independent origin claim. The current vendor Host packages
-are development bootstrap inputs and deliberately cannot pass publication. See
+Until the Host packages exist on npm, selected Plugin ZIPs use the reviewed
+vendored workspace closure. One canonical artifact binds the protected Plugin
+repository commit, frozen `bun.lock`, generated API Catalog, exact package
+versions, dependency graph, installed workspace resolutions, and every admitted
+vendored package byte. The environment-gated publisher checksums and attests that
+closure with the release bytes. The npm-only provenance path remains present but
+disabled until the public packages and immutable Host evidence exist. Neither
+path grants or substitutes for Host capability approval. See
 [`docs/sdk-authoring-contract-rollout.md`](docs/sdk-authoring-contract-rollout.md).
 
 Immutable Registry history may still contain pre-cutover package and Plugin

@@ -160,15 +160,18 @@ API contracts. It does not prove the provenance of `@convax/plugin-sdk`.
 assets. Therefore an API receipt alone must not be interpreted as authority to
 consume arbitrary SDK bytes.
 
-The separate closure is `convax.host-package-release/1` with profile
+The target npm closure is `convax.host-package-release/1` with profile
 `convax.plugin-sdk-authoring-package/1`: one immutable npm-identical SDK tarball
 signed keylessly by the protected Host `plugin-sdk-release.yml` with a paired
 Sigstore bundle and Public Rekor inclusion, bound to its exact Host commit and its
-release-time Plugin API package/Catalog identity. Plugin publication must
-additionally prove the actual frozen-lock SDK and API tarballs, because the actual
-locked API may be a later compatible version. The final
-`convax.plugin-bundle-provenance/1` statement binds that closure, the source
-manifest and build entrypoints, and the exact emitted Plugin ZIP.
+release-time Plugin API package/Catalog identity. Until those npm and Host Release
+assets exist, publication uses a bounded workspace-delivery exception:
+`convax.vendored-host-package-closure/1` binds the protected Plugin commit,
+frozen lockfile, exact package versions and workspace resolutions, Catalog
+digest, and all vendored Host package bytes. That exception is package provenance
+only and has no role in capability resolution. After npm migration, the final
+`convax.plugin-bundle-provenance/1` statement again binds the npm closure, source
+manifest and build entrypoints, and exact emitted Plugin ZIP.
 
 SDK proof is never part of request resolution and never grants a Host capability.
 The capability decision continues to require the independent runtime conformance

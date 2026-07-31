@@ -151,11 +151,15 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
   const approvalSteps = stepsFor(approval, "issue")
   const verifyShell = commandText(verifySteps)
   const approvalShell = commandText(approvalSteps)
+  if (release.env?.CONVAX_PLUGIN_SDK_SOURCE !== "workspace") {
+    fail("the temporary Plugin SDK source must remain the reviewed workspace closure")
+  }
   requireOrdered(
     verifyShell,
     [
       "--governance-base",
       "bun run check",
+      "vendored-host-package-closure.mjs",
       "plugin-sdk-provenance-cli.mjs inspect-lock",
       "cosign verify-blob",
       "plugin-sdk-provenance-cli.mjs build",
@@ -175,6 +179,34 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
     2,
     "unprivileged publication workflow",
   )
+  const workspaceClosureStep = verifySteps.find(
+    (step) =>
+      step?.name ===
+      "Bind release inputs to the exact vendored Host package closure",
+  )
+  if (
+    workspaceClosureStep?.if !==
+      "steps.plan.outputs.plugin_count != '0' && env.CONVAX_PLUGIN_SDK_SOURCE == 'workspace'" ||
+    !workspaceClosureStep?.run?.includes(
+      "--output dist/vendored-host-package-closure.json",
+    )
+  ) {
+    fail("workspace publication must emit one exact vendored Host package closure")
+  }
+  for (const name of [
+    "Require an npm-only frozen Plugin SDK closure",
+    "Fetch and verify immutable Host package evidence",
+    "Bind every selected Plugin ZIP to its actual SDK/API closure",
+    "Re-verify provenance-augmented release inputs",
+  ]) {
+    const step = verifySteps.find((candidate) => candidate?.name === name)
+    if (
+      step?.if !==
+      "steps.plan.outputs.plugin_count != '0' && env.CONVAX_PLUGIN_SDK_SOURCE == 'npm'"
+    ) {
+      fail(`future npm publication step must stay disabled in workspace mode: ${name}`)
+    }
+  }
   requireCosignInstaller(approvalSteps, "Host capability approval workflow")
   requireHostSigstoreCommands(
     approvalShell,
@@ -243,11 +275,29 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
   const publishShell = commandText(publishSteps)
   if (
     !publishShell.includes("sha256sum --check PUBLICATION-SHA256SUMS") ||
+    !publishShell.includes("convax.vendored-host-package-closure/1") ||
     !publishShell.includes("convax.plugin-bundle-provenance/1") ||
     !publishShell.includes("Release version reuse is forbidden") ||
     !publishShell.includes('--target "$GITHUB_SHA"')
   ) {
     fail("publish job does not re-verify exact artifact-only provenance")
+  }
+  const workspaceAttestation = publishSteps.find(
+    (step) =>
+      step?.name ===
+      "Attest immutable Plugin bundles, workspace closure, and checksums together",
+  )
+  if (
+    workspaceAttestation?.if !==
+      "needs.verify.outputs.plugin_count != '0' && needs.verify.outputs.sdk_source == 'workspace'" ||
+    !workspaceAttestation?.with?.["subject-path"]?.includes(
+      "dist/vendored-host-package-closure.json",
+    ) ||
+    !workspaceAttestation?.with?.["subject-path"]?.includes(
+      "dist/PUBLICATION-SHA256SUMS",
+    )
+  ) {
+    fail("workspace publication attestation must bind the closure and checksums")
   }
   for (const step of publishSteps) {
     if (step?.uses?.startsWith("actions/checkout@")) {

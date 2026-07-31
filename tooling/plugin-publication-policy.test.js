@@ -134,6 +134,41 @@ describe("protected Plugin publication policy", () => {
         approval,
       )
       await fs.writeFile(
+        path.join(fixture, ".github", "workflows", "release-on-main.yml"),
+        release.replace(
+          "CONVAX_PLUGIN_SDK_SOURCE: workspace",
+          "CONVAX_PLUGIN_SDK_SOURCE: npm",
+        ),
+      )
+      await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
+        "must remain the reviewed workspace closure",
+      )
+
+      await fs.writeFile(
+        path.join(fixture, ".github", "workflows", "release-on-main.yml"),
+        release.replace(
+          "tooling/vendored-host-package-closure.mjs",
+          "tooling/workspace-closure-disabled.mjs",
+        ),
+      )
+      await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
+        "must contain vendored-host-package-closure.mjs",
+      )
+
+      await fs.writeFile(
+        path.join(fixture, ".github", "workflows", "release-on-main.yml"),
+        release,
+      )
+      await fs.writeFile(
+        path.join(
+          fixture,
+          ".github",
+          "workflows",
+          "approve-host-capability.yml",
+        ),
+        approval,
+      )
+      await fs.writeFile(
         path.join(fixture, "tooling", "host-sigstore-bundle.mjs"),
         `${sigstoreVerifier}\n`,
       )

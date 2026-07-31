@@ -14,6 +14,7 @@ concurrency:
 
 env:
   CONVAX_PLUGIN_API_CATALOG: node_modules/@convax/plugin-api/dist/generated/plugin-api.json
+  CONVAX_PLUGIN_SDK_SOURCE: workspace
 
 jobs:
   verify:
@@ -22,6 +23,7 @@ jobs:
     outputs:
       count: ${{ steps.plan.outputs.count }}
       plugin_count: ${{ steps.plan.outputs.plugin_count }}
+      sdk_source: ${{ steps.plan.outputs.sdk_source }}
     steps:
       - name: Check out protected source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -101,6 +103,7 @@ jobs:
             --output dist/release-plan.json
           echo "count=$(jq length dist/release-plan.json)" >> "$GITHUB_OUTPUT"
           echo "plugin_count=$(jq '[.[] | select(.kind == "plugin")] | length' dist/release-plan.json)" >> "$GITHUB_OUTPUT"
+          echo "sdk_source=$CONVAX_PLUGIN_SDK_SOURCE" >> "$GITHUB_OUTPUT"
           echo "CONVAX_MARKETPLACE_CHANGED=dist/release-plan.json" >> "$GITHUB_ENV"
       - name: Install Cosign
         if: steps.plan.outputs.plugin_count != '0'
@@ -109,8 +112,14 @@ jobs:
           cosign-release: v3.0.6
       - name: Validate and build immutable release inputs
         run: bun run check
+      - name: Bind release inputs to the exact vendored Host package closure
+        if: steps.plan.outputs.plugin_count != '0' && env.CONVAX_PLUGIN_SDK_SOURCE == 'workspace'
+        run: >-
+          bun tooling/vendored-host-package-closure.mjs
+          --commit "$GITHUB_SHA"
+          --output dist/vendored-host-package-closure.json
       - name: Require an npm-only frozen Plugin SDK closure
-        if: steps.plan.outputs.plugin_count != '0'
+        if: steps.plan.outputs.plugin_count != '0' && env.CONVAX_PLUGIN_SDK_SOURCE == 'npm'
         run: >-
           bun tooling/plugin-sdk-provenance-cli.mjs inspect-lock
           --api-install node_modules/@convax/plugin-api
@@ -120,7 +129,7 @@ jobs:
           --package package.json
           --sdk-install node_modules/@convax/plugin-sdk
       - name: Fetch and verify immutable Host package evidence
-        if: steps.plan.outputs.plugin_count != '0'
+        if: steps.plan.outputs.plugin_count != '0' && env.CONVAX_PLUGIN_SDK_SOURCE == 'npm'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOST_REPOSITORY: microvoid/convax
@@ -336,7 +345,7 @@ jobs:
             }' > "$evidence/api-release-identity.json"
           echo "CONVAX_PLUGIN_SDK_PROVENANCE=$evidence" >> "$GITHUB_ENV"
       - name: Bind every selected Plugin ZIP to its actual SDK/API closure
-        if: steps.plan.outputs.plugin_count != '0'
+        if: steps.plan.outputs.plugin_count != '0' && env.CONVAX_PLUGIN_SDK_SOURCE == 'npm'
         run: >-
           bun tooling/plugin-sdk-provenance-cli.mjs build
           --api-catalog "$CONVAX_PLUGIN_SDK_PROVENANCE/api-release/plugin-api.json"
@@ -359,7 +368,7 @@ jobs:
           --sdk-tarball "$CONVAX_PLUGIN_SDK_PROVENANCE/actual/plugin-sdk.tgz"
           --selected dist/release-plan.json
       - name: Re-verify provenance-augmented release inputs
-        if: steps.plan.outputs.plugin_count != '0'
+        if: steps.plan.outputs.plugin_count != '0' && env.CONVAX_PLUGIN_SDK_SOURCE == 'npm'
         run: bun tooling/verify-marketplace-output.mjs dist/catalog
       - name: Stage verified FFmpeg source and SBOM beside the companion
         if: env.CONVAX_FFMPEG_REQUIRE_PGP == '1'
@@ -405,6 +414,9 @@ jobs:
             if [ -f plugin-sdk-provenance.json ]; then
               shasum -a 256 plugin-sdk-provenance.json >> PUBLICATION-SHA256SUMS
             fi
+            if [ -f vendored-host-package-closure.json ]; then
+              shasum -a 256 vendored-host-package-closure.json >> PUBLICATION-SHA256SUMS
+            fi
           )
       - name: Upload verified exact bytes
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
@@ -415,6 +427,7 @@ jobs:
             dist/catalog
             dist/product-lock-input.json
             dist/plugin-sdk-provenance.json
+            dist/vendored-host-package-closure.json
             dist/PUBLICATION-SHA256SUMS
             dist/publication-plan.json
             dist/release-omissions.json
@@ -449,7 +462,7 @@ jobs:
               exit 1
             fi
             if grep -Ev \
-              '^[a-f0-9]{64}  (builtin/releases/|catalog/releases/|plugin-sdk-provenance\.json$)' \
+              '^[a-f0-9]{64}  (builtin/releases/|catalog/releases/|plugin-sdk-provenance\.json$|vendored-host-package-closure\.json$)' \
               PUBLICATION-SHA256SUMS |
               grep -q .; then
               echo "Publication checksum manifest contains an unsafe path" >&2
@@ -462,11 +475,64 @@ jobs:
             if [ -f plugin-sdk-provenance.json ]; then
               expected_checksum_count="$((expected_checksum_count + 1))"
             fi
+            if [ -f vendored-host-package-closure.json ]; then
+              expected_checksum_count="$((expected_checksum_count + 1))"
+            fi
             test "$(wc -l < PUBLICATION-SHA256SUMS | tr -d ' ')" = \
               "$expected_checksum_count"
           )
+          expected_plugins="$(jq '[.[] | select(.kind == "plugin")] | length' dist/release-plan.json)"
+          evidence_count=0
           if [ -f dist/plugin-sdk-provenance.json ]; then
-            expected_plugins="$(jq '[.[] | select(.kind == "plugin")] | length' dist/release-plan.json)"
+            evidence_count="$((evidence_count + 1))"
+          fi
+          if [ -f dist/vendored-host-package-closure.json ]; then
+            evidence_count="$((evidence_count + 1))"
+          fi
+          if [ "$expected_plugins" = 0 ]; then
+            test "$evidence_count" = 0
+          else
+            test "$evidence_count" = 1
+          fi
+          if [ -f dist/vendored-host-package-closure.json ]; then
+            jq -e \
+              --arg commit "$GITHUB_SHA" \
+              '
+                keys == ["catalog", "lockfile", "packages", "schema", "source"] and
+                .schema == "convax.vendored-host-package-closure/1" and
+                .source == {
+                  commit: $commit,
+                  kind: "workspace",
+                  repository: "microvoid/convax-plugins"
+                } and
+                .lockfile.path == "bun.lock" and
+                (.lockfile.sha256 | test("^[a-f0-9]{64}$")) and
+                .catalog.path == "vendor/host-packages/plugin-api/dist/generated/plugin-api.json" and
+                .catalog.schema == "convax.plugin-api-catalog/3" and
+                .catalog.version == "2.0.0" and
+                (.catalog.sha256 | test("^[a-f0-9]{64}$")) and
+                [.packages[].name] == [
+                  "@convax/marketplace",
+                  "@convax/marketplace-kit",
+                  "@convax/plugin-api",
+                  "@convax/plugin-sdk"
+                ] and
+                [.packages[].version] == ["0.2.1", "0.2.1", "2.0.0", "0.1.0"] and
+                [.packages[].workspace] == [
+                  "vendor/host-packages/marketplace",
+                  "vendor/host-packages/marketplace-kit",
+                  "vendor/host-packages/plugin-api",
+                  "vendor/host-packages/plugin-sdk"
+                ] and
+                all(.packages[];
+                  keys == ["bytes", "files", "name", "sha256", "version", "workspace"] and
+                  (.sha256 | test("^[a-f0-9]{64}$")) and
+                  .files > 0 and .files <= 2048 and
+                  .bytes > 0 and .bytes <= 33554432
+                )
+              ' dist/vendored-host-package-closure.json >/dev/null
+          fi
+          if [ -f dist/plugin-sdk-provenance.json ]; then
             test "$(jq '.statements | length' dist/plugin-sdk-provenance.json)" = "$expected_plugins"
             jq -e \
               --arg commit "$GITHUB_SHA" \
@@ -566,8 +632,16 @@ jobs:
                 dist/release-plan.json)" = 1
             done < <(jq -r '.statements[].path' dist/plugin-sdk-provenance.json)
           fi
-      - name: Attest immutable Plugin bundles, statements, and checksums together
-        if: needs.verify.outputs.plugin_count != '0'
+      - name: Attest immutable Plugin bundles, workspace closure, and checksums together
+        if: needs.verify.outputs.plugin_count != '0' && needs.verify.outputs.sdk_source == 'workspace'
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: |
+            dist/**/releases/**
+            dist/vendored-host-package-closure.json
+            dist/PUBLICATION-SHA256SUMS
+      - name: Attest immutable Plugin bundles, npm statements, and checksums together
+        if: needs.verify.outputs.plugin_count != '0' && needs.verify.outputs.sdk_source == 'npm'
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: |

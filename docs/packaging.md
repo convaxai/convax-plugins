@@ -241,6 +241,19 @@ high-privilege job consumes those bytes, creates the deterministic tag, attests 
 artifacts, and publishes the immutable Release. Pull requests never receive release
 credentials and `pull_request_target` is not used.
 
+The current protected release selects `CONVAX_PLUGIN_SDK_SOURCE=workspace`
+because the required Host authoring packages are not yet available from npm.
+For every selected Plugin, the low-privilege job emits one canonical
+`convax.vendored-host-package-closure/1` artifact. It rejects lock/workspace
+version drift, unexpected Host package directories, symlinks in admitted package
+bytes, installed dependency paths that do not resolve to the exact vendored
+directories, Catalog contract drift, and package byte drift. The publisher runs
+no repository code; it validates the closed artifact shape, binds it through
+`PUBLICATION-SHA256SUMS`, and attests it with the immutable release assets.
+The dormant npm path retains the stronger Host Release and Sigstore checks for
+the later registry migration. Workspace delivery never resolves or bypasses a
+Host capability request.
+
 Plugin and Skill tags retain `<kind>-<id>-v<version>`. Namespaced MCP Server ids are
 never embedded in native paths or tags; the release tag uses the stable hashed item
 key emitted by the Kit. Published versions are

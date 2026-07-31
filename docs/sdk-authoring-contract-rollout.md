@@ -1,6 +1,6 @@
 # SDK authoring contract rollout blocker
 
-Status: consumer gate implemented; npm/immutable Host evidence still unavailable
+Status: temporary vendored workspace publication active; npm/immutable Host evidence still unavailable
 
 ## Problem
 
@@ -53,8 +53,10 @@ owned Agent tool. The Skill reference generator cannot safely invent these types
   tree and lockfile would not be independently publishable.
 - Pretend `0.1.1` is compatible: rejected because it does not expose the frozen
   v8 parser/reference/Registry v2 contract.
-- Keep local symlinks as a release solution: rejected; they are only a temporary
-  validation mechanism and are not committed.
+- Publish from an unbound local or sibling symlink: rejected because it would not
+  identify the consumed bytes. The temporary selected alternative is the committed
+  vendored workspace plus a canonical closure artifact that proves exact lock,
+  resolution, Catalog, package versions, and package bytes.
 - Treat Canvas UI and capability contributions as unvalidated objects: rejected
   because malformed refs, ranges, or targets would reach publication.
 
@@ -74,9 +76,10 @@ owned Agent tool. The Skill reference generator cannot safely invent these types
 - Historical Registry parsing remains in the Registry consumer package and is not
   re-exported as an authoring path.
 - Source dependencies are pinned exactly and contain no `file:` override.
-- The lockfile cannot be truthfully finalized until all three exact packages are
-  available from the configured public registry. Publication remains blocked
-  until a clean frozen install succeeds without sibling links.
+- The npm lockfile cannot be truthfully finalized until all three exact packages
+  are available from the configured public registry. Until then the committed
+  lock must resolve only the reviewed vendored workspaces and publication must
+  bind those exact bytes through `convax.vendored-host-package-closure/1`.
 
 ## Acceptance tests
 
@@ -95,20 +98,33 @@ owned Agent tool. The Skill reference generator cannot safely invent these types
 
 ## Publication boundary
 
-- Local source links prove only that the current implementation can be exercised
-  during development. They are not a human decision receipt and do not authorize
-  publication.
+- Local or sibling source links prove only that the current implementation can be
+  exercised during development. Protected publication accepts only committed
+  vendored bytes whose exact installed workspace resolutions and digests appear
+  in the canonical closure artifact.
 - This file is intentionally outside `docs/host-capability-requests/`; it is not a
   Host capability request and cannot change package publication policy.
-- The repository remains rollout-blocked until the three exact npm versions are
-  publicly resolvable, a clean frozen install succeeds without sibling links, and
-  the committed lockfile records that public dependency closure.
+- The npm migration remains blocked until the three exact npm versions are
+  publicly resolvable, a clean frozen install succeeds without workspace links,
+  and the committed lockfile records that public dependency closure. This no
+  longer blocks the explicitly selected temporary workspace publication mode.
 - Follow-up owner: Host package publisher, then the `convax-plugins` lockfile and
   release owner.
 
-## Implemented consumer gate
+## Implemented consumer gates
 
-The protected `release-on-main.yml` now refuses every selected Plugin release
+The active `CONVAX_PLUGIN_SDK_SOURCE=workspace` gate refuses every selected
+Plugin release unless the root declarations and frozen lock resolve the four
+exact vendored Host packages, installed direct and transitive paths resolve to
+those directories, the API Catalog is contract v3 at `2.0.0`, the package
+manifests and dependencies match the admitted closure, and every non-`node_modules`
+file is a bounded regular non-symlink byte included in the package digest. The
+low-privilege job writes this evidence to
+`dist/vendored-host-package-closure.json`; the artifact-only publisher validates
+its closed schema and commit, includes it in `PUBLICATION-SHA256SUMS`, and attests
+it with the selected release bytes.
+
+The dormant npm gate in `release-on-main.yml` refuses every selected Plugin release
 unless all of the following are true:
 
 1. the committed root `bun.lock` resolves exactly one
@@ -146,11 +162,9 @@ the protected-base copy of `plugin-publication-policy.mjs` against candidate byt
 That ordering prevents a candidate from weakening its own SDK gate or treating an
 SDK package Release as capability approval.
 
-The current vendor workspace remains a development-only bootstrap. It deliberately
-fails the release gate. Once Host publishes the exact npm and immutable Release
-assets and their Sigstore bundles, the release owner must remove the SDK/API
-workspace resolution, pin the public versions, regenerate the committed root lock
-with the official npm registry, and run a no-change frozen install before any
-Plugin version is eligible. npm SHA-512 SRI and byte identity are mirror
-consistency evidence only; the Host Sigstore bundle is the package-origin trust
-chain.
+Once Host publishes the exact npm and immutable Release assets and their Sigstore
+bundles, the release owner must change the explicit source selector to `npm`,
+remove the SDK/API workspace resolution, pin the public versions, regenerate the
+committed root lock with the official npm registry, and run a no-change frozen
+install. npm SHA-512 SRI and byte identity are mirror consistency evidence only;
+the Host Sigstore bundle is the package-origin trust chain.
