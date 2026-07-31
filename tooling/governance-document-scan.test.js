@@ -242,6 +242,7 @@ describe("repository document governance", () => {
   test("binds pending request evidence to the current canonical Host Catalog bytes", async () => {
     const { digest } = currentPluginApiCatalogEvidence();
     for (const request of [
+      "docs/host-capability-requests/public-plugin-ui-foundation.md",
       "docs/host-capability-requests/sdk-owned-pet-surface-client.md",
       "docs/host-capability-requests/verified-companion-toolchain.md",
       "docs/host-capability-requests/web-plugin-image-input-read.md",

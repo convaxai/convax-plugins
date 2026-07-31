@@ -4,7 +4,9 @@ import path from "node:path"
 import { parsePluginManifestV8 } from "@convax/plugin-sdk"
 import {
   buildPluginHostClient,
+  buildPetSurfaceAssets,
   createPluginClientManifestProjection,
+  petSdkClientBundleMarker,
   pluginSdkClientBundleMarker,
 } from "./build-plugin-host-client.mjs"
 import { root } from "./lib.mjs"
@@ -29,6 +31,27 @@ async function readJson(pathname) {
 }
 
 describe("shared Plugin SDK client build", () => {
+  test("builds Pet surfaces from the public SDK and standalone Plugin UI package", async () => {
+    const packageRoot = pluginRoot("convax-pet")
+    await buildPetSurfaceAssets({ check: true, packageRoot })
+    const [application, authorSource, theme, workspace] = await Promise.all([
+      fs.readFile(path.join(packageRoot, "package", "assets", "pet-host-client.js"), "utf8"),
+      fs.readFile(path.join(packageRoot, "src", "pet-host-client.js"), "utf8"),
+      fs.readFile(path.join(packageRoot, "package", "assets", "plugin-theme.css"), "utf8"),
+      readJson(path.join(packageRoot, "package.json")),
+    ])
+    expect(workspace.devDependencies).toEqual({
+      "@convax/plugin-sdk": "0.1.1",
+      "@convax/plugin-ui": "0.1.0",
+    })
+    expect(authorSource).toContain('from "@convax/plugin-sdk/pet-client"')
+    expect(application).toContain(petSdkClientBundleMarker)
+    expect(application).not.toContain('pluginId:"convax-pet"')
+    expect(theme).toContain("--ui-surface-canvas:")
+    expect(theme).toContain("@media (prefers-color-scheme: dark)")
+    expect(theme).not.toContain("@import")
+  })
+
   test("projects only client declarations and preserves capability imports", () => {
     const boundedObject = {
       additionalProperties: false,
@@ -134,8 +157,8 @@ describe("shared Plugin SDK client build", () => {
         readJson(path.join(packageRoot, "package.json")),
       ])
       const label = manifest.id
-      if (workspace.devDependencies?.["@convax/plugin-sdk"] !== "0.1.0") {
-        violations.push(`${label}: @convax/plugin-sdk must be exactly 0.1.0`)
+      if (workspace.devDependencies?.["@convax/plugin-sdk"] !== "0.1.1") {
+        violations.push(`${label}: @convax/plugin-sdk must be exactly 0.1.1`)
       }
       if (
         workspace.scripts?.build !== "bun scripts/build.ts" ||

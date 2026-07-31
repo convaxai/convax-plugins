@@ -345,7 +345,7 @@ describe("Convax Plugin authoring governance", () => {
     }
   });
 
-  test("keeps the handwritten Pet transport publication-blocked until an SDK client is reviewed", async () => {
+  test("keeps the SDK Pet client candidate publication-blocked until its protected receipt is verified", async () => {
     const requestId = "sdk-owned-pet-surface-client";
     const requestPath =
       `docs/host-capability-requests/${requestId}.md`;
@@ -371,7 +371,7 @@ describe("Convax Plugin authoring governance", () => {
       affected: [{
         kind: "plugin",
         id: "convax-pet",
-        version: "0.3.0",
+        version: "0.3.1",
         blocker: {
           code: "host-capability-review-required",
           note: expect.stringContaining(requestPath),
@@ -473,6 +473,52 @@ describe("Convax Plugin authoring governance", () => {
     } finally {
       await fs.rm(fixture, { force: true, recursive: true });
     }
+  });
+
+  test("keeps Pet design alignment blocked until a public UI foundation is reviewed", async () => {
+    const requestId = "public-plugin-ui-foundation";
+    const requestPath =
+      `docs/host-capability-requests/${requestId}.md`;
+    const [packageJson, policy, request] = await Promise.all([
+      fs.readFile(
+        path.join(root, "packages", "plugins", "convax-pet", "package.json"),
+        "utf8",
+      ).then(JSON.parse),
+      fs.readFile(
+        path.join(root, "registry", "host-capability-policy.json"),
+        "utf8",
+      ).then(JSON.parse),
+      fs.readFile(path.join(root, requestPath), "utf8"),
+    ]);
+
+    expect(packageJson["convax.hostCapabilityRequests"]).toEqual([
+      requestId,
+      "sdk-owned-pet-surface-client",
+    ]);
+    expect(policy.requests.find((item) => item.id === requestId)).toEqual({
+      id: requestId,
+      document: requestPath,
+      status: "pending",
+      humanDecision: null,
+      acceptedApiContracts: [],
+      affected: [{
+        kind: "plugin",
+        id: "convax-pet",
+        version: "0.3.1",
+        blocker: {
+          code: "host-capability-review-required",
+          note: expect.stringContaining(requestPath),
+        },
+      }],
+    });
+    for (const section of requiredProposalSections) {
+      expect(request).toContain(section);
+    }
+    expect(request).toContain("Public Plugin UI foundation");
+    expect(request).toContain("no concrete package id");
+    expect(request).toContain(
+      "must not copy or depend on private application implementation",
+    );
   });
 
   test("keeps the declared audio/video stream API usable while gating the known Pet gap", () => {

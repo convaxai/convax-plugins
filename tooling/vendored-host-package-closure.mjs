@@ -30,8 +30,14 @@ const PACKAGE_SPECS = [
   {
     directory: "plugin-sdk",
     name: "@convax/plugin-sdk",
-    version: "0.1.0",
+    version: "0.1.1",
     dependencies: { "@convax/plugin-api": "workspace:*" },
+  },
+  {
+    directory: "plugin-ui",
+    name: "@convax/plugin-ui",
+    version: "0.1.0",
+    dependencies: {},
   },
 ]
 
@@ -161,11 +167,13 @@ export async function createVendoredHostPackageClosure(
         rootPackage.devDependencies?.["@convax/marketplace-kit"],
       "@convax/plugin-api": rootPackage.devDependencies?.["@convax/plugin-api"],
       "@convax/plugin-sdk": rootPackage.devDependencies?.["@convax/plugin-sdk"],
+      "@convax/plugin-ui": rootPackage.devDependencies?.["@convax/plugin-ui"],
     },
     {
       "@convax/marketplace-kit": "workspace:*",
       "@convax/plugin-api": "workspace:*",
       "@convax/plugin-sdk": "workspace:*",
+      "@convax/plugin-ui": "workspace:*",
     },
     "root Host package dependencies",
   )
@@ -232,6 +240,7 @@ export async function createVendoredHostPackageClosure(
     ["node_modules/@convax/marketplace-kit", "marketplace-kit"],
     ["node_modules/@convax/plugin-api", "plugin-api"],
     ["node_modules/@convax/plugin-sdk", "plugin-sdk"],
+    ["node_modules/@convax/plugin-ui", "plugin-ui"],
     [
       "vendor/host-packages/marketplace-kit/node_modules/@convax/marketplace",
       "marketplace",

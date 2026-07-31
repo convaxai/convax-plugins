@@ -1,5 +1,5 @@
 import { animationFor, orderedActivities, statusText } from "../assets/activity.js"
-import { connectPetHost } from "../assets/pet-host.js"
+import { connectPetHost } from "../assets/pet-host-client.js"
 import { petsForCollection, selectedPet } from "../assets/pet-library.js"
 import {
   backgroundPositionFor,
@@ -81,6 +81,7 @@ async function navigate(activity) {
 function activityRow(activity) {
   const button = element("button", "pet-activity")
   button.type = "button"
+  button.setAttribute("data-plugin-ui-button", "quiet")
   button.addEventListener("click", () => void navigate(activity))
   const dot = element("span", `pet-dot pet-dot--${activity.state}`)
   dot.setAttribute("aria-hidden", "true")
@@ -100,18 +101,25 @@ function render() {
 
   if (expanded) {
     const tray = element("section", "pet-tray")
+    tray.setAttribute("data-plugin-ui-card", "")
     tray.setAttribute("aria-label", "Agent activity")
     const header = element("header", "pet-tray__header")
     const heading = element("div")
     heading.append(element("p", "pet-eyebrow", "Convax companion"), element("h1", "", pet.displayName))
     const close = element("button", "pet-icon-button", "×")
     close.type = "button"
+    close.setAttribute("data-plugin-ui-button", "quiet")
+    close.setAttribute("data-plugin-ui-icon-button", "")
     close.setAttribute("aria-label", "Close activity tray")
     close.addEventListener("click", () => void setExpanded(false))
     header.append(heading, close)
     const list = element("div", "pet-activity-list")
     if (activities.length) list.append(...activities.map(activityRow))
-    else list.append(element("p", "pet-empty", `All caught up. ${pet.displayName} is keeping watch.`))
+    else {
+      const empty = element("p", "pet-empty", `All caught up. ${pet.displayName} is keeping watch.`)
+      empty.setAttribute("data-plugin-ui-empty", "")
+      list.append(empty)
+    }
     tray.append(header, list)
     root.append(tray)
   }
@@ -164,6 +172,7 @@ function render() {
     primary ? statusText(primary) : "Idle",
   )
   toggle.type = "button"
+  toggle.setAttribute("data-plugin-ui-button", "quiet")
   toggle.setAttribute("aria-expanded", String(expanded))
   toggle.addEventListener("click", () => void setExpanded(!expanded))
   stage.append(spriteButton, toggle)
@@ -173,7 +182,7 @@ function render() {
 }
 
 async function start() {
-  client = await connectPetHost({ pluginId: "convax-pet", surface: "overlay" })
+  client = await connectPetHost({ surface: "overlay" })
   moveScheduler = createMoveScheduler(client)
   const initial = await client.request("activity.getSnapshot", {})
   const collection = await client.request("collection.get", {})

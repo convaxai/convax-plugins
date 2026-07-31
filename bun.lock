@@ -11,6 +11,7 @@
         "@convax/marketplace-kit": "workspace:*",
         "@convax/plugin-api": "workspace:*",
         "@convax/plugin-sdk": "workspace:*",
+        "@convax/plugin-ui": "workspace:*",
       },
     },
     "packages/plugins/chatcut": {
@@ -33,7 +34,11 @@
     },
     "packages/plugins/convax-pet": {
       "name": "@microvoid/convax-plugin-convax-pet",
-      "version": "0.3.0",
+      "version": "0.3.1",
+      "devDependencies": {
+        "@convax/plugin-sdk": "0.1.1",
+        "@convax/plugin-ui": "0.1.0",
+      },
     },
     "packages/plugins/cutout-studio": {
       "name": "@microvoid/convax-plugin-cutout-studio",
@@ -305,10 +310,14 @@
     },
     "vendor/host-packages/plugin-sdk": {
       "name": "@convax/plugin-sdk",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@convax/plugin-api": "workspace:*",
       },
+    },
+    "vendor/host-packages/plugin-ui": {
+      "name": "@convax/plugin-ui",
+      "version": "0.1.0",
     },
   },
   "packages": {
@@ -319,6 +328,8 @@
     "@convax/plugin-api": ["@convax/plugin-api@workspace:vendor/host-packages/plugin-api"],
 
     "@convax/plugin-sdk": ["@convax/plugin-sdk@workspace:vendor/host-packages/plugin-sdk"],
+
+    "@convax/plugin-ui": ["@convax/plugin-ui@workspace:vendor/host-packages/plugin-ui"],
 
     "@floating-ui/core": ["@floating-ui/core@1.8.0", "", { "dependencies": { "@floating-ui/utils": "^0.2.12" } }, "sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ=="],
 

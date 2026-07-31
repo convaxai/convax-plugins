@@ -1,12 +1,19 @@
 {
   "name": "@microvoid/convax-plugin-convax-pet",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "convax.hostCapabilityRequests": [
+    "public-plugin-ui-foundation",
     "sdk-owned-pet-surface-client"
   ],
+  "devDependencies": {
+    "@convax/plugin-sdk": "0.1.1",
+    "@convax/plugin-ui": "0.1.0"
+  },
   "scripts": {
+    "build": "bun scripts/build.ts",
+    "build:check": "bun scripts/build.ts --check",
     "validate": "bun ../../../tooling/validate.mjs --kind plugin --id convax-pet",
     "pack": "bun ../../../tooling/pack.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-../../../node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" --kind plugin --id convax-pet",
     "test": "bun test"

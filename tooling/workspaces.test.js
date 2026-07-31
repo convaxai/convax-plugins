@@ -101,7 +101,7 @@ describe("Bun workspace ownership", () => {
       marketplace: ["@convax/marketplace", "0.2.1"],
       "marketplace-kit": ["@convax/marketplace-kit", "0.2.1"],
       "plugin-api": ["@convax/plugin-api", "2.0.0"],
-      "plugin-sdk": ["@convax/plugin-sdk", "0.1.0"],
+      "plugin-sdk": ["@convax/plugin-sdk", "0.1.1"],
     }
     for (const [directory, [packageName, version]] of Object.entries(hostCandidates)) {
       const candidatePath = path.join(root, "vendor", "host-packages", directory)
@@ -196,18 +196,27 @@ describe("Bun workspace ownership", () => {
     expect(authoring).toContain("convax.plugin/8")
 
     const [pet] = await discoverPackages({ kind: "plugin", id: "convax-pet" })
+    const blockerNotes = pet.metadata.publication.blockers.map((blocker) => blocker.note)
     expect(pet.metadata).toEqual(expect.objectContaining({
       schema: "convax.package/2",
       publication: {
         status: "blocked",
-        blockers: [{
-          code: "host-capability-review-required",
-          note: expect.stringContaining(
-            "docs/host-capability-requests/sdk-owned-pet-surface-client.md",
-          ),
-        }],
+        blockers: [
+          {
+            code: "host-capability-review-required",
+            note: expect.any(String),
+          },
+          {
+            code: "host-capability-review-required",
+            note: expect.any(String),
+          },
+        ],
       },
     }))
+    expect(blockerNotes).toEqual(expect.arrayContaining([
+      expect.stringContaining("docs/host-capability-requests/public-plugin-ui-foundation.md"),
+      expect.stringContaining("docs/host-capability-requests/sdk-owned-pet-surface-client.md"),
+    ]))
     expect(pet.manifest).toEqual(expect.objectContaining({
       schema: "convax.plugin/8",
       hostApi: { major: 2, required: [], optional: [] },

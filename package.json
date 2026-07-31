@@ -9,7 +9,8 @@
   "devDependencies": {
     "@convax/marketplace-kit": "workspace:*",
     "@convax/plugin-api": "workspace:*",
-    "@convax/plugin-sdk": "workspace:*"
+    "@convax/plugin-sdk": "workspace:*",
+    "@convax/plugin-ui": "workspace:*"
   },
   "packageManager": "bun@1.3.14",
   "workspaces": [

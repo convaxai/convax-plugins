@@ -28,6 +28,7 @@ async function createFixture() {
     ["node_modules/@convax/marketplace-kit", "marketplace-kit"],
     ["node_modules/@convax/plugin-api", "plugin-api"],
     ["node_modules/@convax/plugin-sdk", "plugin-sdk"],
+    ["node_modules/@convax/plugin-ui", "plugin-ui"],
     [
       "vendor/host-packages/marketplace-kit/node_modules/@convax/marketplace",
       "marketplace",
@@ -81,7 +82,8 @@ describe("vendored Host package publication closure", () => {
         "@convax/marketplace@0.2.1",
         "@convax/marketplace-kit@0.2.1",
         "@convax/plugin-api@2.0.0",
-        "@convax/plugin-sdk@0.1.0",
+        "@convax/plugin-sdk@0.1.1",
+        "@convax/plugin-ui@0.1.0",
       ])
     for (const item of closure.packages) {
       expect(item.sha256).toMatch(/^[a-f0-9]{64}$/)

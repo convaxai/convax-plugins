@@ -1,0 +1,10 @@
+{
+  "version": 3,
+  "sources": ["../src/index.ts"],
+  "sourcesContent": [
+    "/** Stable package-relative stylesheet entry for sandboxed Plugin documents. */\nexport const pluginThemeStylesheet = \"@convax/plugin-ui/theme.css\" as const\n"
+  ],
+  "mappings": "AACO,IAAM,EAAwB",
+  "debugId": "4D0D37AC8CF30CDD64756E2164756E21",
+  "names": []
+}

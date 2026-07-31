@@ -107,6 +107,24 @@
       ]
     },
     {
+      "id": "public-plugin-ui-foundation",
+      "document": "docs/host-capability-requests/public-plugin-ui-foundation.md",
+      "status": "pending",
+      "humanDecision": null,
+      "acceptedApiContracts": [],
+      "affected": [
+        {
+          "kind": "plugin",
+          "id": "convax-pet",
+          "version": "0.3.1",
+          "blocker": {
+            "code": "host-capability-review-required",
+            "note": "convax-pet@0.3.1 consumes the reviewed local @convax/plugin-ui@0.1.0 candidate, but publication still requires a protected human receipt plus published package integrity evidence. Human review is tracked in docs/host-capability-requests/public-plugin-ui-foundation.md."
+          }
+        }
+      ]
+    },
+    {
       "id": "sdk-owned-pet-surface-client",
       "document": "docs/host-capability-requests/sdk-owned-pet-surface-client.md",
       "status": "pending",
@@ -116,10 +134,10 @@
         {
           "kind": "plugin",
           "id": "convax-pet",
-          "version": "0.3.0",
+          "version": "0.3.1",
           "blocker": {
             "code": "host-capability-review-required",
-            "note": "No published @convax/plugin-sdk Pet surface client owns the convax.pet-host/1 request transport, so this package still contains a handwritten request state machine. Human review is tracked in docs/host-capability-requests/sdk-owned-pet-surface-client.md."
+            "note": "convax-pet@0.3.1 consumes the reviewed local @convax/plugin-sdk@0.1.1 Pet client candidate and no longer authors the transport, but publication still requires a protected human receipt plus published package integrity and runtime conformance evidence. Human review is tracked in docs/host-capability-requests/sdk-owned-pet-surface-client.md."
           }
         }
       ]

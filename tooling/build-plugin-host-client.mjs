@@ -3,6 +3,8 @@ import { parsePluginManifestV8 } from "@convax/plugin-sdk"
 
 export const pluginSdkClientBundleMarker =
   "@convax/plugin-sdk/client:createPluginHostClient"
+export const petSdkClientBundleMarker =
+  "@convax/plugin-sdk/pet-client:connectPetHost"
 
 export function createPluginClientManifestProjection(manifest) {
   const renderer = manifest?.contributes?.canvas?.renderer
@@ -115,6 +117,66 @@ export async function buildPluginHostClient({
   }
   await Bun.write(outputPath, source)
   return outputPath
+}
+
+export async function buildPetSurfaceAssets({ check = false, packageRoot }) {
+  if (typeof packageRoot !== "string" || !path.isAbsolute(packageRoot)) {
+    throw new TypeError("Pet Plugin packageRoot must be an absolute path")
+  }
+  const entrypoint = path.join(packageRoot, "src", "pet-host-client.js")
+  const clientOutputPath = path.join(packageRoot, "package", "assets", "pet-host-client.js")
+  const themeOutputPath = path.join(packageRoot, "package", "assets", "plugin-theme.css")
+  const result = await Bun.build({
+    entrypoints: [entrypoint],
+    format: "esm",
+    minify: true,
+    target: "browser",
+  })
+  if (!result.success || result.outputs.length !== 1) {
+    result.logs.forEach((message) => console.error(message))
+    throw new Error("Pet SDK client bundle failed")
+  }
+  const clientSource = await result.outputs[0].text()
+  if (
+    !clientSource.includes(petSdkClientBundleMarker) ||
+    !clientSource.includes("convax.pet-host/1") ||
+    !clientSource.includes("connectPetHost")
+  ) {
+    throw new Error("Pet SDK client bundle is missing its provenance marker")
+  }
+  if (
+    clientSource.includes('pluginId:"convax-pet"') ||
+    clientSource.includes("../convax/") ||
+    clientSource.includes("/Users/") ||
+    /https?:\/\//u.test(clientSource)
+  ) {
+    throw new Error("Pet SDK client bundle leaked Plugin identity or build provenance")
+  }
+
+  const themePath = Bun.resolveSync("@convax/plugin-ui/theme.css", packageRoot)
+  const themeSource = await Bun.file(themePath).text()
+  if (
+    !themeSource.includes("--ui-surface-canvas:") ||
+    !themeSource.includes("@media (prefers-color-scheme: dark)") ||
+    themeSource.includes("@import") ||
+    /https?:\/\/|url\(/u.test(themeSource)
+  ) {
+    throw new Error("Plugin UI theme candidate is not standalone browser-safe CSS")
+  }
+
+  for (const [outputPath, source, label] of [
+    [clientOutputPath, clientSource, "Pet SDK client bundle"],
+    [themeOutputPath, themeSource, "Plugin UI theme"],
+  ]) {
+    if (check) {
+      if (!(await Bun.file(outputPath).exists()) || (await Bun.file(outputPath).text()) !== source) {
+        throw new Error(`${label} is stale`)
+      }
+    } else {
+      await Bun.write(outputPath, source)
+    }
+  }
+  return { clientOutputPath, themeOutputPath }
 }
 
 if (import.meta.main) {

@@ -1,4 +1,4 @@
-import { connectPetHost } from "../assets/pet-host.js"
+import { connectPetHost } from "../assets/pet-host-client.js"
 import { petsForCollection, selectedPet } from "../assets/pet-library.js"
 import { normalizePreferences, selectPreference, wakeRequest } from "./model.js"
 
@@ -93,6 +93,8 @@ function removePet(pet) {
 function petCard(pet) {
   const selected = pet.id === preferences.selectedPetId
   const card = element("article", selected ? "pet-card pet-card--selected" : "pet-card")
+  card.setAttribute("data-plugin-ui-card", "")
+  card.setAttribute("aria-selected", String(selected))
   const select = element("button", "pet-card__select")
   select.type = "button"
   select.disabled = Boolean(busyAction)
@@ -102,7 +104,9 @@ function petCard(pet) {
   const copy = element("span", "pet-card__copy")
   const title = element("span", "pet-card__title")
   title.append(element("strong", "", pet.displayName))
-  title.append(element("span", `pet-source pet-source--${pet.source}`, pet.source === "custom" ? "Custom" : "Original"))
+  const source = element("span", `pet-source pet-source--${pet.source}`, pet.source === "custom" ? "Custom" : "Original")
+  source.setAttribute("data-plugin-ui-badge", "")
+  title.append(source)
   copy.append(title, element("span", "pet-card__description", pet.description))
   select.append(sprite(pet, "pet-preview"), copy)
   card.append(select)
@@ -116,6 +120,7 @@ function petCard(pet) {
       pendingRemoval === pet.id ? "Confirm remove" : "Remove",
     )
     remove.type = "button"
+    remove.setAttribute("data-plugin-ui-button", pendingRemoval === pet.id ? "danger" : "quiet")
     remove.disabled = Boolean(busyAction)
     remove.addEventListener("click", () => removePet(pet))
     footer.append(remove)
@@ -156,6 +161,7 @@ function render() {
     preferences.awake ? "Tuck away" : "Wake pet",
   )
   lifecycle.type = "button"
+  lifecycle.setAttribute("data-plugin-ui-button", preferences.awake ? "quiet" : "primary")
   lifecycle.disabled = Boolean(busyAction)
   lifecycle.addEventListener("click", toggleLifecycle)
   heroCopy.append(lifecycle)
@@ -173,6 +179,7 @@ function render() {
   const addGroup = element("div", "add-group")
   const add = element("button", "add-button", busyAction === "import" ? "Opening…" : "Add custom pet")
   add.type = "button"
+  add.setAttribute("data-plugin-ui-button", "primary")
   add.disabled = Boolean(busyAction)
   add.addEventListener("click", importPet)
   addGroup.append(add, element("span", "format-hint", "PNG or WebP · transparent · 1536 × 1872"))
@@ -185,21 +192,20 @@ function render() {
   root.append(header, hero, section)
   if (busyAction) {
     const status = element("p", "settings-status", "Updating your Pet Studio…")
+    status.setAttribute("data-plugin-ui-notice", "")
     status.setAttribute("aria-live", "polite")
     root.append(status)
   }
   if (errorMessage) {
     const error = element("p", "settings-error", errorMessage)
+    error.setAttribute("data-plugin-ui-notice", "danger")
     error.setAttribute("role", "alert")
     root.append(error)
   }
 }
 
 async function start() {
-  client = await connectPetHost({
-    pluginId: "convax-pet",
-    surface: "settings",
-  })
+  client = await connectPetHost({ surface: "settings" })
   const [initialPreferences, initialCollection] = await Promise.all([
     client.request("preferences.get", {}),
     client.request("collection.get", {}),
@@ -220,5 +226,7 @@ async function start() {
 }
 
 start().catch(() => {
-  root.replaceChildren(element("p", "settings-error", "Pet Studio is disconnected from Convax."))
+  const error = element("p", "settings-error", "Pet Studio is disconnected from Convax.")
+  error.setAttribute("data-plugin-ui-notice", "danger")
+  root.replaceChildren(error)
 })
