@@ -35,6 +35,44 @@ const cosignInstaller =
   "sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6"
 const hostSigstoreVerifierSha256 =
   "a142b3a85b766f6fd4ff2737a65c1e4d782ac02a2ba184128438087991272425"
+const vendoredHostPackages = Object.freeze([
+  {
+    name: "@convax/marketplace",
+    version: "0.2.1",
+    workspace: "vendor/host-packages/marketplace",
+  },
+  {
+    name: "@convax/marketplace-kit",
+    version: "0.2.2",
+    workspace: "vendor/host-packages/marketplace-kit",
+  },
+  {
+    name: "@convax/plugin-api",
+    version: "2.0.0",
+    workspace: "vendor/host-packages/plugin-api",
+  },
+  {
+    name: "@convax/plugin-sdk",
+    version: "0.1.1",
+    workspace: "vendor/host-packages/plugin-sdk",
+  },
+  {
+    name: "@convax/plugin-ui",
+    version: "0.1.0",
+    workspace: "vendor/host-packages/plugin-ui",
+  },
+])
+
+function requireVendoredHostPackageAssertion(shell) {
+  const compactShell = shell.replace(/\s+/gu, "")
+  for (const field of ["name", "version", "workspace"]) {
+    const values = vendoredHostPackages.map((entry) => entry[field])
+    const assertion = `[.packages[].${field}]==${JSON.stringify(values)}and`
+    if (!compactShell.includes(assertion)) {
+      fail(`publish job vendored Host package ${field} assertion drifted`)
+    }
+  }
+}
 
 function requireCosignInstaller(steps, label, expectedCondition) {
   const installers = steps.filter((step) => step?.uses === cosignInstaller)
@@ -337,6 +375,7 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
   ) {
     fail("publish job does not re-verify exact artifact-only provenance")
   }
+  requireVendoredHostPackageAssertion(publishShell)
   const workspaceAttestation = publishSteps.find(
     (step) =>
       step?.name ===

@@ -166,6 +166,17 @@ describe("protected Plugin publication policy", () => {
       await fs.writeFile(
         path.join(fixture, ".github", "workflows", "release-on-main.yml"),
         release.replace(
+          '[.packages[].version] == ["0.2.1", "0.2.2", "2.0.0", "0.1.1", "0.1.0"]',
+          '[.packages[].version] == ["0.2.1", "0.2.3", "2.0.0", "0.1.1", "0.1.0"]',
+        ),
+      )
+      await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
+        "vendored Host package version assertion drifted",
+      )
+
+      await fs.writeFile(
+        path.join(fixture, ".github", "workflows", "release-on-main.yml"),
+        release.replace(
           'cmp -s "$candidate_asset" "$published_asset"',
           'test -f "$published_asset"',
         ),

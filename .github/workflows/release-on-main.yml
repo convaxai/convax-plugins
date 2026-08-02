@@ -515,14 +515,16 @@ jobs:
                   "@convax/marketplace",
                   "@convax/marketplace-kit",
                   "@convax/plugin-api",
-                  "@convax/plugin-sdk"
+                  "@convax/plugin-sdk",
+                  "@convax/plugin-ui"
                 ] and
-                [.packages[].version] == ["0.2.1", "0.2.1", "2.0.0", "0.1.0"] and
+                [.packages[].version] == ["0.2.1", "0.2.2", "2.0.0", "0.1.1", "0.1.0"] and
                 [.packages[].workspace] == [
                   "vendor/host-packages/marketplace",
                   "vendor/host-packages/marketplace-kit",
                   "vendor/host-packages/plugin-api",
-                  "vendor/host-packages/plugin-sdk"
+                  "vendor/host-packages/plugin-sdk",
+                  "vendor/host-packages/plugin-ui"
                 ] and
                 all(.packages[];
                   keys == ["bytes", "files", "name", "sha256", "version", "workspace"] and

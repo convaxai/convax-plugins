@@ -114,12 +114,13 @@ owned Agent tool. The Skill reference generator cannot safely invent these types
 ## Implemented consumer gates
 
 The active `CONVAX_PLUGIN_SDK_SOURCE=workspace` gate refuses every selected
-Plugin release unless the root declarations and frozen lock resolve the four
-exact vendored Host packages, installed direct and transitive paths resolve to
-those directories, the API Catalog is contract v3 at `2.0.0`, the package
-manifests and dependencies match the admitted closure, and every non-`node_modules`
-file is a bounded regular non-symlink byte included in the package digest. The
-low-privilege job writes this evidence to
+Plugin release unless the root declarations and frozen lock resolve the five
+exact vendored Host packages (`marketplace@0.2.1`, `marketplace-kit@0.2.2`,
+`plugin-api@2.0.0`, `plugin-sdk@0.1.1`, and `plugin-ui@0.1.0`), installed direct
+and transitive paths resolve to those directories, the API Catalog is contract
+v3 at `2.0.0`, the package manifests and dependencies match the admitted closure,
+and every non-`node_modules` file is a bounded regular non-symlink byte included
+in the package digest. The low-privilege job writes this evidence to
 `dist/vendored-host-package-closure.json`; the artifact-only publisher validates
 its closed schema and commit, includes it in `PUBLICATION-SHA256SUMS`, and attests
 it with the selected release bytes.
