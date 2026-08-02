@@ -291,7 +291,7 @@
     },
     "vendor/host-packages/marketplace-kit": {
       "name": "@convax/marketplace-kit",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "bin": {
         "convax-marketplace": "./dist/cli.js",
       },

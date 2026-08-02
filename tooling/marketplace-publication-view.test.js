@@ -135,4 +135,84 @@ describe("ready-only Marketplace publication view", () => {
       await disposeMarketplacePublicationView(view)
     }
   })
+
+  test("excludes an explicit package and closes owned Skill publication", async () => {
+    const workspaceRoot = await temporaryDirectory("convax-publication-excluded-")
+    await write(workspaceRoot, "marketplace.json")
+    await write(workspaceRoot, "catalogs/builtin.json")
+    await write(workspaceRoot, "catalogs/preinstalled.json")
+    await write(workspaceRoot, "catalogs/excluded.json")
+    await write(workspaceRoot, "registry/config.json")
+    for (const relative of [
+      "packages/plugins/excluded-plugin/package/manifest.json",
+      "packages/skills/owned-skill/package/SKILL.md",
+      "packages/skills/ready-skill/package/SKILL.md",
+    ]) {
+      await write(workspaceRoot, relative)
+    }
+    const packages = [
+      {
+        metadata: {
+          kind: "plugin",
+          id: "excluded-plugin",
+          version: "1.0.0",
+          publication: { status: "ready", blockers: [] },
+        },
+        manifest: { contributes: { skills: [{ name: "owned-skill" }] } },
+      },
+      {
+        metadata: {
+          kind: "skill",
+          id: "owned-skill",
+          ownerPluginId: "excluded-plugin",
+          version: "1.0.0",
+          publication: { status: "ready", blockers: [] },
+        },
+      },
+      {
+        metadata: {
+          kind: "skill",
+          id: "ready-skill",
+          version: "1.0.0",
+          publication: { status: "ready", blockers: [] },
+        },
+      },
+    ]
+    const candidates = packages.map((pkg) => ({
+      kind: pkg.metadata.kind,
+      id: pkg.metadata.id,
+      root: path.join(
+        workspaceRoot,
+        "packages",
+        pkg.metadata.kind === "plugin" ? "plugins" : "skills",
+        pkg.metadata.id,
+      ),
+    }))
+    const view = await createMarketplacePublicationView({
+      candidates,
+      excluded: [{ kind: "plugin", id: "excluded-plugin" }],
+      packages,
+      workspaceRoot,
+    })
+    try {
+      expect(view.excluded).toEqual([
+        { kind: "plugin", id: "excluded-plugin" },
+        { kind: "skill", id: "owned-skill" },
+      ])
+      await expect(fs.stat(path.join(view.root, "packages/plugins/excluded-plugin")))
+        .rejects.toMatchObject({ code: "ENOENT" })
+      await expect(fs.stat(path.join(view.root, "packages/skills/owned-skill")))
+        .rejects.toMatchObject({ code: "ENOENT" })
+      await expect(fs.stat(path.join(view.root, "packages/skills/ready-skill")))
+        .resolves.toBeDefined()
+    } finally {
+      await disposeMarketplacePublicationView(view)
+    }
+    await expect(createMarketplacePublicationView({
+      candidates,
+      excluded: [{ kind: "skill", id: "owned-skill" }],
+      packages,
+      workspaceRoot,
+    })).rejects.toThrow("without plugin/excluded-plugin")
+  })
 })

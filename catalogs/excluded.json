@@ -1,0 +1,9 @@
+{
+  "schema": "convax.catalog-exclusions/1",
+  "members": [
+    {
+      "kind": "skill",
+      "id": "clip-export"
+    }
+  ]
+}

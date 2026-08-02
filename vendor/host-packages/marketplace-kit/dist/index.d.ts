@@ -17,6 +17,11 @@ export interface MarketplacePublishSelection {
     previousVersion?: string;
     releaseTag: string;
 }
+export interface MarketplaceRemovalSelection {
+    kind: StarterKind;
+    id: string;
+    version: string;
+}
 export interface BuildMarketplaceOptions {
     root: string;
     outDir: string;
@@ -28,6 +33,7 @@ export interface BuildMarketplaceOptions {
     initialOfficial?: boolean;
     publishIdentities?: readonly string[];
     publishSelections?: readonly MarketplacePublishSelection[];
+    removeSelections?: readonly MarketplaceRemovalSelection[];
     fetchArtifact?: (artifact: {
         url: string;
         size: number;

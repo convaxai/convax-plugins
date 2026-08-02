@@ -22,6 +22,7 @@ import {
   parsePinnedV8CutoverRegistry,
 } from "./marketplace-v8-cutover.mjs"
 import { effectivePackagePublications } from "./publication-eligibility.mjs"
+import { loadOfficialMarketplaceSource } from "./official-marketplace.mjs"
 
 function sha256(input) {
   return createHash("sha256").update(input).digest("hex")
@@ -333,13 +334,28 @@ export function assertSelectedCandidatesMatchSnapshot(
   }
 }
 
-export function createReleaseSelectionPlan(selected, current) {
+export function createReleaseSelectionPlan(selected, current, { excludedIdentities = new Set() } = {}) {
   assertSelectedCandidatesMatchSnapshot(selected, current, {
     allowBlocked: true,
   })
   const ready = []
   const omitted = []
   for (const entry of selected) {
+    const identity = `${entry.kind}/${entry.id}`
+    if (excludedIdentities.has(identity)) {
+      omitted.push({
+        ...entry,
+        publication: {
+          status: "blocked",
+          blockers: [{
+            code: "catalog-policy-excluded",
+            note: "Excluded from the Official Catalog publication view.",
+          }],
+          blockedBy: [],
+        },
+      })
+      continue
+    }
     const candidate = current.get(`${entry.kind}\0${entry.id}`)
     if (candidate.publication.status === "blocked") {
       omitted.push({
@@ -436,7 +452,12 @@ async function main(argv) {
         current,
       )
     : await changedMarketplaceVersions(repositoryRoot, args.base)
-  const plan = createReleaseSelectionPlan(changed, current)
+  const officialSource = await loadOfficialMarketplaceSource(repositoryRoot)
+  const plan = createReleaseSelectionPlan(changed, current, {
+    excludedIdentities: new Set(
+      officialSource.excluded.map(({ kind, id }) => `${kind}/${id}`),
+    ),
+  })
   const output = path.resolve(repositoryRoot, args.output)
   const omissionsOutput = path.resolve(
     repositoryRoot,

@@ -70,6 +70,11 @@ blocked packages. Exact package packing rejects them; release selection and
 Marketplace composition omit them and their owner/owned-Skill closure while
 continuing with unrelated ready packages.
 
+Current Official catalog omissions are declared separately in
+`catalogs/excluded.json`. They keep reviewed source and immutable historical
+Releases intact while removing the package identity and presentation from the
+current Registry/Showcase through an exact-baseline selective publication.
+
 One exact package version may carry up to 16 orthogonal request ids. Tooling
 deduplicates and deterministically orders that blocker set; it never merges
 requests or lets one decision receipt resolve another request. Resolving only a
@@ -322,7 +327,7 @@ bun run check               # complete fail-closed local CI sequence
 
 Marketplace publication consumes the public authoring contracts
 `@convax/plugin-api@2.0.0`, `@convax/plugin-sdk@0.1.1`, and
-`@convax/marketplace-kit@0.2.1`. Local source links are validation aids, not valid
+`@convax/marketplace-kit@0.2.2`. Local source links are validation aids, not valid
 publication dependencies. All three exact packages must be available from the
 configured registry before a clean frozen install or publication can succeed.
 See the [SDK authoring rollout blocker](docs/sdk-authoring-contract-rollout.md).

@@ -83,10 +83,51 @@ function assertPreinstalled(preinstalled) {
   }
 }
 
+function assertExcluded(excluded) {
+  exactKeys(excluded, ["schema", "members"], ["schema", "members"], "catalogs/excluded.json")
+  if (
+    excluded.schema !== "convax.catalog-exclusions/1" ||
+    !Array.isArray(excluded.members) ||
+    excluded.members.length > 128
+  ) {
+    throw new Error("catalogs/excluded.json: unsupported schema or member count")
+  }
+  const identities = excluded.members.map((member, index) => {
+    exactKeys(member, ["kind", "id"], ["kind", "id"], `catalogs/excluded.json member ${index}`)
+    if (
+      !["plugin", "skill", "mcp-server"].includes(member.kind) ||
+      typeof member.id !== "string" ||
+      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(member.id)
+    ) {
+      throw new Error(`catalogs/excluded.json member ${index}: invalid package identity`)
+    }
+    return `${member.kind}/${member.id}`
+  })
+  if (new Set(identities).size !== identities.length) {
+    throw new Error("catalogs/excluded.json: members must be unique")
+  }
+  const sorted = [...identities].sort((left, right) => left.localeCompare(right, "en"))
+  if (identities.some((identity, index) => identity !== sorted[index])) {
+    throw new Error("catalogs/excluded.json: members must use canonical identity order")
+  }
+}
+
 export function assertOfficialMarketplaceSource(source) {
   assertOfficialMarketplaceDescriptor(source.descriptor)
   assertBuiltin(source.builtin)
   assertPreinstalled({ schema: "convax.preinstalled-config/1", packages: source.preinstalled })
+  assertExcluded({ schema: "convax.catalog-exclusions/1", members: source.excluded })
+  const excluded = new Set(source.excluded.map(({ kind, id }) => `${kind}/${id}`))
+  for (const member of source.builtin.members) {
+    if (excluded.has(`${member.kind}/${member.id}`)) {
+      throw new Error("catalogs/excluded.json: Builtin members cannot be excluded")
+    }
+  }
+  for (const member of source.preinstalled) {
+    if (excluded.has(`${member.kind}/${member.id}`)) {
+      throw new Error("catalogs/excluded.json: preinstalled packages cannot be excluded")
+    }
+  }
 }
 
 export async function loadOfficialMarketplaceSource(workspaceRoot) {
@@ -95,10 +136,12 @@ export async function loadOfficialMarketplaceSource(workspaceRoot) {
   const descriptor = await readJson("marketplace.json")
   const builtin = await readJson("catalogs/builtin.json")
   const preinstalledConfig = await readJson("catalogs/preinstalled.json")
+  const excludedConfig = await readJson("catalogs/excluded.json")
   const source = {
     descriptor,
     builtin,
     preinstalled: preinstalledConfig.packages,
+    excluded: excludedConfig.members,
   }
   assertOfficialMarketplaceSource(source)
   return source

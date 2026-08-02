@@ -190,6 +190,13 @@ Packages are sorted by kind then id for deterministic output. Unknown fields are
 rejected. Clients must ignore yanked items for new installs while still
 allowing inventory/diagnostics for already-installed versions.
 
+The Official source may also apply the reviewed policy in
+`catalogs/excluded.json`. Unlike yanking, an exclusion removes the identity from
+the current Registry and Showcase entirely. The selective builder binds each
+removal to the exact production version, requires the package to be absent from
+the candidate publication view, and preserves every unrelated production entry.
+Immutable historical Releases remain available for audit and recovery.
+
 ## Showcase sidecars
 
 The current Marketplace descriptor exposes `convax.showcase/2` at

@@ -622,6 +622,21 @@ describe("Marketplace Kit release selection and publication policy", () => {
       ...blocked,
       publication: snapshot.get("plugin\0example-plugin").publication,
     }])
+    const excludedPlan = createReleaseSelectionPlan([ready], snapshot, {
+      excludedIdentities: new Set(["skill/ready-skill"]),
+    })
+    expect(excludedPlan.selected).toEqual([])
+    expect(excludedPlan.omissions.omitted).toEqual([{
+      ...ready,
+      publication: {
+        status: "blocked",
+        blockers: [{
+          code: "catalog-policy-excluded",
+          note: "Excluded from the Official Catalog publication view.",
+        }],
+        blockedBy: [],
+      },
+    }])
     expect(() =>
       assertSelectedCandidatesMatchSnapshot([blocked], snapshot),
     ).toThrow("is publication-blocked")

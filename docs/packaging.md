@@ -262,6 +262,13 @@ disable a compromised version for new installs, publish a reviewed higher packag
 version with `yanked: true`. Existing immutable assets remain available for
 inventory, recovery, and audit.
 
+When current catalog metadata itself must omit an identity, use the reviewed
+`catalogs/excluded.json` policy rather than deleting source or treating `yanked`
+as removal. The ready-only publication view closes Plugin-owned Skill ownership,
+and the Marketplace Kit accepts only an exact production-version removal. A
+removal-only deployment publishes one new Registry metadata Release and no
+replacement package Release.
+
 The serialized workflow fetches and strictly validates the complete current v2
 production closure: descriptor, Registry, Showcase, and immutable metadata
 Release. Initial publication uses an explicit empty marker; a missing or malformed

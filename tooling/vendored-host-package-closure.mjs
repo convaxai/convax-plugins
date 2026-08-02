@@ -14,7 +14,7 @@ const PACKAGE_SPECS = [
   {
     directory: "marketplace-kit",
     name: "@convax/marketplace-kit",
-    version: "0.2.1",
+    version: "0.2.2",
     dependencies: {
       "@convax/marketplace": "workspace:*",
       "@convax/plugin-api": "workspace:*",

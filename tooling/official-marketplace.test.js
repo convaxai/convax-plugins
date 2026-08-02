@@ -9,6 +9,7 @@ import {
   loadOfficialMarketplaceSource,
 } from "./official-marketplace.mjs"
 import {
+  catalogRemovalSelections,
   officialBuildArgs,
   officialBuildInvocation,
   runOfficialBuild,
@@ -117,6 +118,9 @@ describe("Official Marketplace tooling", () => {
         setup: "explicit",
       },
     ])
+    expect(source.excluded).toEqual([
+      { kind: "skill", id: "clip-export" },
+    ])
     expect(() => assertOfficialMarketplaceSource(source)).not.toThrow()
 
     expect(() => assertOfficialMarketplaceSource({
@@ -198,6 +202,27 @@ describe("Official Marketplace tooling", () => {
       "--sequence",
       "56",
     ])
+    expect(officialBuildArgs({
+      previousDescriptor: "dist/production/marketplace.json",
+      previous: "dist/production/registry-v2.json",
+      previousShowcase: "dist/production/showcase-v2.json",
+      removed: "dist/catalog-removals.json",
+      root: "/tmp/publication-view",
+    })).toEqual([
+      "build-index",
+      "/tmp/publication-view",
+      "--out",
+      "dist/catalog",
+      "--official",
+      "--removed",
+      "dist/catalog-removals.json",
+      "--previous-descriptor",
+      "dist/production/marketplace.json",
+      "--previous",
+      "dist/production/registry-v2.json",
+      "--previous-showcase",
+      "dist/production/showcase-v2.json",
+    ])
     expect(() => officialBuildArgs({
       previous: "dist/production/registry-v2.json",
     })).toThrow("complete previous v2 closure")
@@ -211,6 +236,33 @@ describe("Official Marketplace tooling", () => {
     })).toThrow(
       "Non-initial Official build requires an exact ready-only change selection",
     )
+  })
+
+  test("binds catalog removals to exact production versions", () => {
+    const packages = [{
+      kind: "skill",
+      id: "retired-skill",
+      version: "1.2.3",
+      compatibility: { convax: ">=0.1.0" },
+      presentation: { name: "Retired Skill" },
+      yanked: false,
+      delivery: {
+        kind: "artifact",
+        url: "https://github.com/microvoid/convax-plugins/releases/download/skill-retired-skill-v1.2.3/skill.zip",
+        size: 1,
+        sha256: "0".repeat(64),
+      },
+    }]
+    const registry = registryFixture({
+      packages,
+      revision: createHash("sha256").update(canonicalJson(packages)).digest("hex"),
+    })
+    expect(catalogRemovalSelections(registry, [
+      { kind: "skill", id: "retired-skill" },
+      { kind: "plugin", id: "not-in-production" },
+    ])).toEqual([
+      { kind: "skill", id: "retired-skill", version: "1.2.3" },
+    ])
   })
 
   test("runs the locked Marketplace Kit CLI with the current runtime", () => {
@@ -250,6 +302,7 @@ describe("Official Marketplace tooling", () => {
         preflightOptions = options
         return { packages: [] }
       },
+      loadSource: async () => ({ excluded: [] }),
       createView: async () => ({
         omissions: {
           schema: "convax.marketplace-build-omissions/1",
@@ -315,6 +368,7 @@ describe("Official Marketplace tooling", () => {
         CONVAX_MARKETPLACE_INITIAL_SEQUENCE: "56",
         CONVAX_PLUGIN_API_CATALOG: "fixtures/plugin-api.json",
       },
+      loadSource: async () => ({ excluded: [] }),
       preflight: async () => ({
         packages: [{
           metadata: {
@@ -357,6 +411,7 @@ describe("Official Marketplace tooling", () => {
           "dist/production/showcase-v2.json",
         CONVAX_PLUGIN_API_CATALOG: "fixtures/plugin-api.json",
       },
+      loadSource: async () => ({ excluded: [] }),
       preflight: async () => ({
         packages: [{
           metadata: {

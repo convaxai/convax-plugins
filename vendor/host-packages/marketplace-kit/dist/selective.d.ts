@@ -11,6 +11,11 @@ export type MarketplaceSelectionContext = {
         productionPreviousVersion?: string;
         releaseTag: string;
     }>;
+    removedPackages?: Array<{
+        kind: RegistryPackage["kind"];
+        id: string;
+        productionVersion: string;
+    }>;
     baseline: {
         mode: "v2";
         registry: RegistryV2;
@@ -24,7 +29,7 @@ export declare function packageIdentity(entry: {
 export declare function parsePublishIdentities(value: readonly string[] | undefined): string[] | undefined;
 export declare function parseMarketplaceSelectionContext(value: unknown, descriptor: MarketplaceDescriptor): MarketplaceSelectionContext;
 export declare function selectionBaselineRegistry(context: MarketplaceSelectionContext, _descriptor: MarketplaceDescriptor): RegistryV2;
-export declare function mergeSelectedRegistry(baselineValue: RegistryV2, candidateValue: RegistryV2, selectedIdentitiesValue: readonly string[]): RegistryV2;
+export declare function mergeSelectedRegistry(baselineValue: RegistryV2, candidateValue: RegistryV2, selectedIdentitiesValue: readonly string[], removedIdentitiesValue?: readonly string[]): RegistryV2;
 export declare function inheritedShowcasePackages(context: MarketplaceSelectionContext, descriptor: MarketplaceDescriptor, registry: RegistryV2): Array<{
     package: ShowcaseV2["packages"][number];
     sources: Array<{

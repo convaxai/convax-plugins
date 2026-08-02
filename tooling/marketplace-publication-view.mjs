@@ -65,6 +65,7 @@ async function copyWorkspacePath(workspaceRoot, viewRoot, source, copied) {
 
 export async function createMarketplacePublicationView({
   candidates,
+  excluded = [],
   packages,
   workspaceRoot,
 }) {
@@ -75,6 +76,30 @@ export async function createMarketplacePublicationView({
       pkg,
     ]),
   )
+  const excludedIdentities = new Set(
+    excluded.map(({ kind, id }) => `${kind}/${id}`),
+  )
+  for (const pkg of packages) {
+    if (
+      pkg.metadata.kind === "skill" &&
+      pkg.metadata.ownerPluginId &&
+      excludedIdentities.has(`plugin/${pkg.metadata.ownerPluginId}`)
+    ) {
+      excludedIdentities.add(`skill/${pkg.metadata.id}`)
+    }
+  }
+  for (const pkg of packages) {
+    if (
+      pkg.metadata.kind === "skill" &&
+      pkg.metadata.ownerPluginId &&
+      excludedIdentities.has(`skill/${pkg.metadata.id}`) &&
+      !excludedIdentities.has(`plugin/${pkg.metadata.ownerPluginId}`)
+    ) {
+      throw new Error(
+        `catalog exclusion cannot remove owned skill/${pkg.metadata.id} without plugin/${pkg.metadata.ownerPluginId}`,
+      )
+    }
+  }
   const omissions = packages.flatMap((pkg) => {
     const publication = effective.get(
       `${pkg.metadata.kind}/${pkg.metadata.id}`,
@@ -120,6 +145,7 @@ export async function createMarketplacePublicationView({
     }
     for (const candidate of candidates) {
       const identity = `${candidate.kind}/${candidate.id}`
+      if (excludedIdentities.has(identity)) continue
       const pkg = admittedByIdentity.get(identity)
       if (pkg && effective.get(identity).status === "blocked") continue
       await copyWorkspacePath(
@@ -150,6 +176,12 @@ export async function createMarketplacePublicationView({
       }
     }
     return {
+      excluded: [...excludedIdentities]
+        .sort((left, right) => left.localeCompare(right, "en"))
+        .map((identity) => {
+          const separator = identity.indexOf("/")
+          return { kind: identity.slice(0, separator), id: identity.slice(separator + 1) }
+        }),
       omissions: {
         schema: "convax.marketplace-build-omissions/1",
         omitted: omissions,

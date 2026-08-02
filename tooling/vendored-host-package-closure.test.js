@@ -80,7 +80,7 @@ describe("vendored Host package publication closure", () => {
     expect(closure.packages.map(({ name, version }) => `${name}@${version}`))
       .toEqual([
         "@convax/marketplace@0.2.1",
-        "@convax/marketplace-kit@0.2.1",
+        "@convax/marketplace-kit@0.2.2",
         "@convax/plugin-api@2.0.0",
         "@convax/plugin-sdk@0.1.1",
         "@convax/plugin-ui@0.1.0",

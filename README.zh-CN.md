@@ -245,7 +245,7 @@ bun run check               # 执行完整 fail-closed 本地 CI
 
 Marketplace 发布消费公开 authoring contract：
 `@convax/plugin-api@2.0.0`、`@convax/plugin-sdk@0.1.1` 与
-`@convax/marketplace-kit@0.2.1`。本地源码 link 只用于验证，不是有效的发布依赖；
+`@convax/marketplace-kit@0.2.2`。本地源码 link 只用于验证，不是有效的发布依赖；
 三个精确版本都必须先在配置的 registry 可用，干净 frozen install 与发布才可成功。
 参见 [SDK authoring rollout blocker](docs/sdk-authoring-contract-rollout.md)。
 
