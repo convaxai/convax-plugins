@@ -103,6 +103,7 @@ jobs:
             --output dist/release-plan.json
           echo "count=$(jq length dist/release-plan.json)" >> "$GITHUB_OUTPUT"
           echo "plugin_count=$(jq '[.[] | select(.kind == "plugin")] | length' dist/release-plan.json)" >> "$GITHUB_OUTPUT"
+          echo "ffmpeg_count=$(jq '[.[] | select(.kind == "plugin" and .id == "ffmpeg-tools")] | length' dist/release-plan.json)" >> "$GITHUB_OUTPUT"
           echo "sdk_source=$CONVAX_PLUGIN_SDK_SOURCE" >> "$GITHUB_OUTPUT"
           echo "CONVAX_MARKETPLACE_CHANGED=dist/release-plan.json" >> "$GITHUB_ENV"
       - name: Install Cosign
@@ -371,7 +372,7 @@ jobs:
         if: steps.plan.outputs.plugin_count != '0' && env.CONVAX_PLUGIN_SDK_SOURCE == 'npm'
         run: bun tooling/verify-marketplace-output.mjs dist/catalog
       - name: Stage verified FFmpeg source and SBOM beside the companion
-        if: env.CONVAX_FFMPEG_REQUIRE_PGP == '1'
+        if: env.CONVAX_FFMPEG_REQUIRE_PGP == '1' && steps.plan.outputs.ffmpeg_count != '0'
         run: |
           set -euo pipefail
           tag="$(jq -r '.[] | select(.kind == "plugin" and .id == "ffmpeg-tools") | .releaseTag' dist/release-plan.json)"

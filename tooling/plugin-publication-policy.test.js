@@ -15,6 +15,26 @@ describe("protected Plugin publication policy", () => {
     })
   })
 
+  test("stages FFmpeg evidence only when that exact Plugin release is selected", async () => {
+    const source = await fs.readFile(
+      path.join(root, ".github", "workflows", "release-on-main.yml"),
+      "utf8",
+    )
+    const workflow = Bun.YAML.parse(source)
+    const steps = workflow.jobs.verify.steps
+    const plan = steps.find((step) =>
+      step.name === "Select exact unpublished version changes")
+    const stage = steps.find((step) =>
+      step.name === "Stage verified FFmpeg source and SBOM beside the companion")
+
+    expect(plan.run).toContain(
+      'ffmpeg_count=$(jq \'[.[] | select(.kind == "plugin" and .id == "ffmpeg-tools")] | length\' dist/release-plan.json)',
+    )
+    expect(stage.if).toBe(
+      "env.CONVAX_FFMPEG_REQUIRE_PGP == '1' && steps.plan.outputs.ffmpeg_count != '0'",
+    )
+  })
+
   test("rejects candidate self-approval through checkout or Host package evidence", async () => {
     const fixture = await fs.mkdtemp(
       path.join(os.tmpdir(), "convax-publication-policy-"),
