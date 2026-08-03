@@ -95,7 +95,9 @@ particle implementation. The visible image transition is:
    placed below the source. Only pixels satisfying
    `max(0, sourceAlpha - resultAlpha) > 0` become particles, so the foreground is
    stable. Deterministic per-pixel delay, direction, travel, lifetime and sine-wave
-   sway send the removed original-color background toward the upper right.
+   sway send the removed original-color background toward the upper right. A
+   theme-derived contrast halo keeps light source pixels visible on light Canvas
+   themes without recoloring the particles.
 3. **Transparent final state** — the particle layer is removed completely. No
    grain or checkerboard remains in the exported result.
 
@@ -105,7 +107,7 @@ Implementation timing from user action:
 | --- | ---: | ---: | --- |
 | Spectrum scan | pending node creation | inference-dependent | repeated 1,210 ms sweeps on the new image node |
 | Particle onset | result ready | immediate | result swaps below a background-only particle overlay |
-| Background dissolve | result ready | 1,740 ms total | removed original-color pixels fly and fade toward the upper right |
+| Background dissolve | result ready | 3,200 ms total | removed original-color pixels decelerate toward the upper right, hold through the first half, then fade gradually |
 | Final state | dissolve end | indefinite | new image node contains the transparent PNG only |
 
 If inference takes longer than one sweep, the spectrum scan continues without
