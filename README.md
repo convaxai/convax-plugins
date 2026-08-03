@@ -237,10 +237,11 @@ retains only the native window, content-free activity projection, validated
 navigation, installed asset serving, and bounded persistence. See the working package in
 [`packages/plugins/convax-pet`](packages/plugins/convax-pet).
 
-See the working example in
-[`packages/plugins/hello-convax`](packages/plugins/hello-convax), then read:
+See the working Web Plugin example in
+[`packages/plugins/video-timeline`](packages/plugins/video-timeline), then read:
 
 - [`docs/plugin-authoring.md`](docs/plugin-authoring.md) for the sandbox and host protocol;
+- [`docs/video-timeline-plugin.md`](docs/video-timeline-plugin.md) for its connected-media and fullscreen Timeline contract;
 - [`docs/panorama-viewer.md`](docs/panorama-viewer.md) for the Panorama Viewer source-ownership and clean-profile release boundary;
 - [`docs/cutout-studio.md`](docs/cutout-studio.md) for the local model, companion, and adjacent-result contract;
 - [`docs/storyboard-studio.md`](docs/storyboard-studio.md) for the episodic story files, character-card contract, Agent grouping workflow, and current host boundary;
@@ -313,7 +314,7 @@ dist/                      # generated; never committed
 
 ```sh
 bun run validate            # validate all source packages
-bun run pack -- --kind plugin --id hello-convax # pack one current-format package
+bun run pack -- --kind plugin --id video-timeline # pack one current-format package
 bun run workspaces:build:packages # build self-contained Skill/Plugin package trees
 bun run workspaces:typecheck # type-check workspaces that declare the script
 bun run workspaces:test     # test workspaces that declare the script
@@ -387,5 +388,5 @@ not authorize iframe networking, ship a local command, or carry credentials.
 
 ## License
 
-Repository tooling, templates, and `hello-convax` are MIT licensed. Each submitted
-package must declare its license and include notices its dependencies require.
+Repository tooling and templates are MIT licensed. Each submitted package must
+declare its license and include notices its dependencies require.

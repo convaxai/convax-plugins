@@ -2,6 +2,10 @@
   "schema": "convax.catalog-exclusions/1",
   "members": [
     {
+      "kind": "plugin",
+      "id": "hello-convax"
+    },
+    {
       "kind": "skill",
       "id": "clip-export"
     }

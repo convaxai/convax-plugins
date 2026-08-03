@@ -214,7 +214,7 @@ bun run skill-api:check
 bun run pack
 ```
 
-`bun run pack -- --kind plugin --id hello-convax` writes only the selected
+`bun run pack -- --kind plugin --id video-timeline` writes only the selected
 deterministic package artifacts below `dist/packages/`. Generated owned-Skill
 references are injected from the exact external Catalog and SDK renderers before
 the ZIP digest is computed. A package with `companions` additionally emits the

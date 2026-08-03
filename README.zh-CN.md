@@ -163,10 +163,11 @@ Pet 功能插件通过 `contributes.pet`
 受控导航、已安装资产读取和有限持久化。可参考完整示例
 [`packages/plugins/convax-pet`](packages/plugins/convax-pet)。
 
-可以先阅读完整示例
-[`packages/plugins/hello-convax`](packages/plugins/hello-convax)，然后参考：
+可以先阅读完整的 Web 插件示例
+[`packages/plugins/video-timeline`](packages/plugins/video-timeline)，然后参考：
 
 - [`docs/plugin-authoring.md`](docs/plugin-authoring.md)：沙箱和宿主协议；
+- [`docs/video-timeline-plugin.md`](docs/video-timeline-plugin.md)：连接媒体与全屏时间线契约；
 - [`docs/panorama-viewer.md`](docs/panorama-viewer.md)：全景图预览的唯一源码归属与旧内置迁移边界；
 - [`docs/cutout-studio.md`](docs/cutout-studio.md)：本地模型、受审 companion 与相邻结果节点契约；
 - [`docs/storyboard-studio.md`](docs/storyboard-studio.md)：分集故事文件、人物卡、Agent 自动打组流程与当前宿主能力边界；
@@ -231,7 +232,7 @@ dist/                      # 生成目录，不提交到 Git
 
 ```sh
 bun run validate            # 校验全部源码包
-bun run pack -- --kind plugin --id hello-convax # 打包一个当前格式的包
+bun run pack -- --kind plugin --id video-timeline # 打包一个当前格式的包
 bun run workspaces:build:packages # 构建自包含的技能和插件包目录
 bun run workspaces:typecheck # 检查声明了脚本的 workspace
 bun run workspaces:test     # 测试声明了脚本的 workspace
@@ -293,5 +294,5 @@ OpenCode 只加载宿主私有快照。它不是沙箱代码，因此默认安�
 
 ## 许可证
 
-仓库工具、模板和 `hello-convax` 使用 MIT 许可证。每个投稿包都必须声明自己的许可证，
-并包含其依赖所要求的声明文件。
+仓库工具和模板使用 MIT 许可证。每个投稿包都必须声明自己的许可证，并包含其依赖所要求的
+声明文件。
