@@ -79,7 +79,7 @@ describe("protected Host capability request history", () => {
     const resolution = {
       id: "image-input-read",
       receipt: {
-        repository: "microvoid/convax-plugins",
+        repository: "convaxai/convax-plugins",
         releaseTag:
           `host-capability-decision-v1-image-input-read-${"0".repeat(64)}`,
         asset: "image-input-read.decision.json",
@@ -113,7 +113,7 @@ describe("protected Host capability request history", () => {
     const imageResolution = {
       id: "image-input-read",
       receipt: {
-        repository: "microvoid/convax-plugins",
+        repository: "convaxai/convax-plugins",
         releaseTag:
           `host-capability-decision-v1-image-input-read-${"0".repeat(64)}`,
         asset: "image-input-read.decision.json",
@@ -123,7 +123,7 @@ describe("protected Host capability request history", () => {
     const generationResolution = {
       id: "generation-input-binding",
       receipt: {
-        repository: "microvoid/convax-plugins",
+        repository: "convaxai/convax-plugins",
         releaseTag:
           `host-capability-decision-v1-generation-input-binding-${"2".repeat(64)}`,
         asset: "generation-input-binding.decision.json",
@@ -224,7 +224,7 @@ describe("protected Host capability request history", () => {
     const baseResolution = {
       id: "image-input-read",
       receipt: {
-        repository: "microvoid/convax-plugins",
+        repository: "convaxai/convax-plugins",
         releaseTag:
           `host-capability-decision-v1-image-input-read-${"0".repeat(64)}`,
         asset: "image-input-read.decision.json",

@@ -4,7 +4,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseRegistryV2 } from "@convax/marketplace-kit"
 
-const releaseBase = "https://github.com/microvoid/convax-plugins/releases/download/"
+const releaseBase = "https://github.com/convaxai/convax-plugins/releases/download/"
 const digestPattern = /^[a-f0-9]{64}$/
 
 function sha256(bytes) {
@@ -233,10 +233,10 @@ export async function verifyMarketplaceOutput(
     !Array.isArray(registryV2.packages) ||
     descriptor?.schema !== "convax.marketplace/1" ||
     descriptor?.id !== "convax-official" ||
-    descriptor.repository?.owner !== "microvoid" ||
+    descriptor.repository?.owner !== "convaxai" ||
     descriptor.repository?.name !== "convax-plugins" ||
-    descriptor.registry?.v2?.url !== "https://microvoid.github.io/convax-plugins/registry/v2/index.json" ||
-    descriptor.showcase?.v2?.url !== "https://microvoid.github.io/convax-plugins/showcase/v2/index.json" ||
+    descriptor.registry?.v2?.url !== "https://convaxai.github.io/convax-plugins/registry/v2/index.json" ||
+    descriptor.showcase?.v2?.url !== "https://convaxai.github.io/convax-plugins/showcase/v2/index.json" ||
     descriptor.delivery?.kind !== "github-pages-releases" ||
     showcaseV2?.schema !== "convax.showcase/2" ||
     showcaseV2?.marketplaceId !== "convax-official" ||

@@ -6,7 +6,7 @@ import path from "node:path"
 import { verifyProductLockInput } from "./verify-product-lock-input.mjs"
 
 const temporaryDirectories = []
-const repository = "https://github.com/microvoid/convax-plugins/releases/download"
+const repository = "https://github.com/convaxai/convax-plugins/releases/download"
 
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex")
@@ -41,14 +41,14 @@ async function writeFixture() {
     name: "Convax Official",
     publisher: { name: "Microvoid" },
     repository: {
-      owner: "microvoid",
+      owner: "convaxai",
       name: "convax-plugins",
     },
     registry: {
-      v2: { url: "https://microvoid.github.io/convax-plugins/registry/v2/index.json" },
+      v2: { url: "https://convaxai.github.io/convax-plugins/registry/v2/index.json" },
     },
     showcase: {
-      v2: { url: "https://microvoid.github.io/convax-plugins/showcase/v2/index.json" },
+      v2: { url: "https://convaxai.github.io/convax-plugins/showcase/v2/index.json" },
     },
     compatibility: { convax: ">=0.1.0" },
     delivery: { kind: "github-pages-releases" },

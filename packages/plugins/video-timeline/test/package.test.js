@@ -10,7 +10,7 @@ describe("video-timeline package", () => {
     expect(manifest).toMatchObject({
       schema: "convax.plugin/8",
       id: "video-timeline",
-      version: "0.2.0",
+      version: "0.2.1",
       contributes: {
         canvas: {
           renderer: { create: true, height: 520, width: 640 },
@@ -28,7 +28,7 @@ describe("video-timeline package", () => {
     expect(manifest.runtime).toBeUndefined()
     expect(manifest.hooks).toBeUndefined()
     expect(manifest.hostApi).toEqual({
-      major: 2,
+      major: 3,
       required: [
         "canvas.inputs.close",
         "canvas.inputs.list",

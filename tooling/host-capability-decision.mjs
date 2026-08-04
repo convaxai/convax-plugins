@@ -14,12 +14,12 @@ export const hostCapabilityDecisionSchema =
 export const hostCapabilityDecisionEnvironment =
   "plugin-host-capability-governance"
 export const hostCapabilityDecisionRepository =
-  "microvoid/convax-plugins"
+  "convaxai/convax-plugins"
 export const hostCapabilityDecisionWorkflow =
   ".github/workflows/approve-host-capability.yml"
 export const hostCapabilityDecisionWorkflowIdentity =
   `${hostCapabilityDecisionRepository}/${hostCapabilityDecisionWorkflow}`
-export const hostRepository = "microvoid/convax"
+export const hostRepository = "convaxai/convax"
 
 function fail(label, message) {
   throw new Error(`${label}: ${message}`)

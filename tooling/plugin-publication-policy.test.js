@@ -6,30 +6,6 @@ import path from "node:path"
 import { root } from "./lib.mjs"
 import { verifyPluginPublicationPolicy } from "./plugin-publication-policy.mjs"
 
-function migrateHostIdentity(source) {
-  return source
-    .replaceAll("microvoid/convax", "convaxai/convax")
-    .replaceAll("convax-next", "main")
-    .replaceAll("1293264965", "1322708874")
-    .replaceAll("125447777", "312877127")
-}
-
-function migrateVendoredHostPackageClosure(source) {
-  return source
-    .replace(
-      '                [.packages[].name] == [\n                  "@convax/marketplace",',
-      '                [.packages[].name] == [\n                  "@convax/bounded-value",\n                  "@convax/marketplace",',
-    )
-    .replace(
-      '                [.packages[].version] == ["0.2.1", "0.2.2", "2.0.0", "0.1.1", "0.1.0"] and',
-      '                [.packages[].version] == ["0.1.0", "0.2.1", "0.2.2", "3.0.0", "0.1.1", "0.1.0"] and',
-    )
-    .replace(
-      '                [.packages[].workspace] == [\n                  "vendor/host-packages/marketplace",',
-      '                [.packages[].workspace] == [\n                  "vendor/host-packages/bounded-value",\n                  "vendor/host-packages/marketplace",',
-    )
-}
-
 describe("protected Plugin publication policy", () => {
   test("keeps capability high-water first and the privileged job artifact-only", async () => {
     await expect(verifyPluginPublicationPolicy(root)).resolves.toEqual({
@@ -57,100 +33,6 @@ describe("protected Plugin publication policy", () => {
     expect(stage.if).toBe(
       "env.CONVAX_FFMPEG_REQUIRE_PGP == '1' && steps.plan.outputs.ffmpeg_count != '0'",
     )
-  })
-
-  test("admits only coherent legacy or migrated Host identity and package closure", async () => {
-    const fixture = await fs.mkdtemp(
-      path.join(os.tmpdir(), "convax-publication-identity-"),
-    )
-    try {
-      await fs.mkdir(path.join(fixture, ".github", "workflows"), {
-        recursive: true,
-      })
-      await fs.mkdir(path.join(fixture, "tooling"), { recursive: true })
-      const paths = [
-        ".github/workflows/release-on-main.yml",
-        ".github/workflows/pages.yml",
-        ".github/workflows/host-capability-governance.yml",
-        ".github/workflows/approve-host-capability.yml",
-        "tooling/host-capability-decision.mjs",
-        "tooling/host-sigstore-bundle.mjs",
-      ]
-      for (const relativePath of paths) {
-        await fs.copyFile(
-          path.join(root, relativePath),
-          path.join(fixture, relativePath),
-        )
-      }
-      const releasePath = path.join(
-        fixture,
-        ".github",
-        "workflows",
-        "release-on-main.yml",
-      )
-      const approvalPath = path.join(
-        fixture,
-        ".github",
-        "workflows",
-        "approve-host-capability.yml",
-      )
-      const [release, approval] = await Promise.all([
-        fs.readFile(releasePath, "utf8"),
-        fs.readFile(approvalPath, "utf8"),
-      ])
-      await Promise.all([
-        fs.writeFile(releasePath, migrateHostIdentity(release)),
-        fs.writeFile(approvalPath, migrateHostIdentity(approval)),
-      ])
-      await expect(verifyPluginPublicationPolicy(fixture)).resolves.toEqual({
-        artifactOnlyPublish: true,
-        capabilityEvidenceIndependent: true,
-        protectedBaseVerifier: true,
-      })
-
-      const migratedRelease = migrateVendoredHostPackageClosure(
-        migrateHostIdentity(release),
-      )
-      await fs.writeFile(releasePath, migratedRelease)
-      await expect(verifyPluginPublicationPolicy(fixture)).resolves.toEqual({
-        artifactOnlyPublish: true,
-        capabilityEvidenceIndependent: true,
-        protectedBaseVerifier: true,
-      })
-
-      await fs.writeFile(
-        releasePath,
-        migratedRelease.replace(
-          '[.packages[].version] == ["0.1.0", "0.2.1", "0.2.2", "3.0.0", "0.1.1", "0.1.0"]',
-          '[.packages[].version] == ["0.2.1", "0.2.2", "2.0.0", "0.1.1", "0.1.0"]',
-        ),
-      )
-      await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
-        "one coherent admitted vendored Host package closure",
-      )
-
-      await fs.writeFile(releasePath, migrateHostIdentity(release))
-
-      await fs.writeFile(approvalPath, approval)
-      await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
-        "one coherent admitted repository identity",
-      )
-
-      await fs.writeFile(approvalPath, migrateHostIdentity(approval))
-      await fs.writeFile(
-        releasePath,
-        migrateHostIdentity(release).replace(
-          'hostIdentity.repository.id == "1322708874"',
-          'hostIdentity.repository.id == "1322708874"\n' +
-            '               # hostIdentity.repository.id == "1293264965"',
-        ),
-      )
-      await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
-        "must not mix admitted repository identities",
-      )
-    } finally {
-      await fs.rm(fixture, { force: true, recursive: true })
-    }
   })
 
   test("rejects candidate self-approval through checkout or Host package evidence", async () => {
@@ -304,12 +186,12 @@ describe("protected Plugin publication policy", () => {
       await fs.writeFile(
         path.join(fixture, ".github", "workflows", "release-on-main.yml"),
         release.replace(
-          '[.packages[].version] == ["0.2.1", "0.2.2", "2.0.0", "0.1.1", "0.1.0"]',
-          '[.packages[].version] == ["0.2.1", "0.2.3", "2.0.0", "0.1.1", "0.1.0"]',
+          '[.packages[].version] == ["0.1.0", "0.2.1", "0.2.2", "3.0.0", "0.1.1", "0.1.0"]',
+          '[.packages[].version] == ["0.1.0", "0.2.1", "0.2.3", "3.0.0", "0.1.1", "0.1.0"]',
         ),
       )
       await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
-        "one coherent admitted vendored Host package closure",
+        "vendored Host package version assertion drifted",
       )
 
       await fs.writeFile(

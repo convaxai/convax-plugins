@@ -3,7 +3,7 @@
   "id": "nexus-service",
   "name": "Convax Account",
   "description": "Connects Convax to your Convax Account for OpenRouter chat and live image-model generation through short-lived Data Tokens.",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "contributes": {
     "generation": {
       "models": [
@@ -50,7 +50,7 @@
     "command": "convax-nexus-mcp"
   },
   "hostApi": {
-    "major": 2,
+    "major": 3,
     "required": [],
     "optional": []
   }

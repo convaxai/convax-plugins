@@ -61,17 +61,17 @@ function extension(id, value) {
 function certificate(overrides = {}, duplicate) {
   const commit = "a".repeat(40)
   const workflow =
-    "microvoid/convax/.github/workflows/plugin-api-release.yml@refs/heads/convax-next"
+    "convaxai/convax/.github/workflows/plugin-api-release.yml@refs/heads/main"
   const values = {
     issuer: "https://token.actions.githubusercontent.com",
     buildSignerUri: `https://github.com/${workflow}`,
     runnerEnvironment: "github-hosted",
-    sourceRepositoryUri: "https://github.com/microvoid/convax",
+    sourceRepositoryUri: "https://github.com/convaxai/convax",
     sourceRepositoryDigest: commit,
-    sourceRepositoryRef: "refs/heads/convax-next",
-    sourceRepositoryIdentifier: "1293264965",
-    sourceRepositoryOwnerUri: "https://github.com/microvoid",
-    sourceRepositoryOwnerIdentifier: "125447777",
+    sourceRepositoryRef: "refs/heads/main",
+    sourceRepositoryIdentifier: "1322708874",
+    sourceRepositoryOwnerUri: "https://github.com/convaxai",
+    sourceRepositoryOwnerIdentifier: "312877127",
     buildTrigger: "workflow_dispatch",
     ...overrides,
   }
@@ -119,14 +119,14 @@ function fixture(certificateBytes = certificate()) {
     bundleBytes: Buffer.from(JSON.stringify(bundle)),
     commit: "a".repeat(40),
     repositoryMetadata: {
-      full_name: "microvoid/convax",
-      id: 1293264965,
-      owner: { id: 125447777, login: "microvoid" },
+      full_name: "convaxai/convax",
+      id: 1322708874,
+      owner: { id: 312877127, login: "convaxai" },
       private: true,
     },
     trigger: "workflow_dispatch",
     workflowRef:
-      "microvoid/convax/.github/workflows/plugin-api-release.yml@refs/heads/convax-next",
+      "convaxai/convax/.github/workflows/plugin-api-release.yml@refs/heads/main",
   }
 }
 
@@ -142,21 +142,21 @@ describe("Host Sigstore bundle evidence", () => {
         }),
         certificate: expect.objectContaining({
           runnerEnvironment: "github-hosted",
-          sourceRepositoryIdentifier: "1293264965",
-          sourceRepositoryOwnerIdentifier: "125447777",
+          sourceRepositoryIdentifier: "1322708874",
+          sourceRepositoryOwnerIdentifier: "312877127",
           trigger: "workflow_dispatch",
         }),
         hostIdentity: {
           owner: {
-            id: "125447777",
-            login: "microvoid",
-            uri: "https://github.com/microvoid",
+            id: "312877127",
+            login: "convaxai",
+            uri: "https://github.com/convaxai",
           },
           repository: {
-            fullName: "microvoid/convax",
-            id: "1293264965",
+            fullName: "convaxai/convax",
+            id: "1322708874",
             private: true,
-            uri: "https://github.com/microvoid/convax",
+            uri: "https://github.com/convaxai/convax",
           },
         },
         transparencyLog: {
@@ -250,7 +250,7 @@ describe("Host Sigstore bundle evidence", () => {
   test("rejects an unadmitted Host workflow on the protected branch", () => {
     const input = fixture()
     input.workflowRef =
-      "microvoid/convax/.github/workflows/other.yml@refs/heads/convax-next"
+      "convaxai/convax/.github/workflows/other.yml@refs/heads/main"
     expect(() => verifyHostSigstoreBundle(input)).toThrow(
       "admitted Host release workflow",
     )

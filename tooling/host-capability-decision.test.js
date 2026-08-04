@@ -61,12 +61,12 @@ function runtimeConformance({
     schema: "convax.plugin-api-runtime-conformance/1",
     profile: "convax.plugin-api-host-runtime/1",
     host: {
-      repository: "microvoid/convax",
+      repository: "convaxai/convax",
       commit,
     },
     workflow: {
       ref:
-        "microvoid/convax/.github/workflows/plugin-api-release.yml@refs/heads/convax-next",
+        "convaxai/convax/.github/workflows/plugin-api-release.yml@refs/heads/main",
       runId: "777",
       runAttempt: "2",
     },
@@ -145,33 +145,33 @@ function receipt(overrides = {}) {
       version: "1.1.0",
       catalogSha256,
       catalogUrl:
-        `https://github.com/microvoid/convax/releases/download/` +
+        `https://github.com/convaxai/convax/releases/download/` +
         `${hostReleaseTag}/plugin-api.json`,
       tarballSha256: "9".repeat(64),
       tarballUrl:
-        `https://github.com/microvoid/convax/releases/download/` +
+        `https://github.com/convaxai/convax/releases/download/` +
         `${hostReleaseTag}/convax-plugin-api-1.1.0.tgz`,
       npmIntegrity: `sha512-${"A".repeat(86)}==`,
       npmTarballUrl:
         "https://registry.npmjs.org/@convax/plugin-api/-/plugin-api-1.1.0.tgz",
     },
     host: {
-      repository: "microvoid/convax",
+      repository: "convaxai/convax",
       commit: "c".repeat(40),
       pullRequest: {
         number: 89,
-        url: "https://github.com/microvoid/convax/pull/89",
+        url: "https://github.com/convaxai/convax/pull/89",
         mergedAt: "2026-07-30T10:00:00Z",
       },
       release: {
         tag: hostReleaseTag,
         url:
-          `https://github.com/microvoid/convax/releases/tag/` +
+          `https://github.com/convaxai/convax/releases/tag/` +
           hostReleaseTag,
       },
       runtimeConformance: {
         url:
-          `https://github.com/microvoid/convax/releases/download/` +
+          `https://github.com/convaxai/convax/releases/download/` +
           `${hostReleaseTag}/runtime-conformance.json`,
         sha256: "d".repeat(64),
       },
@@ -187,10 +187,10 @@ function receipt(overrides = {}) {
       reviewedAt: "2026-07-30T10:10:00Z",
     },
     provenance: {
-      repository: "microvoid/convax-plugins",
+      repository: "convaxai/convax-plugins",
       workflow: ".github/workflows/approve-host-capability.yml",
       workflowRef:
-        "microvoid/convax-plugins/.github/workflows/approve-host-capability.yml@refs/heads/main",
+        "convaxai/convax-plugins/.github/workflows/approve-host-capability.yml@refs/heads/main",
       sourceRef: "refs/heads/main",
       sourceSha: "e".repeat(40),
       runId: 100,
@@ -242,7 +242,7 @@ describe("protected Host capability decision receipts", () => {
         catalogPath,
         receiptPath,
         receiptReference: {
-          repository: "microvoid/convax-plugins",
+          repository: "convaxai/convax-plugins",
           releaseTag:
             `host-capability-decision-v1-image-input-read-` +
             parsed.pluginApi.catalogSha256,
@@ -263,7 +263,7 @@ describe("protected Host capability decision receipts", () => {
         ["attestation", "verify"],
       ])
       expect(commands[2]).toContain(
-        "microvoid/convax-plugins/.github/workflows/approve-host-capability.yml",
+        "convaxai/convax-plugins/.github/workflows/approve-host-capability.yml",
       )
       expect(commands[2]).toContain(parsed.provenance.sourceSha)
     })
@@ -277,7 +277,7 @@ describe("protected Host capability decision receipts", () => {
       receiptPath,
     }) => {
       const reference = {
-        repository: "microvoid/convax-plugins",
+        repository: "convaxai/convax-plugins",
         releaseTag:
           `host-capability-decision-v1-image-input-read-` +
           parsed.pluginApi.catalogSha256,
@@ -358,7 +358,7 @@ describe("protected Host capability decision receipts", () => {
           catalogPath: legacyCatalogPath,
           receiptPath: legacyReceiptPath,
           receiptReference: {
-            repository: "microvoid/convax-plugins",
+            repository: "convaxai/convax-plugins",
             releaseTag:
               `host-capability-decision-v1-image-input-read-` +
               legacyReceipt.pluginApi.catalogSha256,
@@ -411,7 +411,7 @@ describe("protected Host capability decision receipts", () => {
             catalogPath,
             receiptPath,
             receiptReference: {
-              repository: "microvoid/convax-plugins",
+              repository: "convaxai/convax-plugins",
               releaseTag:
                 `host-capability-decision-v1-image-input-read-` +
                 parsed.pluginApi.catalogSha256,
@@ -429,7 +429,7 @@ describe("protected Host capability decision receipts", () => {
 
   test("rejects forged, incomplete, duplicated, or stale runtime conformance", () => {
     const expected = {
-      repository: "microvoid/convax",
+      repository: "convaxai/convax",
       commit: "3".repeat(40),
       version: "1.1.0",
       catalogSha256: "4".repeat(64),
@@ -475,7 +475,7 @@ describe("protected Host capability decision receipts", () => {
       [
         (value) => {
           value.workflow.ref =
-            "microvoid/convax/.github/workflows/plugin-api-bootstrap.yml@refs/heads/convax-next"
+            "convaxai/convax/.github/workflows/plugin-api-bootstrap.yml@refs/heads/main"
         },
         "protected Plugin API release workflow",
       ],
@@ -679,7 +679,7 @@ describe("protected Host capability decision receipts", () => {
       },
       hostPullRequest: {
         number: 89,
-        html_url: "https://github.com/microvoid/convax/pull/89",
+        html_url: "https://github.com/convaxai/convax/pull/89",
         merged_at: "2026-07-30T10:00:00Z",
         merge_commit_sha: mergeCommit,
       },
@@ -687,7 +687,7 @@ describe("protected Host capability decision receipts", () => {
         tag_name: values.hostReleaseTag,
         draft: false,
         html_url:
-          `https://github.com/microvoid/convax/releases/tag/` +
+          `https://github.com/convaxai/convax/releases/tag/` +
           values.hostReleaseTag,
       },
       hostTagSha: values.hostCommit,

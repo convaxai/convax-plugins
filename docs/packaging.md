@@ -68,7 +68,7 @@ controls and must be verified outside repository source.
 
 A headless `convax.plugin/8` local Tool Plugin may contain only `manifest.json` and
 a license notice. It still declares
-`hostApi: {"major":2,"required":[],"optional":[]}` and must not claim Web APIs.
+`hostApi: {"major":3,"required":[],"optional":[]}` and must not claim Web APIs.
 Its executable contributions use one declared `mcp-stdio` executable that is a
 separate distributable and must never appear anywhere below `package/`; validation
 and packing do not install, build, or execute companion source under
@@ -101,7 +101,7 @@ HTTPS endpoint, OAuth mode, and optional bounded literal non-credential headers;
 never package credentials, tokens, local executables, or an adapter. OpenCode/the
 native host owns the remote connection and standard OAuth flow. A pure headless
 remote MCP Plugin explicitly declares
-`hostApi: {"major":2,"required":[],"optional":[]}`. The concrete manifest and any
+`hostApi: {"major":3,"required":[],"optional":[]}`. The concrete manifest and any
 owned Skill source remain under this repository's package workspaces.
 
 The matching source metadata declares the reviewed tool directory and build output
@@ -284,6 +284,15 @@ an exact-byte comparison. This lets a reviewed publication-workflow repair resto
 the descriptor, Registry v2, and Showcase without inventing a package version
 change or bypassing the ordinary release closure.
 
+The repository-identity migration has one fail-closed bootstrap at Registry
+sequence 58. It is admitted only when the GitHub repository variable
+`CONVAX_MARKETPLACE_BOOTSTRAP_SHA` is one exact 40-character commit equal to the
+workflow's `GITHUB_SHA` and the new Pages descriptor returns 404. The bootstrap
+uses the empty Git tree as the release-selection base so every current immutable
+package is republished under the new authority. A different SHA, malformed value,
+or any later missing descriptor is rejected; remove the variable after the first
+successful Pages deployment.
+
 The reusable Pages verifier installs the frozen workspace graph with lifecycle
 scripts disabled before importing repository tooling. It must not rely on Bun's
 automatic dependency installation, because that can resolve a published package
@@ -301,11 +310,11 @@ strict selective path.
 
 The production Registry is:
 
-`https://microvoid.github.io/convax-plugins/registry/v2/index.json`
+`https://convaxai.github.io/convax-plugins/registry/v2/index.json`
 
 The matching presentation sidecar is:
 
-`https://microvoid.github.io/convax-plugins/showcase/v2/index.json`
+`https://convaxai.github.io/convax-plugins/showcase/v2/index.json`
 
 Each content-changing deployment advances from the validated production v2
 sequence and binds its revision and immutable release identity to the exact

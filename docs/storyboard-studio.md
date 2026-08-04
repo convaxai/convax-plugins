@@ -262,7 +262,7 @@ Release `0.1.1` therefore uses honest equivalents:
   materialization.
 
 Any future native sidebar, document-workbench, or declarative materialization
-support belongs in the generic `microvoid/convax` ABI. This repository must not
+support belongs in the generic `convaxai/convax` ABI. This repository must not
 branch host behavior on the concrete `storyboard-studio` id.
 
 ## Local preview

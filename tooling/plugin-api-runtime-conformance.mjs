@@ -5,7 +5,7 @@ const conformanceProfile = "convax.plugin-api-host-runtime/1"
 const catalogSchema = "convax.plugin-api-catalog/3"
 const packageName = "@convax/plugin-api"
 const releaseWorkflowRef =
-  "microvoid/convax/.github/workflows/plugin-api-release.yml@refs/heads/convax-next"
+  "convaxai/convax/.github/workflows/plugin-api-release.yml@refs/heads/main"
 const maximumConformanceBytes = 1024 * 1024
 const sha256Pattern = /^[a-f0-9]{64}$/u
 const npmIntegrityPattern = /^sha512-[A-Za-z0-9+/]+={0,2}$/u

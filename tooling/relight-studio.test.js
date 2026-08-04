@@ -34,7 +34,7 @@ describe("relight-studio package", () => {
       id: "relight-studio",
       name: "重打光",
       description: manifest.description,
-      version: "0.2.0",
+      version: "0.2.1",
       publication: {
         status: "blocked",
         blockers: expect.arrayContaining([
@@ -69,7 +69,7 @@ describe("relight-studio package", () => {
         "ui.fullscreen",
       ],
       hostApi: {
-        major: 2,
+        major: 3,
         required: [
           "canvas.inputs.image.close",
           "canvas.inputs.image.open",
@@ -161,10 +161,13 @@ describe("relight-studio package", () => {
     expect(request).not.toHaveProperty("nodeId")
 
     const app = await fs.readFile(path.join(packageRoot, "assets", "app.js"), "utf8")
+    const resultValidationStart = app.indexOf("function validGenerationResult(value)")
     const generateStart = app.indexOf("async function generateRelight()")
     const generateEnd = app.indexOf("\nfunction bindControls()", generateStart)
+    expect(resultValidationStart).toBeGreaterThanOrEqual(0)
     expect(generateStart).toBeGreaterThanOrEqual(0)
     expect(generateEnd).toBeGreaterThan(generateStart)
+    const resultValidation = app.slice(resultValidationStart, generateStart)
     const generate = app.slice(generateStart, generateEnd)
     const drainIndex = generate.indexOf("await drainStateSave()")
     const executeIndex = generate.indexOf('hostRequest(\n      "generation.execute"')
@@ -172,6 +175,10 @@ describe("relight-studio package", () => {
     expect(executeIndex).toBeGreaterThan(drainIndex)
     expect(generate.slice(0, executeIndex)).not.toContain("void flushStateSave()")
     expect(generate.slice(executeIndex)).toContain("void flushStateSave()")
+    expect(resultValidation).toContain('hasOwnProperty.call(value, "operationReceipt")')
+    expect(resultValidation).toContain('hasOwnProperty.call(value, "projection")')
+    expect(resultValidation).not.toContain(".revision")
+    expect(generate).not.toContain(".revision")
 
     const queueStart = app.indexOf("function queueStateSave()")
     const queueEnd = app.indexOf("\nasync function flushStateSave", queueStart)

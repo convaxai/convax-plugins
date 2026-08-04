@@ -6,11 +6,13 @@ Status: temporary vendored workspace publication active; npm/immutable Host evid
 
 - `convax-plugins` admits only `convax.package/2` and `convax.plugin/8`
   authoring input through the Host-owned SDK and Marketplace Kit.
-- The required dependency versions are `@convax/plugin-api@2.0.0`,
+- The required dependency versions are `@convax/plugin-api@3.0.0`,
   `@convax/plugin-sdk@0.1.1`, and `@convax/marketplace-kit@0.2.2`.
-- As of 2026-07-31, npm returns 404 for Plugin API and SDK and does not yet expose
-  Marketplace Kit `0.2.1`. A clean frozen install therefore cannot
-  reproduce the approved local package set.
+- The SDK release closure additionally requires
+  `@convax/bounded-value@0.1.0`.
+- As of 2026-08-04, npm returns 404 for Plugin API, SDK, and Bounded Value and
+  does not yet expose Marketplace Kit `0.2.2`. A clean frozen install therefore
+  cannot reproduce the approved local package set.
 
 ## Use case
 
@@ -24,7 +26,7 @@ Status: temporary vendored workspace publication active; npm/immutable Host evid
 
 ## Requested generic capability
 
-Publish the three approved packages without changing their frozen public
+Publish the four approved packages without changing their frozen public
 contracts:
 
 - `parsePluginManifestV8(value: unknown): PluginManifestV8`;
@@ -76,7 +78,7 @@ owned Agent tool. The Skill reference generator cannot safely invent these types
 - Historical Registry parsing remains in the Registry consumer package and is not
   re-exported as an authoring path.
 - Source dependencies are pinned exactly and contain no `file:` override.
-- The npm lockfile cannot be truthfully finalized until all three exact packages
+- The npm lockfile cannot be truthfully finalized until all four exact packages
   are available from the configured public registry. Until then the committed
   lock must resolve only the reviewed vendored workspaces and publication must
   bind those exact bytes through `convax.vendored-host-package-closure/1`.
@@ -93,7 +95,7 @@ owned Agent tool. The Skill reference generator cannot safely invent these types
   SemVer/id/path/localized-text validator after integration.
 - A generated Skill reference changes deterministically when a relevant capability
   import/export changes, and `--check` catches invalid inputs.
-- A clean `bun install --frozen-lockfile --ignore-scripts` resolves the three
+- A clean `bun install --frozen-lockfile --ignore-scripts` resolves the four
   exact npm versions with no `file:` dependency or sibling link.
 
 ## Publication boundary
@@ -104,7 +106,7 @@ owned Agent tool. The Skill reference generator cannot safely invent these types
   in the canonical closure artifact.
 - This file is intentionally outside `docs/host-capability-requests/`; it is not a
   Host capability request and cannot change package publication policy.
-- The npm migration remains blocked until the three exact npm versions are
+- The npm migration remains blocked until the four exact npm versions are
   publicly resolvable, a clean frozen install succeeds without workspace links,
   and the committed lockfile records that public dependency closure. This no
   longer blocks the explicitly selected temporary workspace publication mode.
@@ -114,11 +116,12 @@ owned Agent tool. The Skill reference generator cannot safely invent these types
 ## Implemented consumer gates
 
 The active `CONVAX_PLUGIN_SDK_SOURCE=workspace` gate refuses every selected
-Plugin release unless the root declarations and frozen lock resolve the five
-exact vendored Host packages (`marketplace@0.2.1`, `marketplace-kit@0.2.2`,
-`plugin-api@2.0.0`, `plugin-sdk@0.1.1`, and `plugin-ui@0.1.0`), installed direct
+Plugin release unless the root declarations and frozen lock resolve the six
+exact vendored Host packages (`bounded-value@0.1.0`, `marketplace@0.2.1`,
+`marketplace-kit@0.2.2`, `plugin-api@3.0.0`, `plugin-sdk@0.1.1`, and
+`plugin-ui@0.1.0`), installed direct
 and transitive paths resolve to those directories, the API Catalog is contract
-v3 at `2.0.0`, the package manifests and dependencies match the admitted closure,
+v3 at `3.0.0`, the package manifests and dependencies match the admitted closure,
 and every non-`node_modules` file is a bounded regular non-symlink byte included
 in the package digest. The low-privilege job writes this evidence to
 `dist/vendored-host-package-closure.json`; the artifact-only publisher validates
@@ -142,10 +145,10 @@ unless all of the following are true:
 5. every Host Release payload has an exact `<asset>.sigstore.json` bundle and
    passes immutable Release verification, asset verification, pinned Cosign
    v3.0.6 keyless verification, and default Public Rekor inclusion verification
-   for the exact protected workflow, `convax-next` source ref, Host commit,
+   for the exact protected workflow, `main` source ref, Host commit,
    `workflow_dispatch` trigger, GitHub OIDC issuer, and GitHub-hosted runner;
    the canonical verification manifest additionally binds repository id
-   `1293264965` and owner id `125447777` from both live GitHub metadata and
+   `1322708874` and owner id `312877127` from both live GitHub metadata and
    bounded Fulcio certificate claims;
 6. the actual API version satisfies the range inside the exact SDK tarball; and
 7. every selected Plugin ZIP receives canonical

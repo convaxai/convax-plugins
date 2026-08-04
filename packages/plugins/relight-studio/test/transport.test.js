@@ -21,7 +21,7 @@ describe("relight-studio v8 transport", () => {
       readFile(path.join(repositoryRoot, "registry/host-capability-policy.json"), "utf8").then(JSON.parse),
     ])
 
-    expect(manifest.version).toBe("0.2.0")
+    expect(manifest.version).toBe("0.2.1")
     expect(metadata).not.toHaveProperty("publication")
     expect(publication.requests.flatMap((request) => request.affected)
       .find((item) => item.id === "relight-studio")).toMatchObject({
@@ -29,7 +29,7 @@ describe("relight-studio v8 transport", () => {
     })
     expect(manifest.capabilities).toContain("canvas.connectedImages.read")
     expect(manifest.capabilities).not.toContain("canvas.connectedMedia.stream")
-    expect(manifest.hostApi.major).toBe(2)
+    expect(manifest.hostApi.major).toBe(3)
     expect(manifest.hostApi.required).toEqual(expect.arrayContaining([
       "canvas.inputs.image.close",
       "canvas.inputs.image.open",

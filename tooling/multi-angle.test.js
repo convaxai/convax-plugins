@@ -39,7 +39,7 @@ describe("multi-angle Plugin package", () => {
       schema: "convax.package/2",
       kind: "plugin",
       id: "multi-angle",
-      version: "0.2.0",
+      version: "0.2.1",
       publication: {
         status: "blocked",
         blockers: expect.arrayContaining([
@@ -68,7 +68,7 @@ describe("multi-angle Plugin package", () => {
       contributes: { canvas: { renderer: { create: true, height: 720, width: 1080 } } },
       entry: "index.html",
       hostApi: {
-        major: 2,
+        major: 3,
         required: [
           "canvas.inputs.image.close",
           "canvas.inputs.image.open",
@@ -82,7 +82,7 @@ describe("multi-angle Plugin package", () => {
       },
       id: "multi-angle",
       schema: "convax.plugin/8",
-      version: "0.2.0",
+      version: "0.2.1",
     })
     expect(manifest.contributes.canvas.commands).toEqual([
       {
@@ -276,13 +276,19 @@ describe("multi-angle Plugin package", () => {
   test("preserves the authoritative grid node ids and migrates only portable legacy planning state", () => {
     const result = normalizeGenerationResult({
       createdNodeIds: ["node-front-a", "node-front-b"],
-      revision: 8,
+      operationReceipt: null,
+      projection: null,
       toolId: "provider/image.model",
       warnings: ["one warning"],
     }, ["front", "left", "top"], "2026-07-21T00:00:01.000Z")
     expect(result.createdNodeIds).toEqual(["node-front-a", "node-front-b"])
     expect(result.presetIds).toEqual(["front", "left", "top"])
-    expect(result.revision).toBe(8)
+    expect(result).not.toHaveProperty("revision")
+    expect(() => normalizeGenerationResult({
+      createdNodeIds: ["node-front-a"],
+      toolId: "provider/image.model",
+      warnings: [],
+    }, ["front", "left"], "2026-07-21T00:00:01.000Z")).toThrow("生成结果无效")
 
     const legacy = hydratePluginState({
       lastRun: { status: "waiting" },
@@ -299,12 +305,38 @@ describe("multi-angle Plugin package", () => {
       lastRun: null,
       notes: "keep materials",
       result: null,
-      schemaVersion: 4,
+      schemaVersion: 5,
       selectedPresetIds: ["front", "top"],
       sourceInputKey: null,
       subjectType: "product",
       toolId: "provider/image.model",
     })
+
+    const api2 = hydratePluginState({
+      ...createDefaultState(),
+      result: {
+        completedAt: "2026-07-21T00:00:01.000Z",
+        createdNodeIds: ["node-front-a", "node-front-b"],
+        presetIds: ["front", "left", "top"],
+        revision: 8,
+        toolId: "provider/image.model",
+        warnings: ["one warning"],
+      },
+      schemaVersion: 4,
+      sourceInputKey: "source-1",
+      toolId: "provider/image.model",
+    })
+    expect(api2.source).toBe("legacy")
+    expect(api2.state).toMatchObject({
+      result: {
+        createdNodeIds: ["node-front-a", "node-front-b"],
+        presetIds: ["front", "left", "top"],
+      },
+      schemaVersion: 5,
+      sourceInputKey: "source-1",
+      toolId: "provider/image.model",
+    })
+    expect(api2.state.result).not.toHaveProperty("revision")
 
     const interrupted = hydratePluginState({
       ...createDefaultState(),

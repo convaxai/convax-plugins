@@ -52,7 +52,7 @@ describe("storyai-3d-director-desk package", () => {
       id: "storyai-3d-director-desk",
       name: "3D Director Desk",
       description: manifest.description,
-      version: "0.3.0",
+      version: "0.3.1",
       publication: {
         status: "ready",
         blockers: [],
@@ -85,7 +85,7 @@ describe("storyai-3d-director-desk package", () => {
       entry: "index.html",
       capabilities: ["canvas.node.write", "canvas.image.write"],
       hostApi: {
-        major: 2,
+        major: 3,
         required: [
           "canvas.node.state.replace",
           "canvas.resource.image.create",
@@ -155,7 +155,7 @@ describe("storyai-3d-director-desk package", () => {
       "2fe096047aa10f51dbbf92ad2542b97ed4d73437bd281867f277e9027bd7b22f",
     )
     expect(await sha256("assets/plugin-host-client.js")).toBe(
-      "bc9c4a20fc301e1489618be11099cc3e762ef9a2d630b9231e231a28a4b7baa6",
+      "e71771b9e2a77e7ce43512d0ede698206d71ffad00b0324780de6aeaad6090b5",
     )
     expect(await sha256("assets/convax-theme.css")).toBe(
       "a27a031b299856bd4bd6d31b7cbb54e9996e0679e13db14ae3945197b1de41af",
@@ -171,7 +171,7 @@ describe("storyai-3d-director-desk package", () => {
     )
     expect(await read("LICENSE")).toContain("MIT License")
     expect(await read("UPSTREAM.md")).toContain(upstreamCommit)
-    expect(await read("UPSTREAM.md")).toContain("microvoid/convax-plugins")
+    expect(await read("UPSTREAM.md")).toContain("convaxai/convax-plugins")
   })
 
   test("uses only the v8 sandboxed Plugin Host protocol", async () => {

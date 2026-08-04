@@ -296,6 +296,284 @@ function parsePortablePluginCanvasUiContribution(value) {
   return Object.freeze({ commands, menus, toolbar });
 }
 
+// ../bounded-value/src/index.ts
+var portablePluginStateSchemaFormat = "convax.plugin-state-schema/1";
+var encoder = new TextEncoder;
+var maximumDescriptorBytes = 64 * 1024;
+var maximumSchemaDepth = 16;
+var maximumSchemaNodes = 4096;
+var maximumObjectProperties = 256;
+var maximumUnionVariants = 16;
+var maximumEnumValues = 256;
+var maximumStringBytes = 64 * 1024;
+var maximumArrayItems = 1024;
+var maximumValueDepth = 32;
+var maximumValueNodes = 4096;
+var maximumValueBytes = 256 * 1024;
+function parsePortablePluginStateSchemaV1(value) {
+  const schema = parseSchema(value, 1, { nodes: 0, seen: new Set });
+  if (encoder.encode(canonicalJson(schema)).byteLength > maximumDescriptorBytes) {
+    throw new TypeError("Plugin state schema exceeds 64 KiB");
+  }
+  return schema;
+}
+function canonicalPortablePluginStateSchemaBytesV1(value) {
+  const schema = parsePortablePluginStateSchemaV1(value);
+  return encoder.encode(canonicalJson(schema));
+}
+function pluginStateSchemaDigestInputV1(value) {
+  const domain = encoder.encode(`${portablePluginStateSchemaFormat}\x00`);
+  const schema = canonicalPortablePluginStateSchemaBytesV1(value);
+  const bytes = new Uint8Array(domain.byteLength + schema.byteLength);
+  bytes.set(domain);
+  bytes.set(schema, domain.byteLength);
+  return bytes;
+}
+function assertPortablePluginStateValueV1(schemaInput, value) {
+  const schema = parsePortablePluginStateSchemaV1(schemaInput);
+  validateValue(schema, value, 1, { nodes: 0, seen: new Set });
+  let bytes;
+  try {
+    const serialized = canonicalJson(value);
+    bytes = encoder.encode(serialized);
+  } catch {
+    throw new TypeError("Plugin state value is not canonical JSON");
+  }
+  if (bytes.byteLength > maximumValueBytes)
+    throw new TypeError("Plugin state value exceeds 256 KiB");
+}
+function parseSchema(value, depth, budget) {
+  if (depth > maximumSchemaDepth)
+    throw new TypeError("Plugin state schema exceeds depth 16");
+  if (++budget.nodes > maximumSchemaNodes)
+    throw new TypeError("Plugin state schema exceeds 4096 nodes");
+  const input = plainRecord(value, "Plugin state schema");
+  if (budget.seen.has(input))
+    throw new TypeError("Plugin state schema cannot be cyclic");
+  budget.seen.add(input);
+  try {
+    if (input.type === "null" || input.type === "boolean") {
+      exactKeys2(input, ["type"]);
+      return Object.freeze({ type: input.type });
+    }
+    if (input.type === "string") {
+      exactKeys2(input, ["type", "maxUtf8Bytes"], ["enum"]);
+      const maxUtf8Bytes = boundedDecimal(input.maxUtf8Bytes, maximumStringBytes, "String maxUtf8Bytes");
+      if (input.enum === undefined)
+        return Object.freeze({ type: "string", maxUtf8Bytes });
+      if (!Array.isArray(input.enum) || input.enum.length > maximumEnumValues) {
+        throw new TypeError("Plugin state string enum exceeds 256 values");
+      }
+      const values = input.enum.map((entry) => normalizedText(entry, "Plugin state enum value", Number(maxUtf8Bytes)));
+      values.sort(compareUtf8);
+      if (values.some((entry, index) => index > 0 && values[index - 1] === entry)) {
+        throw new TypeError("Plugin state string enum contains duplicates");
+      }
+      return Object.freeze({ type: "string", maxUtf8Bytes, enum: Object.freeze(values) });
+    }
+    if (input.type === "integer") {
+      exactKeys2(input, ["type", "minimum", "maximum"]);
+      const minimum = safeIntegerDecimal(input.minimum, "Plugin state integer minimum");
+      const maximum = safeIntegerDecimal(input.maximum, "Plugin state integer maximum");
+      if (BigInt(minimum) > BigInt(maximum))
+        throw new TypeError("Plugin state integer bounds are inverted");
+      return Object.freeze({ type: "integer", minimum, maximum });
+    }
+    if (input.type === "array") {
+      exactKeys2(input, ["type", "maxItems", "items"]);
+      return Object.freeze({
+        type: "array",
+        maxItems: boundedDecimal(input.maxItems, maximumArrayItems, "Array maxItems"),
+        items: parseSchema(input.items, depth + 1, budget)
+      });
+    }
+    if (input.type === "object") {
+      exactKeys2(input, ["type", "maxProperties", "required", "properties", "additionalProperties"]);
+      if (input.additionalProperties !== false)
+        throw new TypeError("Plugin state object must reject additional properties");
+      const maxProperties = boundedDecimal(input.maxProperties, maximumObjectProperties, "Object maxProperties");
+      const rawProperties = plainRecord(input.properties, "Plugin state object properties");
+      const propertyNames = Object.keys(rawProperties).map((key) => normalizedText(key, "Plugin state property", maximumStringBytes));
+      propertyNames.sort(compareUtf8);
+      if (propertyNames.length > Number(maxProperties))
+        throw new TypeError("Plugin state object exceeds maxProperties");
+      const properties = Object.create(null);
+      for (const key of propertyNames)
+        properties[key] = parseSchema(rawProperties[key], depth + 1, budget);
+      if (!Array.isArray(input.required))
+        throw new TypeError("Plugin state object required must be an array");
+      const required = input.required.map((key) => normalizedText(key, "Plugin state required property", maximumStringBytes));
+      required.sort(compareUtf8);
+      if (required.some((key, index) => index > 0 && required[index - 1] === key)) {
+        throw new TypeError("Plugin state object required contains duplicates");
+      }
+      if (required.some((key) => !Object.prototype.hasOwnProperty.call(properties, key))) {
+        throw new TypeError("Plugin state object required is not a properties subset");
+      }
+      return Object.freeze({
+        type: "object",
+        maxProperties,
+        required: Object.freeze(required),
+        properties: Object.freeze(properties),
+        additionalProperties: false
+      });
+    }
+    if (input.type === "union") {
+      exactKeys2(input, ["type", "variants"]);
+      if (!Array.isArray(input.variants) || input.variants.length < 1 || input.variants.length > maximumUnionVariants) {
+        throw new TypeError("Plugin state union must contain 1..16 variants");
+      }
+      const variants = input.variants.map((variant) => parseSchema(variant, depth + 1, budget));
+      variants.sort((left, right) => compareUtf8(canonicalJson(left), canonicalJson(right)));
+      if (variants.some((variant, index) => index > 0 && canonicalJson(variants[index - 1]) === canonicalJson(variant))) {
+        throw new TypeError("Plugin state union contains duplicate variants");
+      }
+      return Object.freeze({ type: "union", variants: Object.freeze(variants) });
+    }
+    throw new TypeError("Plugin state schema type is unsupported");
+  } finally {
+    budget.seen.delete(input);
+  }
+}
+function validateValue(schema, value, depth, budget) {
+  if (depth > maximumValueDepth)
+    throw new TypeError("Plugin state value exceeds depth 32");
+  if (++budget.nodes > maximumValueNodes)
+    throw new TypeError("Plugin state value exceeds 4096 nodes");
+  if (schema.type === "null") {
+    if (value !== null)
+      throw new TypeError("Plugin state value must be null");
+    return;
+  }
+  if (schema.type === "boolean") {
+    if (typeof value !== "boolean")
+      throw new TypeError("Plugin state value must be boolean");
+    return;
+  }
+  if (schema.type === "string") {
+    const text2 = normalizedText(value, "Plugin state string", Number(schema.maxUtf8Bytes));
+    if (schema.enum !== undefined && !schema.enum.includes(text2))
+      throw new TypeError("Plugin state string is outside enum");
+    return;
+  }
+  if (schema.type === "integer") {
+    if (!Number.isSafeInteger(value))
+      throw new TypeError("Plugin state value must be a safe integer");
+    const integer = BigInt(value);
+    if (integer < BigInt(schema.minimum) || integer > BigInt(schema.maximum)) {
+      throw new TypeError("Plugin state integer is outside bounds");
+    }
+    return;
+  }
+  if (schema.type === "union") {
+    const matches = schema.variants.filter((variant) => {
+      try {
+        validateValue(variant, value, depth + 1, { nodes: budget.nodes, seen: new Set(budget.seen) });
+        return true;
+      } catch {
+        return false;
+      }
+    });
+    if (matches.length === 0)
+      throw new TypeError("Plugin state value matches no union variant");
+    return;
+  }
+  if (!value || typeof value !== "object")
+    throw new TypeError(`Plugin state value must be ${schema.type}`);
+  if (budget.seen.has(value))
+    throw new TypeError("Plugin state value cannot be cyclic");
+  budget.seen.add(value);
+  try {
+    if (schema.type === "array") {
+      if (!Array.isArray(value) || value.length > Number(schema.maxItems)) {
+        throw new TypeError("Plugin state array exceeds maxItems");
+      }
+      for (const item of value)
+        validateValue(schema.items, item, depth + 1, budget);
+      return;
+    }
+    if (Array.isArray(value))
+      throw new TypeError("Plugin state value must be an object");
+    const input = plainRecord(value, "Plugin state value");
+    const keys = Object.keys(input);
+    if (keys.length > Number(schema.maxProperties) || keys.length > maximumObjectProperties) {
+      throw new TypeError("Plugin state object exceeds maxProperties");
+    }
+    for (const key of schema.required) {
+      if (!Object.prototype.hasOwnProperty.call(input, key))
+        throw new TypeError(`Plugin state property is required: ${key}`);
+    }
+    for (const key of keys) {
+      normalizedText(key, "Plugin state property", maximumStringBytes);
+      const child = schema.properties[key];
+      if (child === undefined)
+        throw new TypeError(`Plugin state property is unsupported: ${key}`);
+      validateValue(child, input[key], depth + 1, budget);
+    }
+  } finally {
+    budget.seen.delete(value);
+  }
+}
+function plainRecord(value, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new TypeError(`${label} must be a plain object`);
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null)
+    throw new TypeError(`${label} must be a plain object`);
+  return value;
+}
+function exactKeys2(value, required, optional = []) {
+  const admitted = new Set([...required, ...optional]);
+  if (required.some((key) => !Object.prototype.hasOwnProperty.call(value, key)) || Object.keys(value).some((key) => !admitted.has(key))) {
+    throw new TypeError("Plugin state schema contains unsupported or missing fields");
+  }
+}
+function boundedDecimal(value, maximum, label) {
+  if (typeof value !== "string" || !/^(0|[1-9]\d*)$/u.test(value) || BigInt(value) > BigInt(maximum)) {
+    throw new TypeError(`${label} is not a bounded canonical decimal`);
+  }
+  return value;
+}
+function safeIntegerDecimal(value, label) {
+  if (typeof value !== "string" || !/^(?:0|-?[1-9]\d*)$/u.test(value)) {
+    throw new TypeError(`${label} is not a canonical integer`);
+  }
+  const integer = BigInt(value);
+  if (integer < BigInt(Number.MIN_SAFE_INTEGER) || integer > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new TypeError(`${label} exceeds the safe integer range`);
+  }
+  return value;
+}
+function normalizedText(value, label, maximumBytes) {
+  if (typeof value !== "string" || value.normalize("NFC") !== value || encoder.encode(value).byteLength > maximumBytes) {
+    throw new TypeError(`${label} must be bounded NFC text`);
+  }
+  return value;
+}
+function compareUtf8(left, right) {
+  const leftBytes = encoder.encode(left);
+  const rightBytes = encoder.encode(right);
+  const length = Math.min(leftBytes.length, rightBytes.length);
+  for (let index = 0;index < length; index += 1) {
+    const difference = leftBytes[index] - rightBytes[index];
+    if (difference !== 0)
+      return difference;
+  }
+  return leftBytes.length - rightBytes.length;
+}
+function canonicalJson(value) {
+  if (value === null || typeof value === "boolean" || typeof value === "string")
+    return JSON.stringify(value);
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value))
+      throw new TypeError("Canonical Plugin value number must be a safe integer");
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value))
+    return `[${value.map(canonicalJson).join(",")}]`;
+  const input = plainRecord(value, "Canonical Plugin value");
+  return `{${Object.keys(input).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(input[key])}`).join(",")}}`;
+}
 // src/canvas.ts
 var portablePluginCanvasSelectionActionEditors = [
   "time-point",
@@ -320,7 +598,7 @@ function parseDimension(value, label) {
 }
 function parseRenderer(value) {
   const input = portableRecord(value, "Canvas renderer contribution");
-  assertPortableKeys(input, ["create", "extensions", "height", "mimeTypes", "nodeKinds", "width"], "Canvas renderer contribution");
+  assertPortableKeys(input, ["create", "extensions", "height", "mimeTypes", "nodeKinds", "stateSchema", "width"], "Canvas renderer contribution");
   if (input.create !== undefined && typeof input.create !== "boolean") {
     throw new TypeError("Canvas renderer create must be a boolean");
   }
@@ -353,6 +631,7 @@ function parseRenderer(value) {
     ...input.height === undefined ? {} : { height: parseDimension(input.height, "Canvas renderer height") },
     ...mimeTypes === undefined ? {} : { mimeTypes },
     ...nodeKinds === undefined ? {} : { nodeKinds },
+    ...input.stateSchema === undefined ? {} : { stateSchema: parsePortablePluginStateSchemaV1(input.stateSchema) },
     ...input.width === undefined ? {} : { width: parseDimension(input.width, "Canvas renderer width") }
   };
 }
@@ -447,9 +726,9 @@ var semverPattern2 = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 var sideEffects = new Set(["none", "read", "write", "execute", "subscribe"]);
 var maximumCapabilities = 128;
 var maximumProperties = 64;
-var maximumSchemaDepth = 8;
+var maximumSchemaDepth2 = 8;
 var maximumStringLength = 16 * 1024;
-var maximumArrayItems = 256;
+var maximumArrayItems2 = 256;
 function isPluginCapabilityId(value) {
   return typeof value === "string" && value.length <= 160 && capabilityIdPattern.test(value);
 }
@@ -461,7 +740,7 @@ function record2(value, label) {
     throw new TypeError(`${label} must be a plain object`);
   return value;
 }
-function exactKeys2(value, required, optional, label) {
+function exactKeys3(value, required, optional, label) {
   const expected = new Set([...required, ...optional]);
   if (required.some((key) => !Object.prototype.hasOwnProperty.call(value, key)) || Object.keys(value).some((key) => !expected.has(key))) {
     throw new TypeError(`${label} contains unsupported or missing fields`);
@@ -499,15 +778,15 @@ function isPluginCapabilityVersionCompatible(candidate, range) {
   return compareVersions(candidate, range.minimum) >= 0 && compareVersions(candidate, range.maximumExclusive) < 0;
 }
 function normalizeSchema(value, label, depth) {
-  if (depth > maximumSchemaDepth)
+  if (depth > maximumSchemaDepth2)
     throw new TypeError(`${label} exceeds the schema depth limit`);
   const input = record2(value, label);
   if (input.type === "null" || input.type === "boolean") {
-    exactKeys2(input, ["type"], [], label);
+    exactKeys3(input, ["type"], [], label);
     return Object.freeze({ type: input.type });
   }
   if (input.type === "number" || input.type === "integer") {
-    exactKeys2(input, ["type"], ["minimum", "maximum"], label);
+    exactKeys3(input, ["type"], ["minimum", "maximum"], label);
     const minimum = input.minimum;
     const maximum = input.maximum;
     if (minimum !== undefined && (typeof minimum !== "number" || !Number.isFinite(minimum))) {
@@ -529,7 +808,7 @@ function normalizeSchema(value, label, depth) {
     if (!Object.prototype.hasOwnProperty.call(input, "maxLength")) {
       throw new TypeError(`${label}.maxLength is required to keep values bounded`);
     }
-    exactKeys2(input, ["type", "maxLength"], ["minLength", "enum"], label);
+    exactKeys3(input, ["type", "maxLength"], ["minLength", "enum"], label);
     const maxLength = nonNegativeInteger(input.maxLength, `${label}.maxLength`, maximumStringLength);
     const minLength = input.minLength === undefined ? undefined : nonNegativeInteger(input.minLength, `${label}.minLength`, maxLength);
     let enumeration;
@@ -547,8 +826,8 @@ function normalizeSchema(value, label, depth) {
     });
   }
   if (input.type === "array") {
-    exactKeys2(input, ["type", "items", "maxItems"], ["minItems"], label);
-    const maxItems = nonNegativeInteger(input.maxItems, `${label}.maxItems`, maximumArrayItems);
+    exactKeys3(input, ["type", "items", "maxItems"], ["minItems"], label);
+    const maxItems = nonNegativeInteger(input.maxItems, `${label}.maxItems`, maximumArrayItems2);
     const minItems = input.minItems === undefined ? undefined : nonNegativeInteger(input.minItems, `${label}.minItems`, maxItems);
     return Object.freeze({
       type: "array",
@@ -558,7 +837,7 @@ function normalizeSchema(value, label, depth) {
     });
   }
   if (input.type === "object") {
-    exactKeys2(input, ["type", "properties", "required", "additionalProperties"], [], label);
+    exactKeys3(input, ["type", "properties", "required", "additionalProperties"], [], label);
     if (input.additionalProperties !== false)
       throw new TypeError(`${label}.additionalProperties must be false`);
     const rawProperties = record2(input.properties, `${label}.properties`);
@@ -589,12 +868,12 @@ function objectSchema(value, label) {
 }
 function normalizeImport(value, label) {
   const input = record2(value, label);
-  exactKeys2(input, ["id", "inputSchema", "outputSchema", "version"], [], label);
+  exactKeys3(input, ["id", "inputSchema", "outputSchema", "version"], [], label);
   const id = text2(input.id, `${label}.id`, 160);
   if (!isPluginCapabilityId(id))
     throw new TypeError(`${label}.id is invalid`);
   const range = record2(input.version, `${label}.version`);
-  exactKeys2(range, ["minimum", "maximumExclusive"], [], `${label}.version`);
+  exactKeys3(range, ["minimum", "maximumExclusive"], [], `${label}.version`);
   const minimum = version(range.minimum, `${label}.version.minimum`);
   const maximumExclusive = version(range.maximumExclusive, `${label}.version.maximumExclusive`);
   if (compareVersions(minimum, maximumExclusive) >= 0) {
@@ -619,7 +898,7 @@ function normalizeImports(value, label) {
 }
 function normalizeExport(value, label) {
   const input = record2(value, label);
-  exactKeys2(input, ["id", "version", "operation", "sideEffect", "inputSchema", "outputSchema", "docs"], [], label);
+  exactKeys3(input, ["id", "version", "operation", "sideEffect", "inputSchema", "outputSchema", "docs"], [], label);
   const id = text2(input.id, `${label}.id`, 160);
   if (!isPluginCapabilityId(id))
     throw new TypeError(`${label}.id is invalid`);
@@ -629,7 +908,7 @@ function normalizeExport(value, label) {
   if (!sideEffects.has(input.sideEffect))
     throw new TypeError(`${label}.sideEffect is invalid`);
   const rawDocs = record2(input.docs, `${label}.docs`);
-  exactKeys2(rawDocs, ["summary", "request", "response"], ["remarks"], `${label}.docs`);
+  exactKeys3(rawDocs, ["summary", "request", "response"], ["remarks"], `${label}.docs`);
   const docs = Object.freeze({
     summary: text2(rawDocs.summary, `${label}.docs.summary`),
     request: text2(rawDocs.request, `${label}.docs.request`),
@@ -648,7 +927,7 @@ function normalizeExport(value, label) {
 }
 function parsePluginCapabilityDeclaration(value) {
   const input = record2(value, "Plugin capability declaration");
-  exactKeys2(input, ["exports", "imports"], [], "Plugin capability declaration");
+  exactKeys3(input, ["exports", "imports"], [], "Plugin capability declaration");
   if (!Array.isArray(input.exports) || input.exports.length > maximumCapabilities) {
     throw new TypeError("Plugin capability exports must be a bounded array");
   }
@@ -660,7 +939,7 @@ function parsePluginCapabilityDeclaration(value) {
     throw new TypeError("Plugin capability exports contain a duplicate provider operation");
   }
   const rawImports = record2(input.imports, "Plugin capability imports");
-  exactKeys2(rawImports, ["required", "optional"], [], "Plugin capability imports");
+  exactKeys3(rawImports, ["required", "optional"], [], "Plugin capability imports");
   const required = normalizeImports(rawImports.required, "Plugin required capability imports");
   const optional = normalizeImports(rawImports.optional, "Plugin optional capability imports");
   const requiredIds = new Set(required.map(({ id }) => id));
@@ -710,7 +989,7 @@ function assertPluginCapabilityRuntimeTools(exports, tools) {
     }
   }
 }
-function validateValue(schema, value, label, seen) {
+function validateValue2(schema, value, label, seen) {
   if (schema.type === "null") {
     if (value !== null)
       throw new TypeError(`${label} must be null`);
@@ -748,7 +1027,7 @@ function validateValue(schema, value, label, seen) {
       if (!Array.isArray(value) || value.length < (schema.minItems ?? 0) || value.length > schema.maxItems) {
         throw new TypeError(`${label} is not an admitted array`);
       }
-      value.forEach((entry, index) => validateValue(schema.items, entry, `${label}[${index}]`, seen));
+      value.forEach((entry, index) => validateValue2(schema.items, entry, `${label}[${index}]`, seen));
       return;
     }
     if (Array.isArray(value))
@@ -765,14 +1044,14 @@ function validateValue(schema, value, label, seen) {
       const childSchema = schema.properties[key];
       if (!childSchema)
         throw new TypeError(`${label} contains unsupported property: ${key}`);
-      validateValue(childSchema, child, `${label}.${key}`, seen);
+      validateValue2(childSchema, child, `${label}.${key}`, seen);
     }
   } finally {
     seen.delete(value);
   }
 }
 function assertPluginCapabilityValue(schema, value, label = "Plugin capability value") {
-  validateValue(schema, value, label, new Set);
+  validateValue2(schema, value, label, new Set);
 }
 function escapeCell(value) {
   return value.replaceAll("|", "\\|").replaceAll(`
@@ -1266,10 +1545,9 @@ var hostNode = object({
   id: string(),
   parentId: string(),
   position: point,
-  revision: integer,
   style: jsonObject(),
   type: string(80)
-}, ["data", "id", "position", "revision", "type"]);
+}, ["data", "id", "position", "type"]);
 var generationReference = object({ inputKey: string(), role: inputRole }, ["inputKey", "role"]);
 var nodeQuery = object({
   ids: stringList(),
@@ -1368,18 +1646,41 @@ var geometryDocument = object({
   edges: array(edge, 1e4),
   id: string(256),
   nodes: array(geometryNode, 1e4),
-  revision: integer,
   title: string(512)
-}, ["edges", "id", "nodes", "revision", "title"]);
+}, ["edges", "id", "nodes", "title"]);
 var structureDocument = object({
   description: string(8000, { allowEmpty: true }),
   edges: array(edge, 1e4),
   id: string(256),
   nodes: array(structureNode, 1e4),
-  revision: integer,
   tags: array(string(), 256),
   title: string(512)
-}, ["edges", "id", "nodes", "revision", "title"]);
+}, ["edges", "id", "nodes", "title"]);
+var operationReceipt = object({
+  actorId: string(43),
+  baseFrontierDigest: string(64, { refinement: "lowercase-sha256" }),
+  format: literal("convax.canvas-operation-receipt/2"),
+  historyMaterialDigest: union(nil, string(64, { refinement: "lowercase-sha256" })),
+  intentDigest: string(64, { refinement: "lowercase-sha256" }),
+  intentKind: string(256),
+  operationId: string(22),
+  resultEntities: array(object({
+    id: string(256),
+    incarnation: string(256),
+    kind: enumString(["node", "edge"])
+  }, ["id", "incarnation", "kind"]), 1e4),
+  semanticRoot: bool
+}, [
+  "actorId",
+  "baseFrontierDigest",
+  "format",
+  "historyMaterialDigest",
+  "intentDigest",
+  "intentKind",
+  "operationId",
+  "resultEntities",
+  "semanticRoot"
+]);
 var nodeSummary = object({
   id: string(),
   incomingNodeIds: stringList(),
@@ -1432,11 +1733,19 @@ var pluginApiWireContracts = Object.freeze({
   }, ["probe", "sessionId", "url"])),
   "canvas.inputs.close": contract(object({ sessionId: string(128) }, ["sessionId"]), object({ closed: bool }, ["closed"])),
   "canvas.node.get": contract(none, hostNode, { result: MiB }),
-  "canvas.node.state.replace": contract(object({ state: jsonObject(256 * KiB) }, ["state"]), object({ updated: literal(true) }, ["updated"]), { request: 256 * KiB + 4 * KiB }),
+  "canvas.node.state.replace": contract(object({ state: jsonObject(256 * KiB) }, ["state"]), object({ operationReceipt, projection: hostNode, updated: literal(true) }, [
+    "operationReceipt",
+    "projection",
+    "updated"
+  ]), { request: 256 * KiB + 4 * KiB }),
   "canvas.resource.image.create": contract(object({
     dataUrl: string(24 * MiB, { prefix: "data:image/png;base64," }),
     name: string(120, { refinement: "safe-png-file-name" })
-  }, ["dataUrl", "name"]), object({ createdNodeId: string(), revision: integer }, ["createdNodeId", "revision"]), { request: 24 * MiB + 4 * KiB }),
+  }, ["dataUrl", "name"]), object({ createdNodeId: string(), operationReceipt, projection: structureDocument }, [
+    "createdNodeId",
+    "operationReceipt",
+    "projection"
+  ]), { request: 24 * MiB + 4 * KiB }),
   "project.file.text.read": contract(object({ path: string(1024, { refinement: "portable-project-relative-path" }) }, ["path"]), object({
     content: string(MiB, { allowEmpty: true }),
     exists: bool,
@@ -1453,54 +1762,46 @@ var pluginApiWireContracts = Object.freeze({
   }, ["prompt"]), object({
     createdNodeIds: array(string(), 32),
     outputText: string(64 * KiB, { allowEmpty: true }),
-    revision: integer,
+    operationReceipt: union(nil, operationReceipt),
+    projection: union(nil, structureDocument),
     toolId: string(256),
     warnings: array(string(), 32)
-  }, ["createdNodeIds", "revision", "toolId", "warnings"]), { result: 256 * KiB }),
+  }, ["createdNodeIds", "operationReceipt", "projection", "toolId", "warnings"]), { result: 256 * KiB }),
   "projects.list": contract(none, object({
     projects: array(object({ available: bool, id: string(256), name: string(512) }, ["available", "id", "name"]), 1000)
   }, ["projects"]), { result: MiB }),
   "canvas.catalog.list": contract(object({ projectId: string(256) }, ["projectId"]), object({
-    canvases: array(object({ createdAt: finite, id: string(256), name: string(512), updatedAt: finite }, [
-      "createdAt",
-      "id",
-      "name",
-      "updatedAt"
-    ]), 1e4),
+    canvases: array(object({ id: string(256), name: string(512) }, ["id", "name"]), 1e4),
     projectId: string(256)
   }, ["canvases", "projectId"]), { result: 8 * MiB }),
   "canvas.document.get": contract(object({ projection: enumString(["geometry", "structure"]), ref: canvasRef }, ["ref"]), union(object({
     document: geometryDocument,
     projection: literal("geometry"),
-    ref: canvasRef,
-    storageVersion: union(nil, string(256))
-  }, ["document", "projection", "ref", "storageVersion"]), object({
+    ref: canvasRef
+  }, ["document", "projection", "ref"]), object({
     document: structureDocument,
     projection: literal("structure"),
-    ref: canvasRef,
-    storageVersion: union(nil, string(256))
-  }, ["document", "projection", "ref", "storageVersion"])), { result: 8 * MiB }),
+    ref: canvasRef
+  }, ["document", "projection", "ref"])), { result: 8 * MiB }),
   "canvas.nodes.query": contract(object({ query: nodeQuery, ref: canvasRef }, ["ref"]), object({
     nodes: array(nodeSummary, 1000),
-    ref: canvasRef,
-    revision: integer,
-    storageVersion: union(nil, string(256))
-  }, ["nodes", "ref", "revision", "storageVersion"]), { request: MiB, result: 8 * MiB }),
+    projection: structureDocument,
+    ref: canvasRef
+  }, ["nodes", "projection", "ref"]), { request: MiB, result: 8 * MiB }),
   "canvas.transaction.execute": contract(object({
-    commands: array(transactionCommand, 256, 1),
-    expectedRevision: integer,
-    ref: canvasRef,
-    transactionId: string(128)
-  }, ["commands", "expectedRevision", "ref", "transactionId"]), object({
+    command: transactionCommand,
+    commandId: string(128),
+    ref: canvasRef
+  }, ["command", "commandId", "ref"]), object({
     affectedNodeIds: stringList(1e4),
     changed: bool,
     createdNodeIds: stringList(1e4),
+    operationReceipt,
+    projection: structureDocument,
     ref: canvasRef,
-    revision: integer,
-    storageVersion: string(256),
     summaryTruncated: bool,
     warnings: stringList()
-  }, ["affectedNodeIds", "changed", "createdNodeIds", "ref", "revision", "storageVersion", "warnings"]), { request: MiB, result: 2 * MiB }),
+  }, ["affectedNodeIds", "changed", "createdNodeIds", "operationReceipt", "projection", "ref", "warnings"]), { request: MiB, result: 2 * MiB }),
   "canvas.events.subscribe": contract(object({ ref: object({ canvasId: string(256), projectId: string(256) }, ["projectId"]) }, ["ref"]), object({ subscriptionId: string(128) }, ["subscriptionId"])),
   "canvas.events.unsubscribe": contract(object({ subscriptionId: string(128) }, ["subscriptionId"]), object({ removed: bool }, ["removed"]))
 });
@@ -1780,8 +2081,12 @@ var defineV2Contract = (definition) => definePluginApi({
   ...definition,
   contractSince: "2.0.0"
 });
+var defineV3Contract = (definition) => definePluginApi({
+  ...definition,
+  contractSince: "3.0.0"
+});
 var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
-  defineV2Contract({
+  defineV3Contract({
     id: "host.context.get",
     completion: "cancelable",
     grant: null,
@@ -1838,7 +2143,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "An acknowledgement; closing an already closed handle is idempotent."
     }
   }),
-  defineV2Contract({
+  defineV3Contract({
     id: "canvas.node.get",
     completion: "cancelable",
     grant: "canvas.node.read",
@@ -1849,24 +2154,24 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       summary: "Read the owning Plugin node projection.",
       description: "Returns a bounded renderer-safe projection of the exact node bound to the connection.",
       request: "No parameters; the owning node comes from the bound connection.",
-      response: "The owning node identity, revision, geometry, and Plugin state projection."
+      response: "The owning node identity, geometry, and Plugin state projection."
     }
   }),
-  defineV2Contract({
+  defineV3Contract({
     id: "canvas.node.state.replace",
     completion: "commit-preserving",
     grant: "canvas.node.write",
     scope: "own-node",
     sideEffect: "write",
-    errors: [...contextErrors, ...permissionErrors],
+    errors: [...contextErrors, ...permissionErrors, ...resourceErrors],
     docs: {
       summary: "Replace the owning node's bounded Plugin state.",
-      description: "Commits only the namespaced Plugin state through the authoritative Canvas application service with revision checks.",
+      description: "Commits only the namespaced Plugin state through one Canvas-owned semantic intent guarded by the current node incarnation.",
       request: "`{ state }`, where state is a bounded JSON value.",
-      response: "`{ updated: true }` after the authoritative state replacement commits."
+      response: "The durable operation receipt and current owning-node projection after the replacement commits."
     }
   }),
-  defineV2Contract({
+  defineV3Contract({
     id: "canvas.resource.image.create",
     completion: "commit-preserving",
     grant: "canvas.image.write",
@@ -1922,7 +2227,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "A bounded list of available generation tools and their public input contracts."
     }
   }),
-  defineV2Contract({
+  defineV3Contract({
     id: "generation.execute",
     completion: "commit-preserving",
     grant: "generation.execute",
@@ -1933,7 +2238,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       summary: "Execute one selected generation tool through the shared host executor.",
       description: "Revalidates the active Plugin, authorized executable, inputs, cancellation, and live resource guards immediately before execution.",
       request: "`{ output?, prompt, references?: Array<{ inputKey, role }>, resultMode?, toolId? }`; every opaque input key must come from the current owning node's canvas.inputs.list result.",
-      response: "The bounded selected tool result, created node ids, authoritative revision, and warnings."
+      response: "The bounded selected tool result, created node ids, optional committed operation receipt/projection, and warnings."
     }
   }),
   defineV2Contract({
@@ -1951,7 +2256,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "A bounded list of renderer-safe Project summaries."
     }
   }),
-  defineV2Contract({
+  defineV3Contract({
     id: "canvas.catalog.list",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -1966,7 +2271,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "A bounded list of portable Canvas catalog entries."
     }
   }),
-  defineV2Contract({
+  defineV3Contract({
     id: "canvas.document.get",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -1978,10 +2283,10 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       summary: "Read one authorized Canvas document projection.",
       description: "Returns a bounded portable structure or geometry projection from Main's authoritative Canvas application service.",
       request: "`{ ref, projection }`, using an explicit portable Project/Canvas reference and supported projection.",
-      response: "The requested pathless document projection and authoritative revision."
+      response: "The requested pathless document projection."
     }
   }),
-  defineV2Contract({
+  defineV3Contract({
     id: "canvas.nodes.query",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -1993,10 +2298,10 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       summary: "Query bounded node projections in one authorized Canvas.",
       description: "Executes a host-defined bounded query without exposing native paths or resource bytes.",
       request: "`{ ref, query }`, using an explicit portable Project/Canvas reference and bounded query.",
-      response: "Matching node projections and the authoritative Canvas revision."
+      response: "Matching node summaries and the current pathless Canvas projection."
     }
   }),
-  defineV2Contract({
+  defineV3Contract({
     id: "canvas.transaction.execute",
     completion: "commit-preserving",
     audience: ["web-plugin", "companion"],
@@ -2005,10 +2310,10 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
     sideEffect: "write",
     errors: [...contextErrors, ...permissionErrors],
     docs: {
-      summary: "Commit one non-empty revision-bound Canvas transaction.",
-      description: "Validates bounded commands against one authoritative revision and persists the accepted transaction atomically.",
-      request: "`{ ref, expectedRevision, commands, transactionId }` with a bounded non-empty command list.",
-      response: "The committed authoritative revision and bounded command results."
+      summary: "Commit one closed Canvas command through the authoritative application service.",
+      description: "Maps one bounded command to a Canvas-owned semantic intent, commits it atomically, and returns its durable operation identity.",
+      request: "`{ ref, command, commandId }` with one bounded closed command and an idempotency key.",
+      response: "The durable operation receipt, current pathless projection, and bounded command result."
     }
   }),
   defineV2Contract({
@@ -2021,7 +2326,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
     errors: [...contextErrors, ...permissionErrors],
     docs: {
       summary: "Subscribe to bounded events for one authorized Canvas.",
-      description: "Creates a connection-scoped subscription; events are revisioned invalidations or safe projections, never native data.",
+      description: "Creates a connection-scoped subscription; events carry operation receipts as invalidations or safe projections, never native data.",
       request: "`{ ref }`, using an explicit portable Project/Canvas reference.",
       response: "A connection-bound subscription identifier."
     }
@@ -2071,7 +2376,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "An acknowledgement that the caller's image session is closed; repeated close calls are idempotent."
     }
   })
-]));
+]), definePluginApiRelease("3.0.0", []));
 var catalogIds = pluginApiCatalog.apis.map(({ id }) => id).sort();
 if (catalogIds.length !== pluginApiContractIds.length || catalogIds.some((id, index) => id !== pluginApiContractIds[index])) {
   throw new TypeError("Plugin API Catalog and portable method contracts are incomplete or inconsistent");
@@ -2574,6 +2879,7 @@ export {
   portableText,
   portableRecord,
   portablePluginUiIconTokens,
+  portablePluginStateSchemaFormat,
   portablePluginServiceActions,
   portablePluginProjectCanvasCapabilities,
   portablePluginPetCapabilities,
@@ -2583,9 +2889,11 @@ export {
   portablePluginGenerationInputRoles,
   portablePluginCapabilities,
   portableArray,
+  pluginStateSchemaDigestInputV1,
   parsePortableStringArray,
   parsePortableStableId,
   parsePortablePluginVersion,
+  parsePortablePluginStateSchemaV1,
   parsePortablePluginSkills,
   parsePortablePluginServiceContribution,
   parsePortablePluginRuntime,
@@ -2605,10 +2913,12 @@ export {
   isPluginCapabilityContractCompatible,
   deepFreezePortable,
   comparePortablePluginVersions,
+  canonicalPortablePluginStateSchemaBytesV1,
+  assertPortablePluginStateValueV1,
   assertPortableKeys,
   assertPluginCapabilityValue,
   assertPluginCapabilityRuntimeTools
 };
 
-//# debugId=49ECE3E7D101CB6E64756E2164756E21
+//# debugId=8B930C07DFA056BB64756E2164756E21
 //# sourceMappingURL=index.js.map

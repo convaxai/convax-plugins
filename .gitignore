@@ -1,4 +1,6 @@
 dist/
+!vendor/host-packages/*/dist/
+!vendor/host-packages/*/dist/**
 .DS_Store
 node_modules/
 *.log

@@ -195,7 +195,7 @@ describe("Convax Plugin authoring governance", () => {
     );
     expect(decisionWorkflow).toContain("cosign-release: v3.0.6");
     expect(decisionWorkflow).toContain(
-      '"$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/convax-next"',
+      '"$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/main"',
     );
     expect(decisionWorkflow).toContain(
       "--certificate-oidc-issuer https://token.actions.githubusercontent.com",
@@ -204,7 +204,7 @@ describe("Convax Plugin authoring governance", () => {
       '--certificate-github-workflow-repository "$HOST_REPOSITORY"',
     );
     expect(decisionWorkflow).toContain(
-      "--certificate-github-workflow-ref refs/heads/convax-next",
+      "--certificate-github-workflow-ref refs/heads/main",
     );
     expect(decisionWorkflow).toContain(
       '--certificate-github-workflow-sha "$HOST_COMMIT"',
@@ -371,7 +371,7 @@ describe("Convax Plugin authoring governance", () => {
       affected: [{
         kind: "plugin",
         id: "convax-pet",
-        version: "0.3.1",
+        version: "0.3.2",
         blocker: {
           code: "host-capability-review-required",
           note: expect.stringContaining(requestPath),
@@ -504,7 +504,7 @@ describe("Convax Plugin authoring governance", () => {
       affected: [{
         kind: "plugin",
         id: "convax-pet",
-        version: "0.3.1",
+        version: "0.3.2",
         blocker: {
           code: "host-capability-review-required",
           note: expect.stringContaining(requestPath),

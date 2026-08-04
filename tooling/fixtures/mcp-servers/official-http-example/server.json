@@ -5,7 +5,7 @@
   "description": "A fixed HTTPS MCP fixture for Convax Marketplace acceptance.",
   "version": "1.0.0",
   "repository": {
-    "url": "https://github.com/microvoid/convax-plugins",
+    "url": "https://github.com/convaxai/convax-plugins",
     "source": "github",
     "subfolder": "packages/mcp-servers/official-http-example"
   },

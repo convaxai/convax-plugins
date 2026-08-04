@@ -143,13 +143,13 @@ describe("ChatCut Plugin package", () => {
       },
       entry: "index.html",
       hostApi: {
-        major: 2,
+        major: 3,
         optional: [],
         required: ["agent.prompt", "canvas.inputs.list", "host.context.get"],
       },
       id: "chatcut",
       schema: "convax.plugin/8",
-      version: "0.4.0",
+      version: "0.4.1",
       runtime: {
         command: "convax-chatcut-media-import-mcp",
         type: "mcp-stdio",

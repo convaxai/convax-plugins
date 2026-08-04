@@ -99,7 +99,7 @@ async function writePlugin(root, version = "1.0.0") {
       entry: "index.html",
       capabilities: [],
       hostApi: {
-        major: 2,
+        major: 3,
         required: ["host.context.get"],
         optional: [],
       },

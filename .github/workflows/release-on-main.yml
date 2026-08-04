@@ -39,6 +39,8 @@ jobs:
           bun install --frozen-lockfile --ignore-scripts
           git diff --exit-code -- bun.lock
       - name: Fetch the current production closure
+        env:
+          CONVAX_MARKETPLACE_BOOTSTRAP_SHA: ${{ vars.CONVAX_MARKETPLACE_BOOTSTRAP_SHA }}
         run: bun tooling/fetch-marketplace-previous.mjs
       - name: Fetch and verify the pinned official FFmpeg source
         run: |
@@ -133,7 +135,7 @@ jobs:
         if: steps.plan.outputs.plugin_count != '0' && env.CONVAX_PLUGIN_SDK_SOURCE == 'npm'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOST_REPOSITORY: microvoid/convax
+          HOST_REPOSITORY: convaxai/convax
         shell: bash
         run: |
           set -euo pipefail
@@ -182,7 +184,7 @@ jobs:
           for asset in "$evidence/sdk-release"/*; do
             gh release verify-asset "$sdk_tag" "$asset" --repo "$HOST_REPOSITORY" --format json >/dev/null
           done
-          sdk_workflow="$HOST_REPOSITORY/.github/workflows/plugin-sdk-release.yml@refs/heads/convax-next"
+          sdk_workflow="$HOST_REPOSITORY/.github/workflows/plugin-sdk-release.yml@refs/heads/main"
           for asset_name in \
             "SHA256SUMS" \
             "convax-plugin-api-$sdk_baseline_api.tgz" \
@@ -196,7 +198,7 @@ jobs:
               --certificate-identity "https://github.com/$sdk_workflow" \
               --certificate-oidc-issuer https://token.actions.githubusercontent.com \
               --certificate-github-workflow-repository "$HOST_REPOSITORY" \
-              --certificate-github-workflow-ref refs/heads/convax-next \
+              --certificate-github-workflow-ref refs/heads/main \
               --certificate-github-workflow-sha "$sdk_commit" \
               --certificate-github-workflow-trigger workflow_dispatch \
               "$asset" >/dev/null
@@ -217,8 +219,8 @@ jobs:
                .certificate.sourceRepositoryDigest == $commit and
                .certificate.runnerEnvironment == "github-hosted" and
                .certificate.trigger == "workflow_dispatch" and
-               .hostIdentity.repository.id == "1293264965" and
-               .hostIdentity.owner.id == "125447777"' \
+               .hostIdentity.repository.id == "1322708874" and
+               .hostIdentity.owner.id == "312877127"' \
               "$verification" >/dev/null
           done
 
@@ -247,7 +249,7 @@ jobs:
           for asset in "$evidence/api-release"/*; do
             gh release verify-asset "$api_tag" "$asset" --repo "$HOST_REPOSITORY" --format json >/dev/null
           done
-          api_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/convax-next"
+          api_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/main"
           for asset_name in \
             "SHA256SUMS" \
             "convax-plugin-api-$api_version.tgz" \
@@ -260,7 +262,7 @@ jobs:
               --certificate-identity "https://github.com/$api_workflow" \
               --certificate-oidc-issuer https://token.actions.githubusercontent.com \
               --certificate-github-workflow-repository "$HOST_REPOSITORY" \
-              --certificate-github-workflow-ref refs/heads/convax-next \
+              --certificate-github-workflow-ref refs/heads/main \
               --certificate-github-workflow-sha "$api_commit" \
               --certificate-github-workflow-trigger workflow_dispatch \
               "$asset" >/dev/null
@@ -281,8 +283,8 @@ jobs:
                .certificate.sourceRepositoryDigest == $commit and
                .certificate.runnerEnvironment == "github-hosted" and
                .certificate.trigger == "workflow_dispatch" and
-               .hostIdentity.repository.id == "1293264965" and
-               .hostIdentity.owner.id == "125447777"' \
+               .hostIdentity.repository.id == "1322708874" and
+               .hostIdentity.owner.id == "312877127"' \
               "$verification" >/dev/null
           done
 
@@ -330,19 +332,19 @@ jobs:
             --arg commit "$sdk_commit" \
             --arg tag "$sdk_tag" \
             '{
-              repository: "microvoid/convax",
+              repository: "convaxai/convax",
               commit: $commit,
               tag: $tag,
-              workflowRef: "microvoid/convax/.github/workflows/plugin-sdk-release.yml@refs/heads/convax-next"
+              workflowRef: "convaxai/convax/.github/workflows/plugin-sdk-release.yml@refs/heads/main"
             }' > "$evidence/sdk-release-identity.json"
           jq -n \
             --arg commit "$api_commit" \
             --arg tag "$api_tag" \
             '{
-              repository: "microvoid/convax",
+              repository: "convaxai/convax",
               commit: $commit,
               tag: $tag,
-              workflowRef: "microvoid/convax/.github/workflows/plugin-api-release.yml@refs/heads/convax-next"
+              workflowRef: "convaxai/convax/.github/workflows/plugin-api-release.yml@refs/heads/main"
             }' > "$evidence/api-release-identity.json"
           echo "CONVAX_PLUGIN_SDK_PROVENANCE=$evidence" >> "$GITHUB_ENV"
       - name: Bind every selected Plugin ZIP to its actual SDK/API closure
@@ -504,23 +506,25 @@ jobs:
                 .source == {
                   commit: $commit,
                   kind: "workspace",
-                  repository: "microvoid/convax-plugins"
+                  repository: "convaxai/convax-plugins"
                 } and
                 .lockfile.path == "bun.lock" and
                 (.lockfile.sha256 | test("^[a-f0-9]{64}$")) and
                 .catalog.path == "vendor/host-packages/plugin-api/dist/generated/plugin-api.json" and
                 .catalog.schema == "convax.plugin-api-catalog/3" and
-                .catalog.version == "2.0.0" and
+                .catalog.version == "3.0.0" and
                 (.catalog.sha256 | test("^[a-f0-9]{64}$")) and
                 [.packages[].name] == [
+                  "@convax/bounded-value",
                   "@convax/marketplace",
                   "@convax/marketplace-kit",
                   "@convax/plugin-api",
                   "@convax/plugin-sdk",
                   "@convax/plugin-ui"
                 ] and
-                [.packages[].version] == ["0.2.1", "0.2.2", "2.0.0", "0.1.1", "0.1.0"] and
+                [.packages[].version] == ["0.1.0", "0.2.1", "0.2.2", "3.0.0", "0.1.1", "0.1.0"] and
                 [.packages[].workspace] == [
+                  "vendor/host-packages/bounded-value",
                   "vendor/host-packages/marketplace",
                   "vendor/host-packages/marketplace-kit",
                   "vendor/host-packages/plugin-api",
@@ -566,7 +570,7 @@ jobs:
                   keys == ["frozenLock", "hostReleases", "output", "schema", "source"] and
                   .schema == "convax.plugin-bundle-provenance/1" and
                   (.source | keys) == ["buildEntrypoints", "commit", "plugin", "repository"] and
-                  .source.repository == "microvoid/convax-plugins" and
+                  .source.repository == "convaxai/convax-plugins" and
                   .source.commit == $commit and
                   (.source.plugin | keys) == ["id", "packageManifestSha256", "version", "workspace"] and
                   .source.plugin.workspace == ("packages/plugins/" + .source.plugin.id) and
@@ -596,8 +600,8 @@ jobs:
                   ) and
                   (.hostReleases | keys) == ["pluginApi", "pluginSdk"] and
                   (.hostReleases.pluginApi | keys) == ["catalogSchema", "catalogSha256", "commit", "repository", "runAttempt", "runId", "tag", "workflowRef"] and
-                  .hostReleases.pluginApi.repository == "microvoid/convax" and
-                  .hostReleases.pluginApi.workflowRef == "microvoid/convax/.github/workflows/plugin-api-release.yml@refs/heads/convax-next" and
+                  .hostReleases.pluginApi.repository == "convaxai/convax" and
+                  .hostReleases.pluginApi.workflowRef == "convaxai/convax/.github/workflows/plugin-api-release.yml@refs/heads/main" and
                   .hostReleases.pluginApi.catalogSchema == "convax.plugin-api-catalog/3" and
                   .hostReleases.pluginApi.tag == (
                     "plugin-api-v" + .frozenLock.dependencies[0].version + "-" +
@@ -607,8 +611,8 @@ jobs:
                   (.hostReleases.pluginApi.runId | test("^[1-9][0-9]*$")) and
                   (.hostReleases.pluginApi.runAttempt | test("^[1-9][0-9]*$")) and
                   (.hostReleases.pluginSdk | keys) == ["commit", "declaredApiRange", "releaseTimeApiVersion", "repository", "runAttempt", "runId", "tag", "workflowRef"] and
-                  .hostReleases.pluginSdk.repository == "microvoid/convax" and
-                  .hostReleases.pluginSdk.workflowRef == "microvoid/convax/.github/workflows/plugin-sdk-release.yml@refs/heads/convax-next" and
+                  .hostReleases.pluginSdk.repository == "convaxai/convax" and
+                  .hostReleases.pluginSdk.workflowRef == "convaxai/convax/.github/workflows/plugin-sdk-release.yml@refs/heads/main" and
                   .hostReleases.pluginSdk.tag == (
                     "plugin-sdk-v" + .frozenLock.dependencies[1].version + "-" +
                     .hostReleases.pluginSdk.commit

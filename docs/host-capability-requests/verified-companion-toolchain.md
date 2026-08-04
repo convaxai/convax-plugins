@@ -31,7 +31,7 @@ Status: pending human review
 
 ## Catalog evidence
 
-- Checked Catalog version: `@convax/plugin-api@2.0.0`, canonical JSON SHA-256 `a23b847c3513e810777a0444ee3c3cd20414b4ee57e2b93a0a663fba2545e99d`.
+- Checked Catalog version: `@convax/plugin-api@3.0.0`, canonical JSON SHA-256 `e49ca2713fb66fef5d52b8d85735c68341a1f1d0390379f8ccef2d3d3434a45f`.
 - Closest existing APIs: none; this is an authoring, Registry, installation, and
   companion-launch contract rather than a Web or Agent callable API.
 - Availability result: the current contracts admit one verified primary

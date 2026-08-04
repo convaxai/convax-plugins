@@ -3,7 +3,7 @@
 Do not disclose a vulnerability in a public issue or pull request.
 
 Report it privately through GitHub's **Security → Report a vulnerability** form for
-`microvoid/convax-plugins`. Include package/version, impact, reproduction steps,
+`convaxai/convax-plugins`. Include package/version, impact, reproduction steps,
 and mitigation. Do not include real user data or credentials.
 
 Maintainers may yank a Registry item while preparing a new immutable version.

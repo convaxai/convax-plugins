@@ -103,7 +103,7 @@ describe("shared Plugin SDK client build", () => {
         skills: [{ name: "private-skill", path: "skills/private-skill" }],
       },
       hostApi: {
-        major: 2,
+        major: 3,
         required: ["host.context.get"],
         optional: [],
       },
@@ -127,7 +127,7 @@ describe("shared Plugin SDK client build", () => {
         },
       },
       hostApi: {
-        major: 2,
+        major: 3,
         required: ["host.context.get"],
         optional: [],
       },

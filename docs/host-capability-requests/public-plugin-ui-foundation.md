@@ -23,7 +23,7 @@ design alignment.
 
 ## Catalog evidence
 
-- Checked Catalog version: `@convax/plugin-api@2.0.0`, canonical JSON SHA-256 `a23b847c3513e810777a0444ee3c3cd20414b4ee57e2b93a0a663fba2545e99d`.
+- Checked Catalog version: `@convax/plugin-api@3.0.0`, canonical JSON SHA-256 `e49ca2713fb66fef5d52b8d85735c68341a1f1d0390379f8ccef2d3d3434a45f`.
 - Closest existing APIs: the public Plugin SDK includes portable declarations for Host-rendered command icons and placements, but it publishes no browser CSS tokens, accessible control recipes, or standalone author fixture.
 - Availability result: the published baseline has no such package. The reviewed local `@convax/plugin-ui@0.1.0` candidate now exposes a standalone, no-dependency system light/dark semantic foundation.
 - Why required/optional declaration does not solve it: `hostApi` negotiation grants runtime operations; it cannot provide versioned build-time CSS assets or make private application components safe for Plugin use.

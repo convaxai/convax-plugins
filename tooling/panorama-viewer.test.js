@@ -29,7 +29,7 @@ describe("panorama-viewer package", () => {
       id: "panorama-viewer",
       name: "全景图预览",
       description: manifest.description,
-      version: "0.3.0",
+      version: "0.3.1",
       publication: {
         status: "blocked",
         blockers: [
@@ -58,7 +58,7 @@ describe("panorama-viewer package", () => {
         "ui.fullscreen",
       ],
       hostApi: {
-        major: 2,
+        major: 3,
         required: [
           "canvas.inputs.image.close",
           "canvas.inputs.image.open",

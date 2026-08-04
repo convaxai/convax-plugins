@@ -17,9 +17,9 @@ import {
 import { fetchPreviousRegistry } from "./fetch-marketplace-previous.mjs"
 import { root } from "./lib.mjs"
 
-const registryUrl = "https://microvoid.github.io/convax-plugins/registry/v2/index.json"
-const legacyRegistryUrl = "https://microvoid.github.io/convax-plugins/registry/v1/index.json"
-const showcaseUrl = "https://microvoid.github.io/convax-plugins/showcase/v2/index.json"
+const registryUrl = "https://convaxai.github.io/convax-plugins/registry/v2/index.json"
+const legacyRegistryUrl = "https://convaxai.github.io/convax-plugins/registry/v1/index.json"
+const showcaseUrl = "https://convaxai.github.io/convax-plugins/showcase/v2/index.json"
 const emptyRegistryRevision = "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
 
 function officialDescriptor() {
@@ -30,7 +30,7 @@ function officialDescriptor() {
     publisher: {
       name: "Microvoid",
     },
-    repository: { owner: "microvoid", name: "convax-plugins" },
+    repository: { owner: "convaxai", name: "convax-plugins" },
     registry: {
       v2: { url: registryUrl },
     },
@@ -249,7 +249,7 @@ describe("Official Marketplace tooling", () => {
       yanked: false,
       delivery: {
         kind: "artifact",
-        url: "https://github.com/microvoid/convax-plugins/releases/download/skill-retired-skill-v1.2.3/skill.zip",
+        url: "https://github.com/convaxai/convax-plugins/releases/download/skill-retired-skill-v1.2.3/skill.zip",
         size: 1,
         sha256: "0".repeat(64),
       },
@@ -595,6 +595,50 @@ describe("Official Marketplace tooling", () => {
         ),
         { registryUrl: "https://example.test/unpinned.json" },
       )).rejects.toThrow("URLs differ from the pinned Official closure")
+    } finally {
+      await fs.rm(output, { recursive: true, force: true })
+    }
+  })
+
+  test("admits a missing descriptor only for the exact repository-variable bootstrap SHA", async () => {
+    const output = await fs.mkdtemp(path.join(os.tmpdir(), "convax-marketplace-bootstrap-"))
+    const currentSha = "1".repeat(40)
+    const laterSha = "2".repeat(40)
+    const fetchImpl = async () => new Response("", { status: 404 })
+    try {
+      await expect(fetchPreviousRegistry({
+        bootstrapSha: currentSha,
+        currentSha,
+        descriptorUrl: "https://example.test/descriptor",
+        fetchImpl,
+        outputDirectory: output,
+        registryUrl,
+        showcaseUrl,
+      })).resolves.toEqual({
+        baseRevision: "0".repeat(40),
+        bootstrap: true,
+        initialSequence: 58,
+      })
+
+      await expect(fetchPreviousRegistry({
+        bootstrapSha: currentSha,
+        currentSha: laterSha,
+        descriptorUrl: "https://example.test/descriptor",
+        fetchImpl,
+        outputDirectory: output,
+        registryUrl,
+        showcaseUrl,
+      })).rejects.toThrow("descriptor returned HTTP 404")
+
+      await expect(fetchPreviousRegistry({
+        bootstrapSha: "not-a-commit",
+        currentSha: "not-a-commit",
+        descriptorUrl: "https://example.test/descriptor",
+        fetchImpl,
+        outputDirectory: output,
+        registryUrl,
+        showcaseUrl,
+      })).rejects.toThrow("descriptor returned HTTP 404")
     } finally {
       await fs.rm(output, { recursive: true, force: true })
     }

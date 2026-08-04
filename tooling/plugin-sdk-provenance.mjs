@@ -11,8 +11,8 @@ export const pluginSdkReleaseProfile =
 export const pluginBundleProvenanceSchema =
   "convax.plugin-bundle-provenance/1"
 
-const hostRepository = "microvoid/convax"
-const pluginRepository = "microvoid/convax-plugins"
+const hostRepository = "convaxai/convax"
+const pluginRepository = "convaxai/convax-plugins"
 const npmRegistry = "https://registry.npmjs.org"
 const pluginSdkName = "@convax/plugin-sdk"
 const pluginApiName = "@convax/plugin-api"
@@ -23,9 +23,9 @@ const sha256Pattern = /^[a-f0-9]{64}$/u
 const integrityPattern = /^sha512-[A-Za-z0-9+/]+={0,2}$/u
 const positiveInteger = /^[1-9][0-9]*$/u
 const sdkWorkflowRef =
-  "microvoid/convax/.github/workflows/plugin-sdk-release.yml@refs/heads/convax-next"
+  "convaxai/convax/.github/workflows/plugin-sdk-release.yml@refs/heads/main"
 const apiWorkflowRef =
-  "microvoid/convax/.github/workflows/plugin-api-release.yml@refs/heads/convax-next"
+  "convaxai/convax/.github/workflows/plugin-api-release.yml@refs/heads/main"
 
 const sdkChecks = [
   ["plugin-api-release-dependency-build", "bun --cwd packages/plugin-api build"],

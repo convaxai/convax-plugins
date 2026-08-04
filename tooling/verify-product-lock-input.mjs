@@ -4,7 +4,7 @@ import { promises as fs } from "node:fs"
 import path from "node:path"
 import { assertOfficialMarketplaceDescriptor } from "./official-marketplace.mjs"
 
-const releaseBase = "https://github.com/microvoid/convax-plugins/releases/download/"
+const releaseBase = "https://github.com/convaxai/convax-plugins/releases/download/"
 const digestPattern = /^[a-f0-9]{64}$/
 const metadataLimit = 8 * 1024 * 1024
 const manifestLimit = 1024 * 1024

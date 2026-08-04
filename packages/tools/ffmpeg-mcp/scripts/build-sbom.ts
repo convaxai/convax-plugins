@@ -48,7 +48,7 @@ const document = {
   },
   dataLicense: "CC0-1.0",
   documentNamespace:
-    `https://github.com/microvoid/convax-plugins/releases/download/${selected.tag}/sbom-${selected.revision}`,
+    `https://github.com/convaxai/convax-plugins/releases/download/${selected.tag}/sbom-${selected.revision}`,
   name: `convax-ffmpeg-mcp-${version}`,
   packages: [
     {

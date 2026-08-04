@@ -328,11 +328,6 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly x: number;
                                 readonly y: number;
                             } & {}>;
-                            readonly revision: {
-                                readonly finite: true;
-                                readonly minimum: 0;
-                                readonly type: "integer";
-                            } & PluginApiSchemaBrand<number>;
                             readonly style: {
                                 readonly keyMaxLength: 128;
                                 readonly maxBytes: number;
@@ -349,7 +344,7 @@ export declare const pluginApiWireContracts: Readonly<{
                             } & PluginApiSchemaBrand<string>;
                         };
                         readonly products?: undefined;
-                        readonly required: readonly ["data", "id", "position", "revision", "type"];
+                        readonly required: readonly ["data", "id", "position", "type"];
                         readonly type: "object";
                     } & PluginApiSchemaBrand<{
                         readonly id: string;
@@ -359,7 +354,6 @@ export declare const pluginApiWireContracts: Readonly<{
                             readonly x: number;
                             readonly y: number;
                         } & {};
-                        readonly revision: number;
                     } & {
                         readonly parentId?: string | undefined;
                         readonly style?: Readonly<Record<string, PluginApiJsonValue>> | undefined;
@@ -448,6 +442,18 @@ export declare const pluginApiWireContracts: Readonly<{
                 } & {
                     readonly name?: string | undefined;
                 };
+                readonly node: {
+                    readonly id: string;
+                    readonly type: string;
+                    readonly data: Readonly<Record<string, PluginApiJsonValue>>;
+                    readonly position: {
+                        readonly x: number;
+                        readonly y: number;
+                    } & {};
+                } & {
+                    readonly parentId?: string | undefined;
+                    readonly style?: Readonly<Record<string, PluginApiJsonValue>> | undefined;
+                };
                 readonly hostApi: {
                     readonly catalogVersion: string;
                     readonly availability: readonly (({
@@ -466,19 +472,6 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly contractSince?: string | undefined;
                     }))[];
                 } & {};
-                readonly node: {
-                    readonly id: string;
-                    readonly type: string;
-                    readonly data: Readonly<Record<string, PluginApiJsonValue>>;
-                    readonly position: {
-                        readonly x: number;
-                        readonly y: number;
-                    } & {};
-                    readonly revision: number;
-                } & {
-                    readonly parentId?: string | undefined;
-                    readonly style?: Readonly<Record<string, PluginApiJsonValue>> | undefined;
-                };
             } & {}>;
         };
     };
@@ -1011,11 +1004,6 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly x: number;
                         readonly y: number;
                     } & {}>;
-                    readonly revision: {
-                        readonly finite: true;
-                        readonly minimum: 0;
-                        readonly type: "integer";
-                    } & PluginApiSchemaBrand<number>;
                     readonly style: {
                         readonly keyMaxLength: 128;
                         readonly maxBytes: number;
@@ -1032,7 +1020,7 @@ export declare const pluginApiWireContracts: Readonly<{
                     } & PluginApiSchemaBrand<string>;
                 };
                 readonly products?: undefined;
-                readonly required: readonly ["data", "id", "position", "revision", "type"];
+                readonly required: readonly ["data", "id", "position", "type"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
                 readonly id: string;
@@ -1042,7 +1030,6 @@ export declare const pluginApiWireContracts: Readonly<{
                     readonly x: number;
                     readonly y: number;
                 } & {};
-                readonly revision: number;
             } & {
                 readonly parentId?: string | undefined;
                 readonly style?: Readonly<Record<string, PluginApiJsonValue>> | undefined;
@@ -1075,15 +1062,241 @@ export declare const pluginApiWireContracts: Readonly<{
             readonly schema: {
                 readonly additionalProperties: false;
                 readonly properties: {
+                    readonly operationReceipt: {
+                        readonly additionalProperties: false;
+                        readonly properties: {
+                            readonly actorId: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly baseFrontierDigest: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly format: {
+                                readonly const: "convax.canvas-operation-receipt/2";
+                            } & PluginApiSchemaBrand<"convax.canvas-operation-receipt/2">;
+                            readonly historyMaterialDigest: {
+                                readonly oneOf: readonly [{
+                                    readonly type: "null";
+                                } & PluginApiSchemaBrand<null>, {
+                                    readonly controlCharacters: false;
+                                    readonly maxLength: number;
+                                    readonly minLength: number;
+                                    readonly prefix?: string;
+                                    readonly refinement?: PluginApiStringRefinement;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<string>];
+                            } & PluginApiSchemaBrand<string | null>;
+                            readonly intentDigest: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly intentKind: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly operationId: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly resultEntities: {
+                                readonly items: {
+                                    readonly additionalProperties: false;
+                                    readonly properties: {
+                                        readonly id: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly incarnation: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly kind: {
+                                            readonly controlCharacters: false;
+                                            readonly enum: readonly ["node", "edge"];
+                                            readonly maxLength: number;
+                                            readonly minLength: 1;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<"node" | "edge">;
+                                    };
+                                    readonly products?: readonly PluginApiWireProductConstraint<"id" | "kind" | "incarnation">[] | undefined;
+                                    readonly required: readonly ["id", "incarnation", "kind"];
+                                    readonly type: "object";
+                                } & PluginApiSchemaBrand<{
+                                    readonly id: string;
+                                    readonly kind: "node" | "edge";
+                                    readonly incarnation: string;
+                                } & {}>;
+                                readonly maxItems: number;
+                                readonly minItems: number;
+                                readonly type: "array";
+                                readonly uniqueBy?: string;
+                            } & PluginApiSchemaBrand<readonly ({
+                                readonly id: string;
+                                readonly kind: "node" | "edge";
+                                readonly incarnation: string;
+                            } & {})[]>;
+                            readonly semanticRoot: {
+                                readonly type: "boolean";
+                            } & PluginApiSchemaBrand<boolean>;
+                        };
+                        readonly products?: undefined;
+                        readonly required: readonly ["actorId", "baseFrontierDigest", "format", "historyMaterialDigest", "intentDigest", "intentKind", "operationId", "resultEntities", "semanticRoot"];
+                        readonly type: "object";
+                    } & PluginApiSchemaBrand<{
+                        readonly format: "convax.canvas-operation-receipt/2";
+                        readonly historyMaterialDigest: string | null;
+                        readonly resultEntities: readonly ({
+                            readonly id: string;
+                            readonly kind: "node" | "edge";
+                            readonly incarnation: string;
+                        } & {})[];
+                        readonly actorId: string;
+                        readonly baseFrontierDigest: string;
+                        readonly intentDigest: string;
+                        readonly intentKind: string;
+                        readonly operationId: string;
+                        readonly semanticRoot: boolean;
+                    } & {}>;
+                    readonly projection: {
+                        readonly additionalProperties: false;
+                        readonly properties: {
+                            readonly data: {
+                                readonly keyMaxLength: 128;
+                                readonly maxBytes: number;
+                                readonly maxDepth: 32;
+                                readonly type: "json-object";
+                            } & PluginApiSchemaBrand<Readonly<Record<string, PluginApiJsonValue>>>;
+                            readonly id: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly parentId: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly position: {
+                                readonly additionalProperties: false;
+                                readonly properties: {
+                                    readonly x: {
+                                        readonly finite: true;
+                                        readonly type: "number";
+                                    } & PluginApiSchemaBrand<number>;
+                                    readonly y: {
+                                        readonly finite: true;
+                                        readonly type: "number";
+                                    } & PluginApiSchemaBrand<number>;
+                                };
+                                readonly products?: undefined;
+                                readonly required: readonly ["x", "y"];
+                                readonly type: "object";
+                            } & PluginApiSchemaBrand<{
+                                readonly x: number;
+                                readonly y: number;
+                            } & {}>;
+                            readonly style: {
+                                readonly keyMaxLength: 128;
+                                readonly maxBytes: number;
+                                readonly maxDepth: 32;
+                                readonly type: "json-object";
+                            } & PluginApiSchemaBrand<Readonly<Record<string, PluginApiJsonValue>>>;
+                            readonly type: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                        };
+                        readonly products?: undefined;
+                        readonly required: readonly ["data", "id", "position", "type"];
+                        readonly type: "object";
+                    } & PluginApiSchemaBrand<{
+                        readonly id: string;
+                        readonly type: string;
+                        readonly data: Readonly<Record<string, PluginApiJsonValue>>;
+                        readonly position: {
+                            readonly x: number;
+                            readonly y: number;
+                        } & {};
+                    } & {
+                        readonly parentId?: string | undefined;
+                        readonly style?: Readonly<Record<string, PluginApiJsonValue>> | undefined;
+                    }>;
                     readonly updated: {
                         readonly const: true;
                     } & PluginApiSchemaBrand<true>;
                 };
-                readonly products?: readonly PluginApiWireProductConstraint<"updated">[] | undefined;
-                readonly required: readonly ["updated"];
+                readonly products?: readonly PluginApiWireProductConstraint<"updated" | "operationReceipt" | "projection">[] | undefined;
+                readonly required: readonly ["operationReceipt", "projection", "updated"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
                 readonly updated: true;
+                readonly operationReceipt: {
+                    readonly format: "convax.canvas-operation-receipt/2";
+                    readonly historyMaterialDigest: string | null;
+                    readonly resultEntities: readonly ({
+                        readonly id: string;
+                        readonly kind: "node" | "edge";
+                        readonly incarnation: string;
+                    } & {})[];
+                    readonly actorId: string;
+                    readonly baseFrontierDigest: string;
+                    readonly intentDigest: string;
+                    readonly intentKind: string;
+                    readonly operationId: string;
+                    readonly semanticRoot: boolean;
+                } & {};
+                readonly projection: {
+                    readonly id: string;
+                    readonly type: string;
+                    readonly data: Readonly<Record<string, PluginApiJsonValue>>;
+                    readonly position: {
+                        readonly x: number;
+                        readonly y: number;
+                    } & {};
+                } & {
+                    readonly parentId?: string | undefined;
+                    readonly style?: Readonly<Record<string, PluginApiJsonValue>> | undefined;
+                };
             } & {}>;
         };
     };
@@ -1132,17 +1345,526 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly refinement?: PluginApiStringRefinement;
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
-                    readonly revision: {
-                        readonly finite: true;
-                        readonly minimum: 0;
-                        readonly type: "integer";
-                    } & PluginApiSchemaBrand<number>;
+                    readonly operationReceipt: {
+                        readonly additionalProperties: false;
+                        readonly properties: {
+                            readonly actorId: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly baseFrontierDigest: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly format: {
+                                readonly const: "convax.canvas-operation-receipt/2";
+                            } & PluginApiSchemaBrand<"convax.canvas-operation-receipt/2">;
+                            readonly historyMaterialDigest: {
+                                readonly oneOf: readonly [{
+                                    readonly type: "null";
+                                } & PluginApiSchemaBrand<null>, {
+                                    readonly controlCharacters: false;
+                                    readonly maxLength: number;
+                                    readonly minLength: number;
+                                    readonly prefix?: string;
+                                    readonly refinement?: PluginApiStringRefinement;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<string>];
+                            } & PluginApiSchemaBrand<string | null>;
+                            readonly intentDigest: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly intentKind: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly operationId: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly resultEntities: {
+                                readonly items: {
+                                    readonly additionalProperties: false;
+                                    readonly properties: {
+                                        readonly id: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly incarnation: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly kind: {
+                                            readonly controlCharacters: false;
+                                            readonly enum: readonly ["node", "edge"];
+                                            readonly maxLength: number;
+                                            readonly minLength: 1;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<"node" | "edge">;
+                                    };
+                                    readonly products?: readonly PluginApiWireProductConstraint<"id" | "kind" | "incarnation">[] | undefined;
+                                    readonly required: readonly ["id", "incarnation", "kind"];
+                                    readonly type: "object";
+                                } & PluginApiSchemaBrand<{
+                                    readonly id: string;
+                                    readonly kind: "node" | "edge";
+                                    readonly incarnation: string;
+                                } & {}>;
+                                readonly maxItems: number;
+                                readonly minItems: number;
+                                readonly type: "array";
+                                readonly uniqueBy?: string;
+                            } & PluginApiSchemaBrand<readonly ({
+                                readonly id: string;
+                                readonly kind: "node" | "edge";
+                                readonly incarnation: string;
+                            } & {})[]>;
+                            readonly semanticRoot: {
+                                readonly type: "boolean";
+                            } & PluginApiSchemaBrand<boolean>;
+                        };
+                        readonly products?: undefined;
+                        readonly required: readonly ["actorId", "baseFrontierDigest", "format", "historyMaterialDigest", "intentDigest", "intentKind", "operationId", "resultEntities", "semanticRoot"];
+                        readonly type: "object";
+                    } & PluginApiSchemaBrand<{
+                        readonly format: "convax.canvas-operation-receipt/2";
+                        readonly historyMaterialDigest: string | null;
+                        readonly resultEntities: readonly ({
+                            readonly id: string;
+                            readonly kind: "node" | "edge";
+                            readonly incarnation: string;
+                        } & {})[];
+                        readonly actorId: string;
+                        readonly baseFrontierDigest: string;
+                        readonly intentDigest: string;
+                        readonly intentKind: string;
+                        readonly operationId: string;
+                        readonly semanticRoot: boolean;
+                    } & {}>;
+                    readonly projection: {
+                        readonly additionalProperties: false;
+                        readonly properties: {
+                            readonly description: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly edges: {
+                                readonly items: {
+                                    readonly additionalProperties: false;
+                                    readonly properties: {
+                                        readonly id: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly source: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly target: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                    };
+                                    readonly products?: undefined;
+                                    readonly required: readonly ["id", "source", "target"];
+                                    readonly type: "object";
+                                } & PluginApiSchemaBrand<{
+                                    readonly id: string;
+                                    readonly source: string;
+                                    readonly target: string;
+                                } & {}>;
+                                readonly maxItems: number;
+                                readonly minItems: number;
+                                readonly type: "array";
+                                readonly uniqueBy?: string;
+                            } & PluginApiSchemaBrand<readonly ({
+                                readonly id: string;
+                                readonly source: string;
+                                readonly target: string;
+                            } & {})[]>;
+                            readonly id: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly nodes: {
+                                readonly items: {
+                                    readonly additionalProperties: false;
+                                    readonly properties: {
+                                        readonly description: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly durationMs: {
+                                            readonly finite: true;
+                                            readonly type: "number";
+                                        } & PluginApiSchemaBrand<number>;
+                                        readonly id: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly kind: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly label: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly mimeType: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly name: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly parentId: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly position: {
+                                            readonly additionalProperties: false;
+                                            readonly properties: {
+                                                readonly x: {
+                                                    readonly finite: true;
+                                                    readonly type: "number";
+                                                } & PluginApiSchemaBrand<number>;
+                                                readonly y: {
+                                                    readonly finite: true;
+                                                    readonly type: "number";
+                                                } & PluginApiSchemaBrand<number>;
+                                            };
+                                            readonly products?: undefined;
+                                            readonly required: readonly ["x", "y"];
+                                            readonly type: "object";
+                                        } & PluginApiSchemaBrand<{
+                                            readonly x: number;
+                                            readonly y: number;
+                                        } & {}>;
+                                        readonly resource: {
+                                            readonly additionalProperties: false;
+                                            readonly properties: {
+                                                readonly kind: {
+                                                    readonly const: "project-file";
+                                                } & PluginApiSchemaBrand<"project-file">;
+                                                readonly path: {
+                                                    readonly controlCharacters: false;
+                                                    readonly maxLength: number;
+                                                    readonly minLength: number;
+                                                    readonly prefix?: string;
+                                                    readonly refinement?: PluginApiStringRefinement;
+                                                    readonly type: "string";
+                                                } & PluginApiSchemaBrand<string>;
+                                            };
+                                            readonly products?: readonly PluginApiWireProductConstraint<"kind" | "path">[] | undefined;
+                                            readonly required: readonly ["kind", "path"];
+                                            readonly type: "object";
+                                        } & PluginApiSchemaBrand<{
+                                            readonly kind: "project-file";
+                                            readonly path: string;
+                                        } & {}>;
+                                        readonly size: {
+                                            readonly additionalProperties: false;
+                                            readonly properties: {
+                                                readonly height: {
+                                                    readonly finite: true;
+                                                    readonly type: "number";
+                                                } & PluginApiSchemaBrand<number>;
+                                                readonly width: {
+                                                    readonly finite: true;
+                                                    readonly type: "number";
+                                                } & PluginApiSchemaBrand<number>;
+                                            };
+                                            readonly products?: undefined;
+                                            readonly required: readonly ["height", "width"];
+                                            readonly type: "object";
+                                        } & PluginApiSchemaBrand<{
+                                            readonly height: number;
+                                            readonly width: number;
+                                        } & {}>;
+                                        readonly status: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly text: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly type: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                    };
+                                    readonly products?: undefined;
+                                    readonly required: readonly ["id", "kind", "label", "position", "size"];
+                                    readonly type: "object";
+                                } & PluginApiSchemaBrand<{
+                                    readonly id: string;
+                                    readonly position: {
+                                        readonly x: number;
+                                        readonly y: number;
+                                    } & {};
+                                    readonly size: {
+                                        readonly height: number;
+                                        readonly width: number;
+                                    } & {};
+                                    readonly label: string;
+                                    readonly kind: string;
+                                } & {
+                                    readonly description?: string | undefined;
+                                    readonly type?: string | undefined;
+                                    readonly text?: string | undefined;
+                                    readonly parentId?: string | undefined;
+                                    readonly status?: string | undefined;
+                                    readonly durationMs?: number | undefined;
+                                    readonly mimeType?: string | undefined;
+                                    readonly name?: string | undefined;
+                                    readonly resource?: ({
+                                        readonly kind: "project-file";
+                                        readonly path: string;
+                                    } & {}) | undefined;
+                                }>;
+                                readonly maxItems: number;
+                                readonly minItems: number;
+                                readonly type: "array";
+                                readonly uniqueBy?: string;
+                            } & PluginApiSchemaBrand<readonly ({
+                                readonly id: string;
+                                readonly position: {
+                                    readonly x: number;
+                                    readonly y: number;
+                                } & {};
+                                readonly size: {
+                                    readonly height: number;
+                                    readonly width: number;
+                                } & {};
+                                readonly label: string;
+                                readonly kind: string;
+                            } & {
+                                readonly description?: string | undefined;
+                                readonly type?: string | undefined;
+                                readonly text?: string | undefined;
+                                readonly parentId?: string | undefined;
+                                readonly status?: string | undefined;
+                                readonly durationMs?: number | undefined;
+                                readonly mimeType?: string | undefined;
+                                readonly name?: string | undefined;
+                                readonly resource?: ({
+                                    readonly kind: "project-file";
+                                    readonly path: string;
+                                } & {}) | undefined;
+                            })[]>;
+                            readonly tags: {
+                                readonly items: {
+                                    readonly controlCharacters: false;
+                                    readonly maxLength: number;
+                                    readonly minLength: number;
+                                    readonly prefix?: string;
+                                    readonly refinement?: PluginApiStringRefinement;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<string>;
+                                readonly maxItems: number;
+                                readonly minItems: number;
+                                readonly type: "array";
+                                readonly uniqueBy?: string;
+                            } & PluginApiSchemaBrand<readonly string[]>;
+                            readonly title: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                        };
+                        readonly products?: undefined;
+                        readonly required: readonly ["edges", "id", "nodes", "title"];
+                        readonly type: "object";
+                    } & PluginApiSchemaBrand<{
+                        readonly id: string;
+                        readonly title: string;
+                        readonly edges: readonly ({
+                            readonly id: string;
+                            readonly source: string;
+                            readonly target: string;
+                        } & {})[];
+                        readonly nodes: readonly ({
+                            readonly id: string;
+                            readonly position: {
+                                readonly x: number;
+                                readonly y: number;
+                            } & {};
+                            readonly size: {
+                                readonly height: number;
+                                readonly width: number;
+                            } & {};
+                            readonly label: string;
+                            readonly kind: string;
+                        } & {
+                            readonly description?: string | undefined;
+                            readonly type?: string | undefined;
+                            readonly text?: string | undefined;
+                            readonly parentId?: string | undefined;
+                            readonly status?: string | undefined;
+                            readonly durationMs?: number | undefined;
+                            readonly mimeType?: string | undefined;
+                            readonly name?: string | undefined;
+                            readonly resource?: ({
+                                readonly kind: "project-file";
+                                readonly path: string;
+                            } & {}) | undefined;
+                        })[];
+                    } & {
+                        readonly description?: string | undefined;
+                        readonly tags?: readonly string[] | undefined;
+                    }>;
                 };
-                readonly products?: readonly PluginApiWireProductConstraint<"revision" | "createdNodeId">[] | undefined;
-                readonly required: readonly ["createdNodeId", "revision"];
+                readonly products?: readonly PluginApiWireProductConstraint<"operationReceipt" | "projection" | "createdNodeId">[] | undefined;
+                readonly required: readonly ["createdNodeId", "operationReceipt", "projection"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
-                readonly revision: number;
+                readonly operationReceipt: {
+                    readonly format: "convax.canvas-operation-receipt/2";
+                    readonly historyMaterialDigest: string | null;
+                    readonly resultEntities: readonly ({
+                        readonly id: string;
+                        readonly kind: "node" | "edge";
+                        readonly incarnation: string;
+                    } & {})[];
+                    readonly actorId: string;
+                    readonly baseFrontierDigest: string;
+                    readonly intentDigest: string;
+                    readonly intentKind: string;
+                    readonly operationId: string;
+                    readonly semanticRoot: boolean;
+                } & {};
+                readonly projection: {
+                    readonly id: string;
+                    readonly title: string;
+                    readonly edges: readonly ({
+                        readonly id: string;
+                        readonly source: string;
+                        readonly target: string;
+                    } & {})[];
+                    readonly nodes: readonly ({
+                        readonly id: string;
+                        readonly position: {
+                            readonly x: number;
+                            readonly y: number;
+                        } & {};
+                        readonly size: {
+                            readonly height: number;
+                            readonly width: number;
+                        } & {};
+                        readonly label: string;
+                        readonly kind: string;
+                    } & {
+                        readonly description?: string | undefined;
+                        readonly type?: string | undefined;
+                        readonly text?: string | undefined;
+                        readonly parentId?: string | undefined;
+                        readonly status?: string | undefined;
+                        readonly durationMs?: number | undefined;
+                        readonly mimeType?: string | undefined;
+                        readonly name?: string | undefined;
+                        readonly resource?: ({
+                            readonly kind: "project-file";
+                            readonly path: string;
+                        } & {}) | undefined;
+                    })[];
+                } & {
+                    readonly description?: string | undefined;
+                    readonly tags?: readonly string[] | undefined;
+                };
                 readonly createdNodeId: string;
             } & {}>;
         };
@@ -1493,11 +2215,527 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly refinement?: PluginApiStringRefinement;
                         readonly type: "string";
                     } & PluginApiSchemaBrand<string>;
-                    readonly revision: {
-                        readonly finite: true;
-                        readonly minimum: 0;
-                        readonly type: "integer";
-                    } & PluginApiSchemaBrand<number>;
+                    readonly operationReceipt: {
+                        readonly oneOf: readonly [{
+                            readonly type: "null";
+                        } & PluginApiSchemaBrand<null>, {
+                            readonly additionalProperties: false;
+                            readonly properties: {
+                                readonly actorId: {
+                                    readonly controlCharacters: false;
+                                    readonly maxLength: number;
+                                    readonly minLength: number;
+                                    readonly prefix?: string;
+                                    readonly refinement?: PluginApiStringRefinement;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<string>;
+                                readonly baseFrontierDigest: {
+                                    readonly controlCharacters: false;
+                                    readonly maxLength: number;
+                                    readonly minLength: number;
+                                    readonly prefix?: string;
+                                    readonly refinement?: PluginApiStringRefinement;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<string>;
+                                readonly format: {
+                                    readonly const: "convax.canvas-operation-receipt/2";
+                                } & PluginApiSchemaBrand<"convax.canvas-operation-receipt/2">;
+                                readonly historyMaterialDigest: {
+                                    readonly oneOf: readonly [{
+                                        readonly type: "null";
+                                    } & PluginApiSchemaBrand<null>, {
+                                        readonly controlCharacters: false;
+                                        readonly maxLength: number;
+                                        readonly minLength: number;
+                                        readonly prefix?: string;
+                                        readonly refinement?: PluginApiStringRefinement;
+                                        readonly type: "string";
+                                    } & PluginApiSchemaBrand<string>];
+                                } & PluginApiSchemaBrand<string | null>;
+                                readonly intentDigest: {
+                                    readonly controlCharacters: false;
+                                    readonly maxLength: number;
+                                    readonly minLength: number;
+                                    readonly prefix?: string;
+                                    readonly refinement?: PluginApiStringRefinement;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<string>;
+                                readonly intentKind: {
+                                    readonly controlCharacters: false;
+                                    readonly maxLength: number;
+                                    readonly minLength: number;
+                                    readonly prefix?: string;
+                                    readonly refinement?: PluginApiStringRefinement;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<string>;
+                                readonly operationId: {
+                                    readonly controlCharacters: false;
+                                    readonly maxLength: number;
+                                    readonly minLength: number;
+                                    readonly prefix?: string;
+                                    readonly refinement?: PluginApiStringRefinement;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<string>;
+                                readonly resultEntities: {
+                                    readonly items: {
+                                        readonly additionalProperties: false;
+                                        readonly properties: {
+                                            readonly id: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
+                                            readonly incarnation: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
+                                            readonly kind: {
+                                                readonly controlCharacters: false;
+                                                readonly enum: readonly ["node", "edge"];
+                                                readonly maxLength: number;
+                                                readonly minLength: 1;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<"node" | "edge">;
+                                        };
+                                        readonly products?: readonly PluginApiWireProductConstraint<"id" | "kind" | "incarnation">[] | undefined;
+                                        readonly required: readonly ["id", "incarnation", "kind"];
+                                        readonly type: "object";
+                                    } & PluginApiSchemaBrand<{
+                                        readonly id: string;
+                                        readonly kind: "node" | "edge";
+                                        readonly incarnation: string;
+                                    } & {}>;
+                                    readonly maxItems: number;
+                                    readonly minItems: number;
+                                    readonly type: "array";
+                                    readonly uniqueBy?: string;
+                                } & PluginApiSchemaBrand<readonly ({
+                                    readonly id: string;
+                                    readonly kind: "node" | "edge";
+                                    readonly incarnation: string;
+                                } & {})[]>;
+                                readonly semanticRoot: {
+                                    readonly type: "boolean";
+                                } & PluginApiSchemaBrand<boolean>;
+                            };
+                            readonly products?: undefined;
+                            readonly required: readonly ["actorId", "baseFrontierDigest", "format", "historyMaterialDigest", "intentDigest", "intentKind", "operationId", "resultEntities", "semanticRoot"];
+                            readonly type: "object";
+                        } & PluginApiSchemaBrand<{
+                            readonly format: "convax.canvas-operation-receipt/2";
+                            readonly historyMaterialDigest: string | null;
+                            readonly resultEntities: readonly ({
+                                readonly id: string;
+                                readonly kind: "node" | "edge";
+                                readonly incarnation: string;
+                            } & {})[];
+                            readonly actorId: string;
+                            readonly baseFrontierDigest: string;
+                            readonly intentDigest: string;
+                            readonly intentKind: string;
+                            readonly operationId: string;
+                            readonly semanticRoot: boolean;
+                        } & {}>];
+                    } & PluginApiSchemaBrand<({
+                        readonly format: "convax.canvas-operation-receipt/2";
+                        readonly historyMaterialDigest: string | null;
+                        readonly resultEntities: readonly ({
+                            readonly id: string;
+                            readonly kind: "node" | "edge";
+                            readonly incarnation: string;
+                        } & {})[];
+                        readonly actorId: string;
+                        readonly baseFrontierDigest: string;
+                        readonly intentDigest: string;
+                        readonly intentKind: string;
+                        readonly operationId: string;
+                        readonly semanticRoot: boolean;
+                    } & {}) | null>;
+                    readonly projection: {
+                        readonly oneOf: readonly [{
+                            readonly type: "null";
+                        } & PluginApiSchemaBrand<null>, {
+                            readonly additionalProperties: false;
+                            readonly properties: {
+                                readonly description: {
+                                    readonly controlCharacters: false;
+                                    readonly maxLength: number;
+                                    readonly minLength: number;
+                                    readonly prefix?: string;
+                                    readonly refinement?: PluginApiStringRefinement;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<string>;
+                                readonly edges: {
+                                    readonly items: {
+                                        readonly additionalProperties: false;
+                                        readonly properties: {
+                                            readonly id: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
+                                            readonly source: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
+                                            readonly target: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
+                                        };
+                                        readonly products?: undefined;
+                                        readonly required: readonly ["id", "source", "target"];
+                                        readonly type: "object";
+                                    } & PluginApiSchemaBrand<{
+                                        readonly id: string;
+                                        readonly source: string;
+                                        readonly target: string;
+                                    } & {}>;
+                                    readonly maxItems: number;
+                                    readonly minItems: number;
+                                    readonly type: "array";
+                                    readonly uniqueBy?: string;
+                                } & PluginApiSchemaBrand<readonly ({
+                                    readonly id: string;
+                                    readonly source: string;
+                                    readonly target: string;
+                                } & {})[]>;
+                                readonly id: {
+                                    readonly controlCharacters: false;
+                                    readonly maxLength: number;
+                                    readonly minLength: number;
+                                    readonly prefix?: string;
+                                    readonly refinement?: PluginApiStringRefinement;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<string>;
+                                readonly nodes: {
+                                    readonly items: {
+                                        readonly additionalProperties: false;
+                                        readonly properties: {
+                                            readonly description: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
+                                            readonly durationMs: {
+                                                readonly finite: true;
+                                                readonly type: "number";
+                                            } & PluginApiSchemaBrand<number>;
+                                            readonly id: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
+                                            readonly kind: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
+                                            readonly label: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
+                                            readonly mimeType: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
+                                            readonly name: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
+                                            readonly parentId: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
+                                            readonly position: {
+                                                readonly additionalProperties: false;
+                                                readonly properties: {
+                                                    readonly x: {
+                                                        readonly finite: true;
+                                                        readonly type: "number";
+                                                    } & PluginApiSchemaBrand<number>;
+                                                    readonly y: {
+                                                        readonly finite: true;
+                                                        readonly type: "number";
+                                                    } & PluginApiSchemaBrand<number>;
+                                                };
+                                                readonly products?: undefined;
+                                                readonly required: readonly ["x", "y"];
+                                                readonly type: "object";
+                                            } & PluginApiSchemaBrand<{
+                                                readonly x: number;
+                                                readonly y: number;
+                                            } & {}>;
+                                            readonly resource: {
+                                                readonly additionalProperties: false;
+                                                readonly properties: {
+                                                    readonly kind: {
+                                                        readonly const: "project-file";
+                                                    } & PluginApiSchemaBrand<"project-file">;
+                                                    readonly path: {
+                                                        readonly controlCharacters: false;
+                                                        readonly maxLength: number;
+                                                        readonly minLength: number;
+                                                        readonly prefix?: string;
+                                                        readonly refinement?: PluginApiStringRefinement;
+                                                        readonly type: "string";
+                                                    } & PluginApiSchemaBrand<string>;
+                                                };
+                                                readonly products?: readonly PluginApiWireProductConstraint<"kind" | "path">[] | undefined;
+                                                readonly required: readonly ["kind", "path"];
+                                                readonly type: "object";
+                                            } & PluginApiSchemaBrand<{
+                                                readonly kind: "project-file";
+                                                readonly path: string;
+                                            } & {}>;
+                                            readonly size: {
+                                                readonly additionalProperties: false;
+                                                readonly properties: {
+                                                    readonly height: {
+                                                        readonly finite: true;
+                                                        readonly type: "number";
+                                                    } & PluginApiSchemaBrand<number>;
+                                                    readonly width: {
+                                                        readonly finite: true;
+                                                        readonly type: "number";
+                                                    } & PluginApiSchemaBrand<number>;
+                                                };
+                                                readonly products?: undefined;
+                                                readonly required: readonly ["height", "width"];
+                                                readonly type: "object";
+                                            } & PluginApiSchemaBrand<{
+                                                readonly height: number;
+                                                readonly width: number;
+                                            } & {}>;
+                                            readonly status: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
+                                            readonly text: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
+                                            readonly type: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
+                                        };
+                                        readonly products?: undefined;
+                                        readonly required: readonly ["id", "kind", "label", "position", "size"];
+                                        readonly type: "object";
+                                    } & PluginApiSchemaBrand<{
+                                        readonly id: string;
+                                        readonly position: {
+                                            readonly x: number;
+                                            readonly y: number;
+                                        } & {};
+                                        readonly size: {
+                                            readonly height: number;
+                                            readonly width: number;
+                                        } & {};
+                                        readonly label: string;
+                                        readonly kind: string;
+                                    } & {
+                                        readonly description?: string | undefined;
+                                        readonly type?: string | undefined;
+                                        readonly text?: string | undefined;
+                                        readonly parentId?: string | undefined;
+                                        readonly status?: string | undefined;
+                                        readonly durationMs?: number | undefined;
+                                        readonly mimeType?: string | undefined;
+                                        readonly name?: string | undefined;
+                                        readonly resource?: ({
+                                            readonly kind: "project-file";
+                                            readonly path: string;
+                                        } & {}) | undefined;
+                                    }>;
+                                    readonly maxItems: number;
+                                    readonly minItems: number;
+                                    readonly type: "array";
+                                    readonly uniqueBy?: string;
+                                } & PluginApiSchemaBrand<readonly ({
+                                    readonly id: string;
+                                    readonly position: {
+                                        readonly x: number;
+                                        readonly y: number;
+                                    } & {};
+                                    readonly size: {
+                                        readonly height: number;
+                                        readonly width: number;
+                                    } & {};
+                                    readonly label: string;
+                                    readonly kind: string;
+                                } & {
+                                    readonly description?: string | undefined;
+                                    readonly type?: string | undefined;
+                                    readonly text?: string | undefined;
+                                    readonly parentId?: string | undefined;
+                                    readonly status?: string | undefined;
+                                    readonly durationMs?: number | undefined;
+                                    readonly mimeType?: string | undefined;
+                                    readonly name?: string | undefined;
+                                    readonly resource?: ({
+                                        readonly kind: "project-file";
+                                        readonly path: string;
+                                    } & {}) | undefined;
+                                })[]>;
+                                readonly tags: {
+                                    readonly items: {
+                                        readonly controlCharacters: false;
+                                        readonly maxLength: number;
+                                        readonly minLength: number;
+                                        readonly prefix?: string;
+                                        readonly refinement?: PluginApiStringRefinement;
+                                        readonly type: "string";
+                                    } & PluginApiSchemaBrand<string>;
+                                    readonly maxItems: number;
+                                    readonly minItems: number;
+                                    readonly type: "array";
+                                    readonly uniqueBy?: string;
+                                } & PluginApiSchemaBrand<readonly string[]>;
+                                readonly title: {
+                                    readonly controlCharacters: false;
+                                    readonly maxLength: number;
+                                    readonly minLength: number;
+                                    readonly prefix?: string;
+                                    readonly refinement?: PluginApiStringRefinement;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<string>;
+                            };
+                            readonly products?: undefined;
+                            readonly required: readonly ["edges", "id", "nodes", "title"];
+                            readonly type: "object";
+                        } & PluginApiSchemaBrand<{
+                            readonly id: string;
+                            readonly title: string;
+                            readonly edges: readonly ({
+                                readonly id: string;
+                                readonly source: string;
+                                readonly target: string;
+                            } & {})[];
+                            readonly nodes: readonly ({
+                                readonly id: string;
+                                readonly position: {
+                                    readonly x: number;
+                                    readonly y: number;
+                                } & {};
+                                readonly size: {
+                                    readonly height: number;
+                                    readonly width: number;
+                                } & {};
+                                readonly label: string;
+                                readonly kind: string;
+                            } & {
+                                readonly description?: string | undefined;
+                                readonly type?: string | undefined;
+                                readonly text?: string | undefined;
+                                readonly parentId?: string | undefined;
+                                readonly status?: string | undefined;
+                                readonly durationMs?: number | undefined;
+                                readonly mimeType?: string | undefined;
+                                readonly name?: string | undefined;
+                                readonly resource?: ({
+                                    readonly kind: "project-file";
+                                    readonly path: string;
+                                } & {}) | undefined;
+                            })[];
+                        } & {
+                            readonly description?: string | undefined;
+                            readonly tags?: readonly string[] | undefined;
+                        }>];
+                    } & PluginApiSchemaBrand<({
+                        readonly id: string;
+                        readonly title: string;
+                        readonly edges: readonly ({
+                            readonly id: string;
+                            readonly source: string;
+                            readonly target: string;
+                        } & {})[];
+                        readonly nodes: readonly ({
+                            readonly id: string;
+                            readonly position: {
+                                readonly x: number;
+                                readonly y: number;
+                            } & {};
+                            readonly size: {
+                                readonly height: number;
+                                readonly width: number;
+                            } & {};
+                            readonly label: string;
+                            readonly kind: string;
+                        } & {
+                            readonly description?: string | undefined;
+                            readonly type?: string | undefined;
+                            readonly text?: string | undefined;
+                            readonly parentId?: string | undefined;
+                            readonly status?: string | undefined;
+                            readonly durationMs?: number | undefined;
+                            readonly mimeType?: string | undefined;
+                            readonly name?: string | undefined;
+                            readonly resource?: ({
+                                readonly kind: "project-file";
+                                readonly path: string;
+                            } & {}) | undefined;
+                        })[];
+                    } & {
+                        readonly description?: string | undefined;
+                        readonly tags?: readonly string[] | undefined;
+                    }) | null>;
                     readonly toolId: {
                         readonly controlCharacters: false;
                         readonly maxLength: number;
@@ -1521,11 +2759,63 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly uniqueBy?: string;
                     } & PluginApiSchemaBrand<readonly string[]>;
                 };
-                readonly products?: readonly PluginApiWireProductConstraint<"revision" | "toolId" | "createdNodeIds" | "warnings" | "outputText">[] | undefined;
-                readonly required: readonly ["createdNodeIds", "revision", "toolId", "warnings"];
+                readonly products?: readonly PluginApiWireProductConstraint<"operationReceipt" | "projection" | "toolId" | "createdNodeIds" | "warnings" | "outputText">[] | undefined;
+                readonly required: readonly ["createdNodeIds", "operationReceipt", "projection", "toolId", "warnings"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
-                readonly revision: number;
+                readonly operationReceipt: ({
+                    readonly format: "convax.canvas-operation-receipt/2";
+                    readonly historyMaterialDigest: string | null;
+                    readonly resultEntities: readonly ({
+                        readonly id: string;
+                        readonly kind: "node" | "edge";
+                        readonly incarnation: string;
+                    } & {})[];
+                    readonly actorId: string;
+                    readonly baseFrontierDigest: string;
+                    readonly intentDigest: string;
+                    readonly intentKind: string;
+                    readonly operationId: string;
+                    readonly semanticRoot: boolean;
+                } & {}) | null;
+                readonly projection: ({
+                    readonly id: string;
+                    readonly title: string;
+                    readonly edges: readonly ({
+                        readonly id: string;
+                        readonly source: string;
+                        readonly target: string;
+                    } & {})[];
+                    readonly nodes: readonly ({
+                        readonly id: string;
+                        readonly position: {
+                            readonly x: number;
+                            readonly y: number;
+                        } & {};
+                        readonly size: {
+                            readonly height: number;
+                            readonly width: number;
+                        } & {};
+                        readonly label: string;
+                        readonly kind: string;
+                    } & {
+                        readonly description?: string | undefined;
+                        readonly type?: string | undefined;
+                        readonly text?: string | undefined;
+                        readonly parentId?: string | undefined;
+                        readonly status?: string | undefined;
+                        readonly durationMs?: number | undefined;
+                        readonly mimeType?: string | undefined;
+                        readonly name?: string | undefined;
+                        readonly resource?: ({
+                            readonly kind: "project-file";
+                            readonly path: string;
+                        } & {}) | undefined;
+                    })[];
+                } & {
+                    readonly description?: string | undefined;
+                    readonly tags?: readonly string[] | undefined;
+                }) | null;
                 readonly toolId: string;
                 readonly createdNodeIds: readonly string[];
                 readonly warnings: readonly string[];
@@ -1633,10 +2923,6 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly items: {
                             readonly additionalProperties: false;
                             readonly properties: {
-                                readonly createdAt: {
-                                    readonly finite: true;
-                                    readonly type: "number";
-                                } & PluginApiSchemaBrand<number>;
                                 readonly id: {
                                     readonly controlCharacters: false;
                                     readonly maxLength: number;
@@ -1653,19 +2939,13 @@ export declare const pluginApiWireContracts: Readonly<{
                                     readonly refinement?: PluginApiStringRefinement;
                                     readonly type: "string";
                                 } & PluginApiSchemaBrand<string>;
-                                readonly updatedAt: {
-                                    readonly finite: true;
-                                    readonly type: "number";
-                                } & PluginApiSchemaBrand<number>;
                             };
-                            readonly products?: readonly PluginApiWireProductConstraint<"id" | "name" | "createdAt" | "updatedAt">[] | undefined;
-                            readonly required: readonly ["createdAt", "id", "name", "updatedAt"];
+                            readonly products?: readonly PluginApiWireProductConstraint<"id" | "name">[] | undefined;
+                            readonly required: readonly ["id", "name"];
                             readonly type: "object";
                         } & PluginApiSchemaBrand<{
                             readonly id: string;
                             readonly name: string;
-                            readonly createdAt: number;
-                            readonly updatedAt: number;
                         } & {}>;
                         readonly maxItems: number;
                         readonly minItems: number;
@@ -1674,8 +2954,6 @@ export declare const pluginApiWireContracts: Readonly<{
                     } & PluginApiSchemaBrand<readonly ({
                         readonly id: string;
                         readonly name: string;
-                        readonly createdAt: number;
-                        readonly updatedAt: number;
                     } & {})[]>;
                     readonly projectId: {
                         readonly controlCharacters: false;
@@ -1694,8 +2972,6 @@ export declare const pluginApiWireContracts: Readonly<{
                 readonly canvases: readonly ({
                     readonly id: string;
                     readonly name: string;
-                    readonly createdAt: number;
-                    readonly updatedAt: number;
                 } & {})[];
             } & {}>;
         };
@@ -1939,11 +3215,6 @@ export declare const pluginApiWireContracts: Readonly<{
                                     readonly type?: string | undefined;
                                     readonly parentId?: string | undefined;
                                 })[]>;
-                                readonly revision: {
-                                    readonly finite: true;
-                                    readonly minimum: 0;
-                                    readonly type: "integer";
-                                } & PluginApiSchemaBrand<number>;
                                 readonly title: {
                                     readonly controlCharacters: false;
                                     readonly maxLength: number;
@@ -1954,11 +3225,10 @@ export declare const pluginApiWireContracts: Readonly<{
                                 } & PluginApiSchemaBrand<string>;
                             };
                             readonly products?: undefined;
-                            readonly required: readonly ["edges", "id", "nodes", "revision", "title"];
+                            readonly required: readonly ["edges", "id", "nodes", "title"];
                             readonly type: "object";
                         } & PluginApiSchemaBrand<{
                             readonly id: string;
-                            readonly revision: number;
                             readonly title: string;
                             readonly edges: readonly ({
                                 readonly id: string;
@@ -2012,21 +3282,9 @@ export declare const pluginApiWireContracts: Readonly<{
                             readonly canvasId: string;
                             readonly projectId: string;
                         } & {}>;
-                        readonly storageVersion: {
-                            readonly oneOf: readonly [{
-                                readonly type: "null";
-                            } & PluginApiSchemaBrand<null>, {
-                                readonly controlCharacters: false;
-                                readonly maxLength: number;
-                                readonly minLength: number;
-                                readonly prefix?: string;
-                                readonly refinement?: PluginApiStringRefinement;
-                                readonly type: "string";
-                            } & PluginApiSchemaBrand<string>];
-                        } & PluginApiSchemaBrand<string | null>;
                     };
-                    readonly products?: readonly PluginApiWireProductConstraint<"projection" | "ref" | "storageVersion" | "document">[] | undefined;
-                    readonly required: readonly ["document", "projection", "ref", "storageVersion"];
+                    readonly products?: readonly PluginApiWireProductConstraint<"projection" | "ref" | "document">[] | undefined;
+                    readonly required: readonly ["document", "projection", "ref"];
                     readonly type: "object";
                 } & PluginApiSchemaBrand<{
                     readonly projection: "geometry";
@@ -2034,10 +3292,8 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly canvasId: string;
                         readonly projectId: string;
                     } & {};
-                    readonly storageVersion: string | null;
                     readonly document: {
                         readonly id: string;
-                        readonly revision: number;
                         readonly title: string;
                         readonly edges: readonly ({
                             readonly id: string;
@@ -2337,11 +3593,6 @@ export declare const pluginApiWireContracts: Readonly<{
                                         readonly path: string;
                                     } & {}) | undefined;
                                 })[]>;
-                                readonly revision: {
-                                    readonly finite: true;
-                                    readonly minimum: 0;
-                                    readonly type: "integer";
-                                } & PluginApiSchemaBrand<number>;
                                 readonly tags: {
                                     readonly items: {
                                         readonly controlCharacters: false;
@@ -2366,11 +3617,10 @@ export declare const pluginApiWireContracts: Readonly<{
                                 } & PluginApiSchemaBrand<string>;
                             };
                             readonly products?: undefined;
-                            readonly required: readonly ["edges", "id", "nodes", "revision", "title"];
+                            readonly required: readonly ["edges", "id", "nodes", "title"];
                             readonly type: "object";
                         } & PluginApiSchemaBrand<{
                             readonly id: string;
-                            readonly revision: number;
                             readonly title: string;
                             readonly edges: readonly ({
                                 readonly id: string;
@@ -2437,21 +3687,9 @@ export declare const pluginApiWireContracts: Readonly<{
                             readonly canvasId: string;
                             readonly projectId: string;
                         } & {}>;
-                        readonly storageVersion: {
-                            readonly oneOf: readonly [{
-                                readonly type: "null";
-                            } & PluginApiSchemaBrand<null>, {
-                                readonly controlCharacters: false;
-                                readonly maxLength: number;
-                                readonly minLength: number;
-                                readonly prefix?: string;
-                                readonly refinement?: PluginApiStringRefinement;
-                                readonly type: "string";
-                            } & PluginApiSchemaBrand<string>];
-                        } & PluginApiSchemaBrand<string | null>;
                     };
-                    readonly products?: readonly PluginApiWireProductConstraint<"projection" | "ref" | "storageVersion" | "document">[] | undefined;
-                    readonly required: readonly ["document", "projection", "ref", "storageVersion"];
+                    readonly products?: readonly PluginApiWireProductConstraint<"projection" | "ref" | "document">[] | undefined;
+                    readonly required: readonly ["document", "projection", "ref"];
                     readonly type: "object";
                 } & PluginApiSchemaBrand<{
                     readonly projection: "structure";
@@ -2459,10 +3697,8 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly canvasId: string;
                         readonly projectId: string;
                     } & {};
-                    readonly storageVersion: string | null;
                     readonly document: {
                         readonly id: string;
-                        readonly revision: number;
                         readonly title: string;
                         readonly edges: readonly ({
                             readonly id: string;
@@ -2506,10 +3742,8 @@ export declare const pluginApiWireContracts: Readonly<{
                     readonly canvasId: string;
                     readonly projectId: string;
                 } & {};
-                readonly storageVersion: string | null;
                 readonly document: {
                     readonly id: string;
-                    readonly revision: number;
                     readonly title: string;
                     readonly edges: readonly ({
                         readonly id: string;
@@ -2539,10 +3773,8 @@ export declare const pluginApiWireContracts: Readonly<{
                     readonly canvasId: string;
                     readonly projectId: string;
                 } & {};
-                readonly storageVersion: string | null;
                 readonly document: {
                     readonly id: string;
-                    readonly revision: number;
                     readonly title: string;
                     readonly edges: readonly ({
                         readonly id: string;
@@ -2846,6 +4078,343 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly text?: string | undefined;
                         readonly parentId?: string | undefined;
                     })[]>;
+                    readonly projection: {
+                        readonly additionalProperties: false;
+                        readonly properties: {
+                            readonly description: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly edges: {
+                                readonly items: {
+                                    readonly additionalProperties: false;
+                                    readonly properties: {
+                                        readonly id: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly source: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly target: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                    };
+                                    readonly products?: undefined;
+                                    readonly required: readonly ["id", "source", "target"];
+                                    readonly type: "object";
+                                } & PluginApiSchemaBrand<{
+                                    readonly id: string;
+                                    readonly source: string;
+                                    readonly target: string;
+                                } & {}>;
+                                readonly maxItems: number;
+                                readonly minItems: number;
+                                readonly type: "array";
+                                readonly uniqueBy?: string;
+                            } & PluginApiSchemaBrand<readonly ({
+                                readonly id: string;
+                                readonly source: string;
+                                readonly target: string;
+                            } & {})[]>;
+                            readonly id: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly nodes: {
+                                readonly items: {
+                                    readonly additionalProperties: false;
+                                    readonly properties: {
+                                        readonly description: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly durationMs: {
+                                            readonly finite: true;
+                                            readonly type: "number";
+                                        } & PluginApiSchemaBrand<number>;
+                                        readonly id: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly kind: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly label: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly mimeType: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly name: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly parentId: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly position: {
+                                            readonly additionalProperties: false;
+                                            readonly properties: {
+                                                readonly x: {
+                                                    readonly finite: true;
+                                                    readonly type: "number";
+                                                } & PluginApiSchemaBrand<number>;
+                                                readonly y: {
+                                                    readonly finite: true;
+                                                    readonly type: "number";
+                                                } & PluginApiSchemaBrand<number>;
+                                            };
+                                            readonly products?: undefined;
+                                            readonly required: readonly ["x", "y"];
+                                            readonly type: "object";
+                                        } & PluginApiSchemaBrand<{
+                                            readonly x: number;
+                                            readonly y: number;
+                                        } & {}>;
+                                        readonly resource: {
+                                            readonly additionalProperties: false;
+                                            readonly properties: {
+                                                readonly kind: {
+                                                    readonly const: "project-file";
+                                                } & PluginApiSchemaBrand<"project-file">;
+                                                readonly path: {
+                                                    readonly controlCharacters: false;
+                                                    readonly maxLength: number;
+                                                    readonly minLength: number;
+                                                    readonly prefix?: string;
+                                                    readonly refinement?: PluginApiStringRefinement;
+                                                    readonly type: "string";
+                                                } & PluginApiSchemaBrand<string>;
+                                            };
+                                            readonly products?: readonly PluginApiWireProductConstraint<"kind" | "path">[] | undefined;
+                                            readonly required: readonly ["kind", "path"];
+                                            readonly type: "object";
+                                        } & PluginApiSchemaBrand<{
+                                            readonly kind: "project-file";
+                                            readonly path: string;
+                                        } & {}>;
+                                        readonly size: {
+                                            readonly additionalProperties: false;
+                                            readonly properties: {
+                                                readonly height: {
+                                                    readonly finite: true;
+                                                    readonly type: "number";
+                                                } & PluginApiSchemaBrand<number>;
+                                                readonly width: {
+                                                    readonly finite: true;
+                                                    readonly type: "number";
+                                                } & PluginApiSchemaBrand<number>;
+                                            };
+                                            readonly products?: undefined;
+                                            readonly required: readonly ["height", "width"];
+                                            readonly type: "object";
+                                        } & PluginApiSchemaBrand<{
+                                            readonly height: number;
+                                            readonly width: number;
+                                        } & {}>;
+                                        readonly status: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly text: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly type: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                    };
+                                    readonly products?: undefined;
+                                    readonly required: readonly ["id", "kind", "label", "position", "size"];
+                                    readonly type: "object";
+                                } & PluginApiSchemaBrand<{
+                                    readonly id: string;
+                                    readonly position: {
+                                        readonly x: number;
+                                        readonly y: number;
+                                    } & {};
+                                    readonly size: {
+                                        readonly height: number;
+                                        readonly width: number;
+                                    } & {};
+                                    readonly label: string;
+                                    readonly kind: string;
+                                } & {
+                                    readonly description?: string | undefined;
+                                    readonly type?: string | undefined;
+                                    readonly text?: string | undefined;
+                                    readonly parentId?: string | undefined;
+                                    readonly status?: string | undefined;
+                                    readonly durationMs?: number | undefined;
+                                    readonly mimeType?: string | undefined;
+                                    readonly name?: string | undefined;
+                                    readonly resource?: ({
+                                        readonly kind: "project-file";
+                                        readonly path: string;
+                                    } & {}) | undefined;
+                                }>;
+                                readonly maxItems: number;
+                                readonly minItems: number;
+                                readonly type: "array";
+                                readonly uniqueBy?: string;
+                            } & PluginApiSchemaBrand<readonly ({
+                                readonly id: string;
+                                readonly position: {
+                                    readonly x: number;
+                                    readonly y: number;
+                                } & {};
+                                readonly size: {
+                                    readonly height: number;
+                                    readonly width: number;
+                                } & {};
+                                readonly label: string;
+                                readonly kind: string;
+                            } & {
+                                readonly description?: string | undefined;
+                                readonly type?: string | undefined;
+                                readonly text?: string | undefined;
+                                readonly parentId?: string | undefined;
+                                readonly status?: string | undefined;
+                                readonly durationMs?: number | undefined;
+                                readonly mimeType?: string | undefined;
+                                readonly name?: string | undefined;
+                                readonly resource?: ({
+                                    readonly kind: "project-file";
+                                    readonly path: string;
+                                } & {}) | undefined;
+                            })[]>;
+                            readonly tags: {
+                                readonly items: {
+                                    readonly controlCharacters: false;
+                                    readonly maxLength: number;
+                                    readonly minLength: number;
+                                    readonly prefix?: string;
+                                    readonly refinement?: PluginApiStringRefinement;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<string>;
+                                readonly maxItems: number;
+                                readonly minItems: number;
+                                readonly type: "array";
+                                readonly uniqueBy?: string;
+                            } & PluginApiSchemaBrand<readonly string[]>;
+                            readonly title: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                        };
+                        readonly products?: undefined;
+                        readonly required: readonly ["edges", "id", "nodes", "title"];
+                        readonly type: "object";
+                    } & PluginApiSchemaBrand<{
+                        readonly id: string;
+                        readonly title: string;
+                        readonly edges: readonly ({
+                            readonly id: string;
+                            readonly source: string;
+                            readonly target: string;
+                        } & {})[];
+                        readonly nodes: readonly ({
+                            readonly id: string;
+                            readonly position: {
+                                readonly x: number;
+                                readonly y: number;
+                            } & {};
+                            readonly size: {
+                                readonly height: number;
+                                readonly width: number;
+                            } & {};
+                            readonly label: string;
+                            readonly kind: string;
+                        } & {
+                            readonly description?: string | undefined;
+                            readonly type?: string | undefined;
+                            readonly text?: string | undefined;
+                            readonly parentId?: string | undefined;
+                            readonly status?: string | undefined;
+                            readonly durationMs?: number | undefined;
+                            readonly mimeType?: string | undefined;
+                            readonly name?: string | undefined;
+                            readonly resource?: ({
+                                readonly kind: "project-file";
+                                readonly path: string;
+                            } & {}) | undefined;
+                        })[];
+                    } & {
+                        readonly description?: string | undefined;
+                        readonly tags?: readonly string[] | undefined;
+                    }>;
                     readonly ref: {
                         readonly additionalProperties: false;
                         readonly properties: {
@@ -2873,29 +4442,11 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly canvasId: string;
                         readonly projectId: string;
                     } & {}>;
-                    readonly revision: {
-                        readonly finite: true;
-                        readonly minimum: 0;
-                        readonly type: "integer";
-                    } & PluginApiSchemaBrand<number>;
-                    readonly storageVersion: {
-                        readonly oneOf: readonly [{
-                            readonly type: "null";
-                        } & PluginApiSchemaBrand<null>, {
-                            readonly controlCharacters: false;
-                            readonly maxLength: number;
-                            readonly minLength: number;
-                            readonly prefix?: string;
-                            readonly refinement?: PluginApiStringRefinement;
-                            readonly type: "string";
-                        } & PluginApiSchemaBrand<string>];
-                    } & PluginApiSchemaBrand<string | null>;
                 };
-                readonly products?: readonly PluginApiWireProductConstraint<"revision" | "nodes" | "ref" | "storageVersion">[] | undefined;
-                readonly required: readonly ["nodes", "ref", "revision", "storageVersion"];
+                readonly products?: readonly PluginApiWireProductConstraint<"nodes" | "projection" | "ref">[] | undefined;
+                readonly required: readonly ["nodes", "projection", "ref"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
-                readonly revision: number;
                 readonly nodes: readonly ({
                     readonly id: string;
                     readonly position: {
@@ -2911,11 +4462,48 @@ export declare const pluginApiWireContracts: Readonly<{
                     readonly text?: string | undefined;
                     readonly parentId?: string | undefined;
                 })[];
+                readonly projection: {
+                    readonly id: string;
+                    readonly title: string;
+                    readonly edges: readonly ({
+                        readonly id: string;
+                        readonly source: string;
+                        readonly target: string;
+                    } & {})[];
+                    readonly nodes: readonly ({
+                        readonly id: string;
+                        readonly position: {
+                            readonly x: number;
+                            readonly y: number;
+                        } & {};
+                        readonly size: {
+                            readonly height: number;
+                            readonly width: number;
+                        } & {};
+                        readonly label: string;
+                        readonly kind: string;
+                    } & {
+                        readonly description?: string | undefined;
+                        readonly type?: string | undefined;
+                        readonly text?: string | undefined;
+                        readonly parentId?: string | undefined;
+                        readonly status?: string | undefined;
+                        readonly durationMs?: number | undefined;
+                        readonly mimeType?: string | undefined;
+                        readonly name?: string | undefined;
+                        readonly resource?: ({
+                            readonly kind: "project-file";
+                            readonly path: string;
+                        } & {}) | undefined;
+                    })[];
+                } & {
+                    readonly description?: string | undefined;
+                    readonly tags?: readonly string[] | undefined;
+                };
                 readonly ref: {
                     readonly canvasId: string;
                     readonly projectId: string;
                 } & {};
-                readonly storageVersion: string | null;
             } & {}>;
         };
     };
@@ -2926,195 +4514,12 @@ export declare const pluginApiWireContracts: Readonly<{
             readonly schema: {
                 readonly additionalProperties: false;
                 readonly properties: {
-                    readonly commands: {
-                        readonly items: {
-                            readonly oneOf: readonly [{
-                                readonly additionalProperties: false;
-                                readonly properties: {
-                                    readonly edgeIds: {
-                                        readonly items: {
-                                            readonly controlCharacters: false;
-                                            readonly maxLength: number;
-                                            readonly minLength: number;
-                                            readonly prefix?: string;
-                                            readonly refinement?: PluginApiStringRefinement;
-                                            readonly type: "string";
-                                        } & PluginApiSchemaBrand<string>;
-                                        readonly maxItems: number;
-                                        readonly minItems: number;
-                                        readonly type: "array";
-                                        readonly uniqueBy?: string;
-                                    } & PluginApiSchemaBrand<readonly string[]>;
-                                    readonly nodeIds: {
-                                        readonly items: {
-                                            readonly controlCharacters: false;
-                                            readonly maxLength: number;
-                                            readonly minLength: number;
-                                            readonly prefix?: string;
-                                            readonly refinement?: PluginApiStringRefinement;
-                                            readonly type: "string";
-                                        } & PluginApiSchemaBrand<string>;
-                                        readonly maxItems: number;
-                                        readonly minItems: number;
-                                        readonly type: "array";
-                                        readonly uniqueBy?: string;
-                                    } & PluginApiSchemaBrand<readonly string[]>;
-                                    readonly type: {
-                                        readonly const: "elements.remove";
-                                    } & PluginApiSchemaBrand<"elements.remove">;
-                                };
-                                readonly products?: undefined;
-                                readonly required: readonly ["type"];
-                                readonly type: "object";
-                            } & PluginApiSchemaBrand<{
-                                readonly type: "elements.remove";
-                            } & {
-                                readonly edgeIds?: readonly string[] | undefined;
-                                readonly nodeIds?: readonly string[] | undefined;
-                            }>, {
-                                readonly additionalProperties: false;
-                                readonly properties: {
-                                    readonly direction: {
-                                        readonly controlCharacters: false;
-                                        readonly enum: readonly ["left", "center", "right", "top", "middle", "bottom"];
-                                        readonly maxLength: number;
-                                        readonly minLength: 1;
-                                        readonly type: "string";
-                                    } & PluginApiSchemaBrand<"left" | "center" | "right" | "top" | "middle" | "bottom">;
-                                    readonly nodeIds: {
-                                        readonly items: {
-                                            readonly controlCharacters: false;
-                                            readonly maxLength: number;
-                                            readonly minLength: number;
-                                            readonly prefix?: string;
-                                            readonly refinement?: PluginApiStringRefinement;
-                                            readonly type: "string";
-                                        } & PluginApiSchemaBrand<string>;
-                                        readonly maxItems: number;
-                                        readonly minItems: number;
-                                        readonly type: "array";
-                                        readonly uniqueBy?: string;
-                                    } & PluginApiSchemaBrand<readonly string[]>;
-                                    readonly type: {
-                                        readonly const: "nodes.align";
-                                    } & PluginApiSchemaBrand<"nodes.align">;
-                                };
-                                readonly products?: undefined;
-                                readonly required: readonly ["direction", "nodeIds", "type"];
-                                readonly type: "object";
-                            } & PluginApiSchemaBrand<{
-                                readonly type: "nodes.align";
-                                readonly nodeIds: readonly string[];
-                                readonly direction: "left" | "center" | "right" | "top" | "middle" | "bottom";
-                            } & {}>, {
-                                readonly additionalProperties: false;
-                                readonly properties: {
-                                    readonly connection: {
-                                        readonly additionalProperties: false;
-                                        readonly properties: {
-                                            readonly animated: {
-                                                readonly type: "boolean";
-                                            } & PluginApiSchemaBrand<boolean>;
-                                            readonly id: {
-                                                readonly controlCharacters: false;
-                                                readonly maxLength: number;
-                                                readonly minLength: number;
-                                                readonly prefix?: string;
-                                                readonly refinement?: PluginApiStringRefinement;
-                                                readonly type: "string";
-                                            } & PluginApiSchemaBrand<string>;
-                                            readonly source: {
-                                                readonly controlCharacters: false;
-                                                readonly maxLength: number;
-                                                readonly minLength: number;
-                                                readonly prefix?: string;
-                                                readonly refinement?: PluginApiStringRefinement;
-                                                readonly type: "string";
-                                            } & PluginApiSchemaBrand<string>;
-                                            readonly target: {
-                                                readonly controlCharacters: false;
-                                                readonly maxLength: number;
-                                                readonly minLength: number;
-                                                readonly prefix?: string;
-                                                readonly refinement?: PluginApiStringRefinement;
-                                                readonly type: "string";
-                                            } & PluginApiSchemaBrand<string>;
-                                            readonly type: {
-                                                readonly controlCharacters: false;
-                                                readonly maxLength: number;
-                                                readonly minLength: number;
-                                                readonly prefix?: string;
-                                                readonly refinement?: PluginApiStringRefinement;
-                                                readonly type: "string";
-                                            } & PluginApiSchemaBrand<string>;
-                                        };
-                                        readonly products?: undefined;
-                                        readonly required: readonly ["source", "target"];
-                                        readonly type: "object";
-                                    } & PluginApiSchemaBrand<{
-                                        readonly source: string;
-                                        readonly target: string;
-                                    } & {
-                                        readonly id?: string | undefined;
-                                        readonly type?: string | undefined;
-                                        readonly animated?: boolean | undefined;
-                                    }>;
-                                    readonly type: {
-                                        readonly const: "nodes.connect";
-                                    } & PluginApiSchemaBrand<"nodes.connect">;
-                                };
-                                readonly products?: undefined;
-                                readonly required: readonly ["connection", "type"];
-                                readonly type: "object";
-                            } & PluginApiSchemaBrand<{
-                                readonly connection: {
-                                    readonly source: string;
-                                    readonly target: string;
-                                } & {
-                                    readonly id?: string | undefined;
-                                    readonly type?: string | undefined;
-                                    readonly animated?: boolean | undefined;
-                                };
-                                readonly type: "nodes.connect";
-                            } & {}>, {
-                                readonly additionalProperties: false;
-                                readonly properties: {
-                                    readonly axis: {
-                                        readonly controlCharacters: false;
-                                        readonly enum: readonly ["horizontal", "vertical"];
-                                        readonly maxLength: number;
-                                        readonly minLength: 1;
-                                        readonly type: "string";
-                                    } & PluginApiSchemaBrand<"horizontal" | "vertical">;
-                                    readonly nodeIds: {
-                                        readonly items: {
-                                            readonly controlCharacters: false;
-                                            readonly maxLength: number;
-                                            readonly minLength: number;
-                                            readonly prefix?: string;
-                                            readonly refinement?: PluginApiStringRefinement;
-                                            readonly type: "string";
-                                        } & PluginApiSchemaBrand<string>;
-                                        readonly maxItems: number;
-                                        readonly minItems: number;
-                                        readonly type: "array";
-                                        readonly uniqueBy?: string;
-                                    } & PluginApiSchemaBrand<readonly string[]>;
-                                    readonly type: {
-                                        readonly const: "nodes.distribute";
-                                    } & PluginApiSchemaBrand<"nodes.distribute">;
-                                };
-                                readonly products?: undefined;
-                                readonly required: readonly ["axis", "nodeIds", "type"];
-                                readonly type: "object";
-                            } & PluginApiSchemaBrand<{
-                                readonly type: "nodes.distribute";
-                                readonly nodeIds: readonly string[];
-                                readonly axis: "horizontal" | "vertical";
-                            } & {}>, {
-                                readonly additionalProperties: false;
-                                readonly properties: {
-                                    readonly label: {
+                    readonly command: {
+                        readonly oneOf: readonly [{
+                            readonly additionalProperties: false;
+                            readonly properties: {
+                                readonly edgeIds: {
+                                    readonly items: {
                                         readonly controlCharacters: false;
                                         readonly maxLength: number;
                                         readonly minLength: number;
@@ -3122,48 +4527,82 @@ export declare const pluginApiWireContracts: Readonly<{
                                         readonly refinement?: PluginApiStringRefinement;
                                         readonly type: "string";
                                     } & PluginApiSchemaBrand<string>;
-                                    readonly nodeIds: {
-                                        readonly items: {
-                                            readonly controlCharacters: false;
-                                            readonly maxLength: number;
-                                            readonly minLength: number;
-                                            readonly prefix?: string;
-                                            readonly refinement?: PluginApiStringRefinement;
-                                            readonly type: "string";
-                                        } & PluginApiSchemaBrand<string>;
-                                        readonly maxItems: number;
-                                        readonly minItems: number;
-                                        readonly type: "array";
-                                        readonly uniqueBy?: string;
-                                    } & PluginApiSchemaBrand<readonly string[]>;
-                                    readonly type: {
-                                        readonly const: "nodes.group";
-                                    } & PluginApiSchemaBrand<"nodes.group">;
-                                };
-                                readonly products?: undefined;
-                                readonly required: readonly ["nodeIds", "type"];
-                                readonly type: "object";
-                            } & PluginApiSchemaBrand<{
-                                readonly type: "nodes.group";
-                                readonly nodeIds: readonly string[];
-                            } & {
-                                readonly label?: string | undefined;
-                            }>, {
-                                readonly additionalProperties: false;
-                                readonly properties: {
-                                    readonly gap: {
-                                        readonly finite: true;
-                                        readonly type: "number";
-                                    } & PluginApiSchemaBrand<number>;
-                                    readonly layout: {
+                                    readonly maxItems: number;
+                                    readonly minItems: number;
+                                    readonly type: "array";
+                                    readonly uniqueBy?: string;
+                                } & PluginApiSchemaBrand<readonly string[]>;
+                                readonly nodeIds: {
+                                    readonly items: {
                                         readonly controlCharacters: false;
-                                        readonly enum: readonly ["grid", "horizontal", "vertical"];
                                         readonly maxLength: number;
-                                        readonly minLength: 1;
+                                        readonly minLength: number;
+                                        readonly prefix?: string;
+                                        readonly refinement?: PluginApiStringRefinement;
                                         readonly type: "string";
-                                    } & PluginApiSchemaBrand<"horizontal" | "vertical" | "grid">;
-                                    readonly nodeIds: {
-                                        readonly items: {
+                                    } & PluginApiSchemaBrand<string>;
+                                    readonly maxItems: number;
+                                    readonly minItems: number;
+                                    readonly type: "array";
+                                    readonly uniqueBy?: string;
+                                } & PluginApiSchemaBrand<readonly string[]>;
+                                readonly type: {
+                                    readonly const: "elements.remove";
+                                } & PluginApiSchemaBrand<"elements.remove">;
+                            };
+                            readonly products?: undefined;
+                            readonly required: readonly ["type"];
+                            readonly type: "object";
+                        } & PluginApiSchemaBrand<{
+                            readonly type: "elements.remove";
+                        } & {
+                            readonly edgeIds?: readonly string[] | undefined;
+                            readonly nodeIds?: readonly string[] | undefined;
+                        }>, {
+                            readonly additionalProperties: false;
+                            readonly properties: {
+                                readonly direction: {
+                                    readonly controlCharacters: false;
+                                    readonly enum: readonly ["left", "center", "right", "top", "middle", "bottom"];
+                                    readonly maxLength: number;
+                                    readonly minLength: 1;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<"left" | "center" | "right" | "top" | "middle" | "bottom">;
+                                readonly nodeIds: {
+                                    readonly items: {
+                                        readonly controlCharacters: false;
+                                        readonly maxLength: number;
+                                        readonly minLength: number;
+                                        readonly prefix?: string;
+                                        readonly refinement?: PluginApiStringRefinement;
+                                        readonly type: "string";
+                                    } & PluginApiSchemaBrand<string>;
+                                    readonly maxItems: number;
+                                    readonly minItems: number;
+                                    readonly type: "array";
+                                    readonly uniqueBy?: string;
+                                } & PluginApiSchemaBrand<readonly string[]>;
+                                readonly type: {
+                                    readonly const: "nodes.align";
+                                } & PluginApiSchemaBrand<"nodes.align">;
+                            };
+                            readonly products?: undefined;
+                            readonly required: readonly ["direction", "nodeIds", "type"];
+                            readonly type: "object";
+                        } & PluginApiSchemaBrand<{
+                            readonly type: "nodes.align";
+                            readonly nodeIds: readonly string[];
+                            readonly direction: "left" | "center" | "right" | "top" | "middle" | "bottom";
+                        } & {}>, {
+                            readonly additionalProperties: false;
+                            readonly properties: {
+                                readonly connection: {
+                                    readonly additionalProperties: false;
+                                    readonly properties: {
+                                        readonly animated: {
+                                            readonly type: "boolean";
+                                        } & PluginApiSchemaBrand<boolean>;
+                                        readonly id: {
                                             readonly controlCharacters: false;
                                             readonly maxLength: number;
                                             readonly minLength: number;
@@ -3171,151 +4610,283 @@ export declare const pluginApiWireContracts: Readonly<{
                                             readonly refinement?: PluginApiStringRefinement;
                                             readonly type: "string";
                                         } & PluginApiSchemaBrand<string>;
-                                        readonly maxItems: number;
-                                        readonly minItems: number;
-                                        readonly type: "array";
-                                        readonly uniqueBy?: string;
-                                    } & PluginApiSchemaBrand<readonly string[]>;
-                                    readonly type: {
-                                        readonly const: "nodes.layout";
-                                    } & PluginApiSchemaBrand<"nodes.layout">;
-                                };
-                                readonly products?: undefined;
-                                readonly required: readonly ["nodeIds", "type"];
-                                readonly type: "object";
-                            } & PluginApiSchemaBrand<{
-                                readonly type: "nodes.layout";
-                                readonly nodeIds: readonly string[];
+                                        readonly source: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly target: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly type: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                    };
+                                    readonly products?: undefined;
+                                    readonly required: readonly ["source", "target"];
+                                    readonly type: "object";
+                                } & PluginApiSchemaBrand<{
+                                    readonly source: string;
+                                    readonly target: string;
+                                } & {
+                                    readonly id?: string | undefined;
+                                    readonly type?: string | undefined;
+                                    readonly animated?: boolean | undefined;
+                                }>;
+                                readonly type: {
+                                    readonly const: "nodes.connect";
+                                } & PluginApiSchemaBrand<"nodes.connect">;
+                            };
+                            readonly products?: undefined;
+                            readonly required: readonly ["connection", "type"];
+                            readonly type: "object";
+                        } & PluginApiSchemaBrand<{
+                            readonly connection: {
+                                readonly source: string;
+                                readonly target: string;
                             } & {
-                                readonly layout?: "horizontal" | "vertical" | "grid" | undefined;
-                                readonly gap?: number | undefined;
-                            }>, {
-                                readonly additionalProperties: false;
-                                readonly properties: {
-                                    readonly delta: {
-                                        readonly additionalProperties: false;
-                                        readonly properties: {
-                                            readonly x: {
-                                                readonly finite: true;
-                                                readonly type: "number";
-                                            } & PluginApiSchemaBrand<number>;
-                                            readonly y: {
-                                                readonly finite: true;
-                                                readonly type: "number";
-                                            } & PluginApiSchemaBrand<number>;
-                                        };
-                                        readonly products?: undefined;
-                                        readonly required: readonly ["x", "y"];
-                                        readonly type: "object";
-                                    } & PluginApiSchemaBrand<{
-                                        readonly x: number;
-                                        readonly y: number;
-                                    } & {}>;
-                                    readonly nodeIds: {
-                                        readonly items: {
-                                            readonly controlCharacters: false;
-                                            readonly maxLength: number;
-                                            readonly minLength: number;
-                                            readonly prefix?: string;
-                                            readonly refinement?: PluginApiStringRefinement;
-                                            readonly type: "string";
-                                        } & PluginApiSchemaBrand<string>;
-                                        readonly maxItems: number;
-                                        readonly minItems: number;
-                                        readonly type: "array";
-                                        readonly uniqueBy?: string;
-                                    } & PluginApiSchemaBrand<readonly string[]>;
-                                    readonly type: {
-                                        readonly const: "nodes.move";
-                                    } & PluginApiSchemaBrand<"nodes.move">;
-                                };
-                                readonly products?: undefined;
-                                readonly required: readonly ["delta", "nodeIds", "type"];
-                                readonly type: "object";
-                            } & PluginApiSchemaBrand<{
-                                readonly type: "nodes.move";
-                                readonly nodeIds: readonly string[];
+                                readonly id?: string | undefined;
+                                readonly type?: string | undefined;
+                                readonly animated?: boolean | undefined;
+                            };
+                            readonly type: "nodes.connect";
+                        } & {}>, {
+                            readonly additionalProperties: false;
+                            readonly properties: {
+                                readonly axis: {
+                                    readonly controlCharacters: false;
+                                    readonly enum: readonly ["horizontal", "vertical"];
+                                    readonly maxLength: number;
+                                    readonly minLength: 1;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<"horizontal" | "vertical">;
+                                readonly nodeIds: {
+                                    readonly items: {
+                                        readonly controlCharacters: false;
+                                        readonly maxLength: number;
+                                        readonly minLength: number;
+                                        readonly prefix?: string;
+                                        readonly refinement?: PluginApiStringRefinement;
+                                        readonly type: "string";
+                                    } & PluginApiSchemaBrand<string>;
+                                    readonly maxItems: number;
+                                    readonly minItems: number;
+                                    readonly type: "array";
+                                    readonly uniqueBy?: string;
+                                } & PluginApiSchemaBrand<readonly string[]>;
+                                readonly type: {
+                                    readonly const: "nodes.distribute";
+                                } & PluginApiSchemaBrand<"nodes.distribute">;
+                            };
+                            readonly products?: undefined;
+                            readonly required: readonly ["axis", "nodeIds", "type"];
+                            readonly type: "object";
+                        } & PluginApiSchemaBrand<{
+                            readonly type: "nodes.distribute";
+                            readonly nodeIds: readonly string[];
+                            readonly axis: "horizontal" | "vertical";
+                        } & {}>, {
+                            readonly additionalProperties: false;
+                            readonly properties: {
+                                readonly label: {
+                                    readonly controlCharacters: false;
+                                    readonly maxLength: number;
+                                    readonly minLength: number;
+                                    readonly prefix?: string;
+                                    readonly refinement?: PluginApiStringRefinement;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<string>;
+                                readonly nodeIds: {
+                                    readonly items: {
+                                        readonly controlCharacters: false;
+                                        readonly maxLength: number;
+                                        readonly minLength: number;
+                                        readonly prefix?: string;
+                                        readonly refinement?: PluginApiStringRefinement;
+                                        readonly type: "string";
+                                    } & PluginApiSchemaBrand<string>;
+                                    readonly maxItems: number;
+                                    readonly minItems: number;
+                                    readonly type: "array";
+                                    readonly uniqueBy?: string;
+                                } & PluginApiSchemaBrand<readonly string[]>;
+                                readonly type: {
+                                    readonly const: "nodes.group";
+                                } & PluginApiSchemaBrand<"nodes.group">;
+                            };
+                            readonly products?: undefined;
+                            readonly required: readonly ["nodeIds", "type"];
+                            readonly type: "object";
+                        } & PluginApiSchemaBrand<{
+                            readonly type: "nodes.group";
+                            readonly nodeIds: readonly string[];
+                        } & {
+                            readonly label?: string | undefined;
+                        }>, {
+                            readonly additionalProperties: false;
+                            readonly properties: {
+                                readonly gap: {
+                                    readonly finite: true;
+                                    readonly type: "number";
+                                } & PluginApiSchemaBrand<number>;
+                                readonly layout: {
+                                    readonly controlCharacters: false;
+                                    readonly enum: readonly ["grid", "horizontal", "vertical"];
+                                    readonly maxLength: number;
+                                    readonly minLength: 1;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<"horizontal" | "vertical" | "grid">;
+                                readonly nodeIds: {
+                                    readonly items: {
+                                        readonly controlCharacters: false;
+                                        readonly maxLength: number;
+                                        readonly minLength: number;
+                                        readonly prefix?: string;
+                                        readonly refinement?: PluginApiStringRefinement;
+                                        readonly type: "string";
+                                    } & PluginApiSchemaBrand<string>;
+                                    readonly maxItems: number;
+                                    readonly minItems: number;
+                                    readonly type: "array";
+                                    readonly uniqueBy?: string;
+                                } & PluginApiSchemaBrand<readonly string[]>;
+                                readonly type: {
+                                    readonly const: "nodes.layout";
+                                } & PluginApiSchemaBrand<"nodes.layout">;
+                            };
+                            readonly products?: undefined;
+                            readonly required: readonly ["nodeIds", "type"];
+                            readonly type: "object";
+                        } & PluginApiSchemaBrand<{
+                            readonly type: "nodes.layout";
+                            readonly nodeIds: readonly string[];
+                        } & {
+                            readonly layout?: "horizontal" | "vertical" | "grid" | undefined;
+                            readonly gap?: number | undefined;
+                        }>, {
+                            readonly additionalProperties: false;
+                            readonly properties: {
                                 readonly delta: {
+                                    readonly additionalProperties: false;
+                                    readonly properties: {
+                                        readonly x: {
+                                            readonly finite: true;
+                                            readonly type: "number";
+                                        } & PluginApiSchemaBrand<number>;
+                                        readonly y: {
+                                            readonly finite: true;
+                                            readonly type: "number";
+                                        } & PluginApiSchemaBrand<number>;
+                                    };
+                                    readonly products?: undefined;
+                                    readonly required: readonly ["x", "y"];
+                                    readonly type: "object";
+                                } & PluginApiSchemaBrand<{
                                     readonly x: number;
                                     readonly y: number;
-                                } & {};
-                            } & {}>, {
-                                readonly additionalProperties: false;
-                                readonly properties: {
-                                    readonly type: {
-                                        readonly const: "nodes.setGeometry";
-                                    } & PluginApiSchemaBrand<"nodes.setGeometry">;
-                                    readonly updates: {
-                                        readonly items: {
-                                            readonly additionalProperties: false;
-                                            readonly properties: {
-                                                readonly nodeId: {
-                                                    readonly controlCharacters: false;
-                                                    readonly maxLength: number;
-                                                    readonly minLength: number;
-                                                    readonly prefix?: string;
-                                                    readonly refinement?: PluginApiStringRefinement;
-                                                    readonly type: "string";
-                                                } & PluginApiSchemaBrand<string>;
-                                                readonly position: {
-                                                    readonly additionalProperties: false;
-                                                    readonly properties: {
-                                                        readonly x: {
-                                                            readonly finite: true;
-                                                            readonly type: "number";
-                                                        } & PluginApiSchemaBrand<number>;
-                                                        readonly y: {
-                                                            readonly finite: true;
-                                                            readonly type: "number";
-                                                        } & PluginApiSchemaBrand<number>;
-                                                    };
-                                                    readonly products?: undefined;
-                                                    readonly required: readonly ["x", "y"];
-                                                    readonly type: "object";
-                                                } & PluginApiSchemaBrand<{
-                                                    readonly x: number;
-                                                    readonly y: number;
-                                                } & {}>;
-                                                readonly size: {
-                                                    readonly additionalProperties: false;
-                                                    readonly properties: {
-                                                        readonly height: {
-                                                            readonly finite: true;
-                                                            readonly type: "number";
-                                                        } & PluginApiSchemaBrand<number>;
-                                                        readonly width: {
-                                                            readonly finite: true;
-                                                            readonly type: "number";
-                                                        } & PluginApiSchemaBrand<number>;
-                                                    };
-                                                    readonly products?: undefined;
-                                                    readonly required: readonly ["height", "width"];
-                                                    readonly type: "object";
-                                                } & PluginApiSchemaBrand<{
-                                                    readonly height: number;
-                                                    readonly width: number;
-                                                } & {}>;
-                                            };
-                                            readonly products?: undefined;
-                                            readonly required: readonly ["nodeId", "position"];
-                                            readonly type: "object";
-                                        } & PluginApiSchemaBrand<{
+                                } & {}>;
+                                readonly nodeIds: {
+                                    readonly items: {
+                                        readonly controlCharacters: false;
+                                        readonly maxLength: number;
+                                        readonly minLength: number;
+                                        readonly prefix?: string;
+                                        readonly refinement?: PluginApiStringRefinement;
+                                        readonly type: "string";
+                                    } & PluginApiSchemaBrand<string>;
+                                    readonly maxItems: number;
+                                    readonly minItems: number;
+                                    readonly type: "array";
+                                    readonly uniqueBy?: string;
+                                } & PluginApiSchemaBrand<readonly string[]>;
+                                readonly type: {
+                                    readonly const: "nodes.move";
+                                } & PluginApiSchemaBrand<"nodes.move">;
+                            };
+                            readonly products?: undefined;
+                            readonly required: readonly ["delta", "nodeIds", "type"];
+                            readonly type: "object";
+                        } & PluginApiSchemaBrand<{
+                            readonly type: "nodes.move";
+                            readonly nodeIds: readonly string[];
+                            readonly delta: {
+                                readonly x: number;
+                                readonly y: number;
+                            } & {};
+                        } & {}>, {
+                            readonly additionalProperties: false;
+                            readonly properties: {
+                                readonly type: {
+                                    readonly const: "nodes.setGeometry";
+                                } & PluginApiSchemaBrand<"nodes.setGeometry">;
+                                readonly updates: {
+                                    readonly items: {
+                                        readonly additionalProperties: false;
+                                        readonly properties: {
+                                            readonly nodeId: {
+                                                readonly controlCharacters: false;
+                                                readonly maxLength: number;
+                                                readonly minLength: number;
+                                                readonly prefix?: string;
+                                                readonly refinement?: PluginApiStringRefinement;
+                                                readonly type: "string";
+                                            } & PluginApiSchemaBrand<string>;
                                             readonly position: {
+                                                readonly additionalProperties: false;
+                                                readonly properties: {
+                                                    readonly x: {
+                                                        readonly finite: true;
+                                                        readonly type: "number";
+                                                    } & PluginApiSchemaBrand<number>;
+                                                    readonly y: {
+                                                        readonly finite: true;
+                                                        readonly type: "number";
+                                                    } & PluginApiSchemaBrand<number>;
+                                                };
+                                                readonly products?: undefined;
+                                                readonly required: readonly ["x", "y"];
+                                                readonly type: "object";
+                                            } & PluginApiSchemaBrand<{
                                                 readonly x: number;
                                                 readonly y: number;
-                                            } & {};
-                                            readonly nodeId: string;
-                                        } & {
-                                            readonly size?: ({
+                                            } & {}>;
+                                            readonly size: {
+                                                readonly additionalProperties: false;
+                                                readonly properties: {
+                                                    readonly height: {
+                                                        readonly finite: true;
+                                                        readonly type: "number";
+                                                    } & PluginApiSchemaBrand<number>;
+                                                    readonly width: {
+                                                        readonly finite: true;
+                                                        readonly type: "number";
+                                                    } & PluginApiSchemaBrand<number>;
+                                                };
+                                                readonly products?: undefined;
+                                                readonly required: readonly ["height", "width"];
+                                                readonly type: "object";
+                                            } & PluginApiSchemaBrand<{
                                                 readonly height: number;
                                                 readonly width: number;
-                                            } & {}) | undefined;
-                                        }>;
-                                        readonly maxItems: number;
-                                        readonly minItems: number;
-                                        readonly type: "array";
-                                        readonly uniqueBy?: string;
-                                    } & PluginApiSchemaBrand<readonly ({
+                                            } & {}>;
+                                        };
+                                        readonly products?: undefined;
+                                        readonly required: readonly ["nodeId", "position"];
+                                        readonly type: "object";
+                                    } & PluginApiSchemaBrand<{
                                         readonly position: {
                                             readonly x: number;
                                             readonly y: number;
@@ -3326,14 +4897,12 @@ export declare const pluginApiWireContracts: Readonly<{
                                             readonly height: number;
                                             readonly width: number;
                                         } & {}) | undefined;
-                                    })[]>;
-                                };
-                                readonly products?: undefined;
-                                readonly required: readonly ["type", "updates"];
-                                readonly type: "object";
-                            } & PluginApiSchemaBrand<{
-                                readonly type: "nodes.setGeometry";
-                                readonly updates: readonly ({
+                                    }>;
+                                    readonly maxItems: number;
+                                    readonly minItems: number;
+                                    readonly type: "array";
+                                    readonly uniqueBy?: string;
+                                } & PluginApiSchemaBrand<readonly ({
                                     readonly position: {
                                         readonly x: number;
                                         readonly y: number;
@@ -3344,164 +4913,12 @@ export declare const pluginApiWireContracts: Readonly<{
                                         readonly height: number;
                                         readonly width: number;
                                     } & {}) | undefined;
-                                })[];
-                            } & {}>, {
-                                readonly additionalProperties: false;
-                                readonly properties: {
-                                    readonly nodeId: {
-                                        readonly controlCharacters: false;
-                                        readonly maxLength: number;
-                                        readonly minLength: number;
-                                        readonly prefix?: string;
-                                        readonly refinement?: PluginApiStringRefinement;
-                                        readonly type: "string";
-                                    } & PluginApiSchemaBrand<string>;
-                                    readonly type: {
-                                        readonly const: "nodes.ungroup";
-                                    } & PluginApiSchemaBrand<"nodes.ungroup">;
-                                };
-                                readonly products?: undefined;
-                                readonly required: readonly ["nodeId", "type"];
-                                readonly type: "object";
-                            } & PluginApiSchemaBrand<{
-                                readonly type: "nodes.ungroup";
-                                readonly nodeId: string;
-                            } & {}>, {
-                                readonly additionalProperties: false;
-                                readonly properties: {
-                                    readonly nodeIds: {
-                                        readonly items: {
-                                            readonly controlCharacters: false;
-                                            readonly maxLength: number;
-                                            readonly minLength: number;
-                                            readonly prefix?: string;
-                                            readonly refinement?: PluginApiStringRefinement;
-                                            readonly type: "string";
-                                        } & PluginApiSchemaBrand<string>;
-                                        readonly maxItems: number;
-                                        readonly minItems: number;
-                                        readonly type: "array";
-                                        readonly uniqueBy?: string;
-                                    } & PluginApiSchemaBrand<readonly string[]>;
-                                    readonly options: {
-                                        readonly additionalProperties: false;
-                                        readonly properties: {
-                                            readonly componentGap: {
-                                                readonly finite: true;
-                                                readonly type: "number";
-                                            } & PluginApiSchemaBrand<number>;
-                                            readonly componentPackingScale: {
-                                                readonly finite: true;
-                                                readonly type: "number";
-                                            } & PluginApiSchemaBrand<number>;
-                                            readonly crossGap: {
-                                                readonly finite: true;
-                                                readonly type: "number";
-                                            } & PluginApiSchemaBrand<number>;
-                                            readonly isolatedPlacement: {
-                                                readonly controlCharacters: false;
-                                                readonly enum: readonly ["left", "preserve"];
-                                                readonly maxLength: number;
-                                                readonly minLength: 1;
-                                                readonly type: "string";
-                                            } & PluginApiSchemaBrand<"left" | "preserve">;
-                                            readonly mainGap: {
-                                                readonly finite: true;
-                                                readonly type: "number";
-                                            } & PluginApiSchemaBrand<number>;
-                                            readonly nodeGap: {
-                                                readonly finite: true;
-                                                readonly type: "number";
-                                            } & PluginApiSchemaBrand<number>;
-                                            readonly nodePackingScale: {
-                                                readonly finite: true;
-                                                readonly type: "number";
-                                            } & PluginApiSchemaBrand<number>;
-                                            readonly strategy: {
-                                                readonly controlCharacters: false;
-                                                readonly enum: readonly ["component-packing", "horizontal-directed-cluster", "vertical-directed-cluster"];
-                                                readonly maxLength: number;
-                                                readonly minLength: 1;
-                                                readonly type: "string";
-                                            } & PluginApiSchemaBrand<"component-packing" | "horizontal-directed-cluster" | "vertical-directed-cluster">;
-                                        };
-                                        readonly products?: undefined;
-                                        readonly required: readonly [];
-                                        readonly type: "object";
-                                    } & PluginApiSchemaBrand<{} & {
-                                        readonly isolatedPlacement?: "left" | "preserve" | undefined;
-                                        readonly strategy?: "component-packing" | "horizontal-directed-cluster" | "vertical-directed-cluster" | undefined;
-                                        readonly componentGap?: number | undefined;
-                                        readonly componentPackingScale?: number | undefined;
-                                        readonly crossGap?: number | undefined;
-                                        readonly mainGap?: number | undefined;
-                                        readonly nodeGap?: number | undefined;
-                                        readonly nodePackingScale?: number | undefined;
-                                    }>;
-                                    readonly type: {
-                                        readonly const: "canvas.auto-layout";
-                                    } & PluginApiSchemaBrand<"canvas.auto-layout">;
-                                };
-                                readonly products?: undefined;
-                                readonly required: readonly ["type"];
-                                readonly type: "object";
-                            } & PluginApiSchemaBrand<{
-                                readonly type: "canvas.auto-layout";
-                            } & {
-                                readonly nodeIds?: readonly string[] | undefined;
-                                readonly options?: ({} & {
-                                    readonly isolatedPlacement?: "left" | "preserve" | undefined;
-                                    readonly strategy?: "component-packing" | "horizontal-directed-cluster" | "vertical-directed-cluster" | undefined;
-                                    readonly componentGap?: number | undefined;
-                                    readonly componentPackingScale?: number | undefined;
-                                    readonly crossGap?: number | undefined;
-                                    readonly mainGap?: number | undefined;
-                                    readonly nodeGap?: number | undefined;
-                                    readonly nodePackingScale?: number | undefined;
-                                }) | undefined;
-                            }>];
-                        } & PluginApiSchemaBrand<({
-                            readonly type: "elements.remove";
-                        } & {
-                            readonly edgeIds?: readonly string[] | undefined;
-                            readonly nodeIds?: readonly string[] | undefined;
-                        }) | ({
-                            readonly type: "nodes.align";
-                            readonly nodeIds: readonly string[];
-                            readonly direction: "left" | "center" | "right" | "top" | "middle" | "bottom";
-                        } & {}) | ({
-                            readonly connection: {
-                                readonly source: string;
-                                readonly target: string;
-                            } & {
-                                readonly id?: string | undefined;
-                                readonly type?: string | undefined;
-                                readonly animated?: boolean | undefined;
+                                })[]>;
                             };
-                            readonly type: "nodes.connect";
-                        } & {}) | ({
-                            readonly type: "nodes.distribute";
-                            readonly nodeIds: readonly string[];
-                            readonly axis: "horizontal" | "vertical";
-                        } & {}) | ({
-                            readonly type: "nodes.group";
-                            readonly nodeIds: readonly string[];
-                        } & {
-                            readonly label?: string | undefined;
-                        }) | ({
-                            readonly type: "nodes.layout";
-                            readonly nodeIds: readonly string[];
-                        } & {
-                            readonly layout?: "horizontal" | "vertical" | "grid" | undefined;
-                            readonly gap?: number | undefined;
-                        }) | ({
-                            readonly type: "nodes.move";
-                            readonly nodeIds: readonly string[];
-                            readonly delta: {
-                                readonly x: number;
-                                readonly y: number;
-                            } & {};
-                        } & {}) | ({
+                            readonly products?: undefined;
+                            readonly required: readonly ["type", "updates"];
+                            readonly type: "object";
+                        } & PluginApiSchemaBrand<{
                             readonly type: "nodes.setGeometry";
                             readonly updates: readonly ({
                                 readonly position: {
@@ -3515,10 +4932,107 @@ export declare const pluginApiWireContracts: Readonly<{
                                     readonly width: number;
                                 } & {}) | undefined;
                             })[];
-                        } & {}) | ({
+                        } & {}>, {
+                            readonly additionalProperties: false;
+                            readonly properties: {
+                                readonly nodeId: {
+                                    readonly controlCharacters: false;
+                                    readonly maxLength: number;
+                                    readonly minLength: number;
+                                    readonly prefix?: string;
+                                    readonly refinement?: PluginApiStringRefinement;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<string>;
+                                readonly type: {
+                                    readonly const: "nodes.ungroup";
+                                } & PluginApiSchemaBrand<"nodes.ungroup">;
+                            };
+                            readonly products?: undefined;
+                            readonly required: readonly ["nodeId", "type"];
+                            readonly type: "object";
+                        } & PluginApiSchemaBrand<{
                             readonly type: "nodes.ungroup";
                             readonly nodeId: string;
-                        } & {}) | ({
+                        } & {}>, {
+                            readonly additionalProperties: false;
+                            readonly properties: {
+                                readonly nodeIds: {
+                                    readonly items: {
+                                        readonly controlCharacters: false;
+                                        readonly maxLength: number;
+                                        readonly minLength: number;
+                                        readonly prefix?: string;
+                                        readonly refinement?: PluginApiStringRefinement;
+                                        readonly type: "string";
+                                    } & PluginApiSchemaBrand<string>;
+                                    readonly maxItems: number;
+                                    readonly minItems: number;
+                                    readonly type: "array";
+                                    readonly uniqueBy?: string;
+                                } & PluginApiSchemaBrand<readonly string[]>;
+                                readonly options: {
+                                    readonly additionalProperties: false;
+                                    readonly properties: {
+                                        readonly componentGap: {
+                                            readonly finite: true;
+                                            readonly type: "number";
+                                        } & PluginApiSchemaBrand<number>;
+                                        readonly componentPackingScale: {
+                                            readonly finite: true;
+                                            readonly type: "number";
+                                        } & PluginApiSchemaBrand<number>;
+                                        readonly crossGap: {
+                                            readonly finite: true;
+                                            readonly type: "number";
+                                        } & PluginApiSchemaBrand<number>;
+                                        readonly isolatedPlacement: {
+                                            readonly controlCharacters: false;
+                                            readonly enum: readonly ["left", "preserve"];
+                                            readonly maxLength: number;
+                                            readonly minLength: 1;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<"left" | "preserve">;
+                                        readonly mainGap: {
+                                            readonly finite: true;
+                                            readonly type: "number";
+                                        } & PluginApiSchemaBrand<number>;
+                                        readonly nodeGap: {
+                                            readonly finite: true;
+                                            readonly type: "number";
+                                        } & PluginApiSchemaBrand<number>;
+                                        readonly nodePackingScale: {
+                                            readonly finite: true;
+                                            readonly type: "number";
+                                        } & PluginApiSchemaBrand<number>;
+                                        readonly strategy: {
+                                            readonly controlCharacters: false;
+                                            readonly enum: readonly ["component-packing", "horizontal-directed-cluster", "vertical-directed-cluster"];
+                                            readonly maxLength: number;
+                                            readonly minLength: 1;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<"component-packing" | "horizontal-directed-cluster" | "vertical-directed-cluster">;
+                                    };
+                                    readonly products?: undefined;
+                                    readonly required: readonly [];
+                                    readonly type: "object";
+                                } & PluginApiSchemaBrand<{} & {
+                                    readonly isolatedPlacement?: "left" | "preserve" | undefined;
+                                    readonly strategy?: "component-packing" | "horizontal-directed-cluster" | "vertical-directed-cluster" | undefined;
+                                    readonly componentGap?: number | undefined;
+                                    readonly componentPackingScale?: number | undefined;
+                                    readonly crossGap?: number | undefined;
+                                    readonly mainGap?: number | undefined;
+                                    readonly nodeGap?: number | undefined;
+                                    readonly nodePackingScale?: number | undefined;
+                                }>;
+                                readonly type: {
+                                    readonly const: "canvas.auto-layout";
+                                } & PluginApiSchemaBrand<"canvas.auto-layout">;
+                            };
+                            readonly products?: undefined;
+                            readonly required: readonly ["type"];
+                            readonly type: "object";
+                        } & PluginApiSchemaBrand<{
                             readonly type: "canvas.auto-layout";
                         } & {
                             readonly nodeIds?: readonly string[] | undefined;
@@ -3532,12 +5046,8 @@ export declare const pluginApiWireContracts: Readonly<{
                                 readonly nodeGap?: number | undefined;
                                 readonly nodePackingScale?: number | undefined;
                             }) | undefined;
-                        })>;
-                        readonly maxItems: number;
-                        readonly minItems: number;
-                        readonly type: "array";
-                        readonly uniqueBy?: string;
-                    } & PluginApiSchemaBrand<readonly (({
+                        }>];
+                    } & PluginApiSchemaBrand<({
                         readonly type: "elements.remove";
                     } & {
                         readonly edgeIds?: readonly string[] | undefined;
@@ -3609,12 +5119,15 @@ export declare const pluginApiWireContracts: Readonly<{
                             readonly nodeGap?: number | undefined;
                             readonly nodePackingScale?: number | undefined;
                         }) | undefined;
-                    }))[]>;
-                    readonly expectedRevision: {
-                        readonly finite: true;
-                        readonly minimum: 0;
-                        readonly type: "integer";
-                    } & PluginApiSchemaBrand<number>;
+                    })>;
+                    readonly commandId: {
+                        readonly controlCharacters: false;
+                        readonly maxLength: number;
+                        readonly minLength: number;
+                        readonly prefix?: string;
+                        readonly refinement?: PluginApiStringRefinement;
+                        readonly type: "string";
+                    } & PluginApiSchemaBrand<string>;
                     readonly ref: {
                         readonly additionalProperties: false;
                         readonly properties: {
@@ -3642,24 +5155,16 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly canvasId: string;
                         readonly projectId: string;
                     } & {}>;
-                    readonly transactionId: {
-                        readonly controlCharacters: false;
-                        readonly maxLength: number;
-                        readonly minLength: number;
-                        readonly prefix?: string;
-                        readonly refinement?: PluginApiStringRefinement;
-                        readonly type: "string";
-                    } & PluginApiSchemaBrand<string>;
                 };
-                readonly products?: readonly PluginApiWireProductConstraint<"ref" | "commands" | "expectedRevision" | "transactionId">[] | undefined;
-                readonly required: readonly ["commands", "expectedRevision", "ref", "transactionId"];
+                readonly products?: readonly PluginApiWireProductConstraint<"ref" | "command" | "commandId">[] | undefined;
+                readonly required: readonly ["command", "commandId", "ref"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
                 readonly ref: {
                     readonly canvasId: string;
                     readonly projectId: string;
                 } & {};
-                readonly commands: readonly (({
+                readonly command: ({
                     readonly type: "elements.remove";
                 } & {
                     readonly edgeIds?: readonly string[] | undefined;
@@ -3731,9 +5236,8 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly nodeGap?: number | undefined;
                         readonly nodePackingScale?: number | undefined;
                     }) | undefined;
-                }))[];
-                readonly expectedRevision: number;
-                readonly transactionId: string;
+                });
+                readonly commandId: string;
             } & {}>;
         };
         readonly result: {
@@ -3772,6 +5276,468 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly type: "array";
                         readonly uniqueBy?: string;
                     } & PluginApiSchemaBrand<readonly string[]>;
+                    readonly operationReceipt: {
+                        readonly additionalProperties: false;
+                        readonly properties: {
+                            readonly actorId: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly baseFrontierDigest: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly format: {
+                                readonly const: "convax.canvas-operation-receipt/2";
+                            } & PluginApiSchemaBrand<"convax.canvas-operation-receipt/2">;
+                            readonly historyMaterialDigest: {
+                                readonly oneOf: readonly [{
+                                    readonly type: "null";
+                                } & PluginApiSchemaBrand<null>, {
+                                    readonly controlCharacters: false;
+                                    readonly maxLength: number;
+                                    readonly minLength: number;
+                                    readonly prefix?: string;
+                                    readonly refinement?: PluginApiStringRefinement;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<string>];
+                            } & PluginApiSchemaBrand<string | null>;
+                            readonly intentDigest: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly intentKind: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly operationId: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly resultEntities: {
+                                readonly items: {
+                                    readonly additionalProperties: false;
+                                    readonly properties: {
+                                        readonly id: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly incarnation: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly kind: {
+                                            readonly controlCharacters: false;
+                                            readonly enum: readonly ["node", "edge"];
+                                            readonly maxLength: number;
+                                            readonly minLength: 1;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<"node" | "edge">;
+                                    };
+                                    readonly products?: readonly PluginApiWireProductConstraint<"id" | "kind" | "incarnation">[] | undefined;
+                                    readonly required: readonly ["id", "incarnation", "kind"];
+                                    readonly type: "object";
+                                } & PluginApiSchemaBrand<{
+                                    readonly id: string;
+                                    readonly kind: "node" | "edge";
+                                    readonly incarnation: string;
+                                } & {}>;
+                                readonly maxItems: number;
+                                readonly minItems: number;
+                                readonly type: "array";
+                                readonly uniqueBy?: string;
+                            } & PluginApiSchemaBrand<readonly ({
+                                readonly id: string;
+                                readonly kind: "node" | "edge";
+                                readonly incarnation: string;
+                            } & {})[]>;
+                            readonly semanticRoot: {
+                                readonly type: "boolean";
+                            } & PluginApiSchemaBrand<boolean>;
+                        };
+                        readonly products?: undefined;
+                        readonly required: readonly ["actorId", "baseFrontierDigest", "format", "historyMaterialDigest", "intentDigest", "intentKind", "operationId", "resultEntities", "semanticRoot"];
+                        readonly type: "object";
+                    } & PluginApiSchemaBrand<{
+                        readonly format: "convax.canvas-operation-receipt/2";
+                        readonly historyMaterialDigest: string | null;
+                        readonly resultEntities: readonly ({
+                            readonly id: string;
+                            readonly kind: "node" | "edge";
+                            readonly incarnation: string;
+                        } & {})[];
+                        readonly actorId: string;
+                        readonly baseFrontierDigest: string;
+                        readonly intentDigest: string;
+                        readonly intentKind: string;
+                        readonly operationId: string;
+                        readonly semanticRoot: boolean;
+                    } & {}>;
+                    readonly projection: {
+                        readonly additionalProperties: false;
+                        readonly properties: {
+                            readonly description: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly edges: {
+                                readonly items: {
+                                    readonly additionalProperties: false;
+                                    readonly properties: {
+                                        readonly id: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly source: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly target: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                    };
+                                    readonly products?: undefined;
+                                    readonly required: readonly ["id", "source", "target"];
+                                    readonly type: "object";
+                                } & PluginApiSchemaBrand<{
+                                    readonly id: string;
+                                    readonly source: string;
+                                    readonly target: string;
+                                } & {}>;
+                                readonly maxItems: number;
+                                readonly minItems: number;
+                                readonly type: "array";
+                                readonly uniqueBy?: string;
+                            } & PluginApiSchemaBrand<readonly ({
+                                readonly id: string;
+                                readonly source: string;
+                                readonly target: string;
+                            } & {})[]>;
+                            readonly id: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                            readonly nodes: {
+                                readonly items: {
+                                    readonly additionalProperties: false;
+                                    readonly properties: {
+                                        readonly description: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly durationMs: {
+                                            readonly finite: true;
+                                            readonly type: "number";
+                                        } & PluginApiSchemaBrand<number>;
+                                        readonly id: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly kind: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly label: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly mimeType: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly name: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly parentId: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly position: {
+                                            readonly additionalProperties: false;
+                                            readonly properties: {
+                                                readonly x: {
+                                                    readonly finite: true;
+                                                    readonly type: "number";
+                                                } & PluginApiSchemaBrand<number>;
+                                                readonly y: {
+                                                    readonly finite: true;
+                                                    readonly type: "number";
+                                                } & PluginApiSchemaBrand<number>;
+                                            };
+                                            readonly products?: undefined;
+                                            readonly required: readonly ["x", "y"];
+                                            readonly type: "object";
+                                        } & PluginApiSchemaBrand<{
+                                            readonly x: number;
+                                            readonly y: number;
+                                        } & {}>;
+                                        readonly resource: {
+                                            readonly additionalProperties: false;
+                                            readonly properties: {
+                                                readonly kind: {
+                                                    readonly const: "project-file";
+                                                } & PluginApiSchemaBrand<"project-file">;
+                                                readonly path: {
+                                                    readonly controlCharacters: false;
+                                                    readonly maxLength: number;
+                                                    readonly minLength: number;
+                                                    readonly prefix?: string;
+                                                    readonly refinement?: PluginApiStringRefinement;
+                                                    readonly type: "string";
+                                                } & PluginApiSchemaBrand<string>;
+                                            };
+                                            readonly products?: readonly PluginApiWireProductConstraint<"kind" | "path">[] | undefined;
+                                            readonly required: readonly ["kind", "path"];
+                                            readonly type: "object";
+                                        } & PluginApiSchemaBrand<{
+                                            readonly kind: "project-file";
+                                            readonly path: string;
+                                        } & {}>;
+                                        readonly size: {
+                                            readonly additionalProperties: false;
+                                            readonly properties: {
+                                                readonly height: {
+                                                    readonly finite: true;
+                                                    readonly type: "number";
+                                                } & PluginApiSchemaBrand<number>;
+                                                readonly width: {
+                                                    readonly finite: true;
+                                                    readonly type: "number";
+                                                } & PluginApiSchemaBrand<number>;
+                                            };
+                                            readonly products?: undefined;
+                                            readonly required: readonly ["height", "width"];
+                                            readonly type: "object";
+                                        } & PluginApiSchemaBrand<{
+                                            readonly height: number;
+                                            readonly width: number;
+                                        } & {}>;
+                                        readonly status: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly text: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                        readonly type: {
+                                            readonly controlCharacters: false;
+                                            readonly maxLength: number;
+                                            readonly minLength: number;
+                                            readonly prefix?: string;
+                                            readonly refinement?: PluginApiStringRefinement;
+                                            readonly type: "string";
+                                        } & PluginApiSchemaBrand<string>;
+                                    };
+                                    readonly products?: undefined;
+                                    readonly required: readonly ["id", "kind", "label", "position", "size"];
+                                    readonly type: "object";
+                                } & PluginApiSchemaBrand<{
+                                    readonly id: string;
+                                    readonly position: {
+                                        readonly x: number;
+                                        readonly y: number;
+                                    } & {};
+                                    readonly size: {
+                                        readonly height: number;
+                                        readonly width: number;
+                                    } & {};
+                                    readonly label: string;
+                                    readonly kind: string;
+                                } & {
+                                    readonly description?: string | undefined;
+                                    readonly type?: string | undefined;
+                                    readonly text?: string | undefined;
+                                    readonly parentId?: string | undefined;
+                                    readonly status?: string | undefined;
+                                    readonly durationMs?: number | undefined;
+                                    readonly mimeType?: string | undefined;
+                                    readonly name?: string | undefined;
+                                    readonly resource?: ({
+                                        readonly kind: "project-file";
+                                        readonly path: string;
+                                    } & {}) | undefined;
+                                }>;
+                                readonly maxItems: number;
+                                readonly minItems: number;
+                                readonly type: "array";
+                                readonly uniqueBy?: string;
+                            } & PluginApiSchemaBrand<readonly ({
+                                readonly id: string;
+                                readonly position: {
+                                    readonly x: number;
+                                    readonly y: number;
+                                } & {};
+                                readonly size: {
+                                    readonly height: number;
+                                    readonly width: number;
+                                } & {};
+                                readonly label: string;
+                                readonly kind: string;
+                            } & {
+                                readonly description?: string | undefined;
+                                readonly type?: string | undefined;
+                                readonly text?: string | undefined;
+                                readonly parentId?: string | undefined;
+                                readonly status?: string | undefined;
+                                readonly durationMs?: number | undefined;
+                                readonly mimeType?: string | undefined;
+                                readonly name?: string | undefined;
+                                readonly resource?: ({
+                                    readonly kind: "project-file";
+                                    readonly path: string;
+                                } & {}) | undefined;
+                            })[]>;
+                            readonly tags: {
+                                readonly items: {
+                                    readonly controlCharacters: false;
+                                    readonly maxLength: number;
+                                    readonly minLength: number;
+                                    readonly prefix?: string;
+                                    readonly refinement?: PluginApiStringRefinement;
+                                    readonly type: "string";
+                                } & PluginApiSchemaBrand<string>;
+                                readonly maxItems: number;
+                                readonly minItems: number;
+                                readonly type: "array";
+                                readonly uniqueBy?: string;
+                            } & PluginApiSchemaBrand<readonly string[]>;
+                            readonly title: {
+                                readonly controlCharacters: false;
+                                readonly maxLength: number;
+                                readonly minLength: number;
+                                readonly prefix?: string;
+                                readonly refinement?: PluginApiStringRefinement;
+                                readonly type: "string";
+                            } & PluginApiSchemaBrand<string>;
+                        };
+                        readonly products?: undefined;
+                        readonly required: readonly ["edges", "id", "nodes", "title"];
+                        readonly type: "object";
+                    } & PluginApiSchemaBrand<{
+                        readonly id: string;
+                        readonly title: string;
+                        readonly edges: readonly ({
+                            readonly id: string;
+                            readonly source: string;
+                            readonly target: string;
+                        } & {})[];
+                        readonly nodes: readonly ({
+                            readonly id: string;
+                            readonly position: {
+                                readonly x: number;
+                                readonly y: number;
+                            } & {};
+                            readonly size: {
+                                readonly height: number;
+                                readonly width: number;
+                            } & {};
+                            readonly label: string;
+                            readonly kind: string;
+                        } & {
+                            readonly description?: string | undefined;
+                            readonly type?: string | undefined;
+                            readonly text?: string | undefined;
+                            readonly parentId?: string | undefined;
+                            readonly status?: string | undefined;
+                            readonly durationMs?: number | undefined;
+                            readonly mimeType?: string | undefined;
+                            readonly name?: string | undefined;
+                            readonly resource?: ({
+                                readonly kind: "project-file";
+                                readonly path: string;
+                            } & {}) | undefined;
+                        })[];
+                    } & {
+                        readonly description?: string | undefined;
+                        readonly tags?: readonly string[] | undefined;
+                    }>;
                     readonly ref: {
                         readonly additionalProperties: false;
                         readonly properties: {
@@ -3799,19 +5765,6 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly canvasId: string;
                         readonly projectId: string;
                     } & {}>;
-                    readonly revision: {
-                        readonly finite: true;
-                        readonly minimum: 0;
-                        readonly type: "integer";
-                    } & PluginApiSchemaBrand<number>;
-                    readonly storageVersion: {
-                        readonly controlCharacters: false;
-                        readonly maxLength: number;
-                        readonly minLength: number;
-                        readonly prefix?: string;
-                        readonly refinement?: PluginApiStringRefinement;
-                        readonly type: "string";
-                    } & PluginApiSchemaBrand<string>;
                     readonly summaryTruncated: {
                         readonly type: "boolean";
                     } & PluginApiSchemaBrand<boolean>;
@@ -3830,18 +5783,69 @@ export declare const pluginApiWireContracts: Readonly<{
                         readonly uniqueBy?: string;
                     } & PluginApiSchemaBrand<readonly string[]>;
                 };
-                readonly products?: readonly PluginApiWireProductConstraint<"revision" | "createdNodeIds" | "warnings" | "ref" | "storageVersion" | "affectedNodeIds" | "changed" | "summaryTruncated">[] | undefined;
-                readonly required: readonly ["affectedNodeIds", "changed", "createdNodeIds", "ref", "revision", "storageVersion", "warnings"];
+                readonly products?: readonly PluginApiWireProductConstraint<"operationReceipt" | "projection" | "createdNodeIds" | "warnings" | "ref" | "affectedNodeIds" | "changed" | "summaryTruncated">[] | undefined;
+                readonly required: readonly ["affectedNodeIds", "changed", "createdNodeIds", "operationReceipt", "projection", "ref", "warnings"];
                 readonly type: "object";
             } & PluginApiSchemaBrand<{
-                readonly revision: number;
+                readonly operationReceipt: {
+                    readonly format: "convax.canvas-operation-receipt/2";
+                    readonly historyMaterialDigest: string | null;
+                    readonly resultEntities: readonly ({
+                        readonly id: string;
+                        readonly kind: "node" | "edge";
+                        readonly incarnation: string;
+                    } & {})[];
+                    readonly actorId: string;
+                    readonly baseFrontierDigest: string;
+                    readonly intentDigest: string;
+                    readonly intentKind: string;
+                    readonly operationId: string;
+                    readonly semanticRoot: boolean;
+                } & {};
+                readonly projection: {
+                    readonly id: string;
+                    readonly title: string;
+                    readonly edges: readonly ({
+                        readonly id: string;
+                        readonly source: string;
+                        readonly target: string;
+                    } & {})[];
+                    readonly nodes: readonly ({
+                        readonly id: string;
+                        readonly position: {
+                            readonly x: number;
+                            readonly y: number;
+                        } & {};
+                        readonly size: {
+                            readonly height: number;
+                            readonly width: number;
+                        } & {};
+                        readonly label: string;
+                        readonly kind: string;
+                    } & {
+                        readonly description?: string | undefined;
+                        readonly type?: string | undefined;
+                        readonly text?: string | undefined;
+                        readonly parentId?: string | undefined;
+                        readonly status?: string | undefined;
+                        readonly durationMs?: number | undefined;
+                        readonly mimeType?: string | undefined;
+                        readonly name?: string | undefined;
+                        readonly resource?: ({
+                            readonly kind: "project-file";
+                            readonly path: string;
+                        } & {}) | undefined;
+                    })[];
+                } & {
+                    readonly description?: string | undefined;
+                    readonly tags?: readonly string[] | undefined;
+                };
                 readonly createdNodeIds: readonly string[];
                 readonly warnings: readonly string[];
                 readonly ref: {
                     readonly canvasId: string;
                     readonly projectId: string;
                 } & {};
-                readonly storageVersion: string;
                 readonly affectedNodeIds: readonly string[];
                 readonly changed: boolean;
             } & {

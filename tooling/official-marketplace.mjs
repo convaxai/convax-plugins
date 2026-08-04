@@ -25,14 +25,14 @@ export function assertOfficialMarketplaceDescriptor(descriptor) {
   }
   exactKeys(descriptor.publisher, ["name"], ["name"], "marketplace.json publisher")
   exactKeys(descriptor.repository, ["owner", "name"], ["owner", "name"], "marketplace.json repository")
-  if (descriptor.repository.owner !== "microvoid" || descriptor.repository.name !== "convax-plugins") {
-    throw new Error("marketplace.json: repository must remain microvoid/convax-plugins")
+  if (descriptor.repository.owner !== "convaxai" || descriptor.repository.name !== "convax-plugins") {
+    throw new Error("marketplace.json: repository must remain convaxai/convax-plugins")
   }
   exactKeys(descriptor.registry, ["v2"], ["v2"], "marketplace.json registry")
   exactKeys(descriptor.registry.v2, ["url"], ["url"], "marketplace.json registry v2")
   if (
     descriptor.registry.v2.url !==
-    "https://microvoid.github.io/convax-plugins/registry/v2/index.json"
+    "https://convaxai.github.io/convax-plugins/registry/v2/index.json"
   ) {
     throw new Error("marketplace.json: Registry v2 URL must remain on the Official Pages origin")
   }
@@ -40,7 +40,7 @@ export function assertOfficialMarketplaceDescriptor(descriptor) {
   exactKeys(descriptor.showcase.v2, ["url"], ["url"], "marketplace.json showcase v2")
   if (
     descriptor.showcase.v2.url !==
-    "https://microvoid.github.io/convax-plugins/showcase/v2/index.json"
+    "https://convaxai.github.io/convax-plugins/showcase/v2/index.json"
   ) {
     throw new Error("marketplace.json: Showcase v2 URL must remain on the Official Pages origin")
   }

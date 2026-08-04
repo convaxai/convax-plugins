@@ -1,6 +1,6 @@
 export const MAX_SELECTED_PRESETS = 6
 export const MIN_SELECTED_PRESETS = 2
-export const STATE_SCHEMA_VERSION = 4
+export const STATE_SCHEMA_VERSION = 5
 
 export const ANGLE_PRESETS = Object.freeze([
   { id: "front", label: "正面", shortLabel: "Front", prompt: "eye-level front view, camera centered on the subject" },
@@ -79,14 +79,19 @@ export function normalizeGenerationResult(value, presetIds, completedAt) {
   if (!isRecord(value) || normalizedPresetIds.length < MIN_SELECTED_PRESETS) throw new Error("生成结果无效")
   const createdNodeIds = normalizedNodeIds(value.createdNodeIds)
   const toolId = safeId(value.toolId, 256)
-  if (createdNodeIds.length === 0 || !toolId || !Number.isSafeInteger(value.revision) || value.revision < 0) {
+  if (
+    createdNodeIds.length === 0 ||
+    !toolId ||
+    !Array.isArray(value.warnings) ||
+    !Object.prototype.hasOwnProperty.call(value, "operationReceipt") ||
+    !Object.prototype.hasOwnProperty.call(value, "projection")
+  ) {
     throw new Error("生成结果无效")
   }
   return {
     completedAt: safeText(completedAt, 64),
     createdNodeIds,
     presetIds: normalizedPresetIds,
-    revision: value.revision,
     toolId,
     warnings: normalizedWarnings(value.warnings),
   }
@@ -94,10 +99,21 @@ export function normalizeGenerationResult(value, presetIds, completedAt) {
 
 function normalizePersistedResult(value) {
   if (!isRecord(value)) return null
-  try {
-    return normalizeGenerationResult(value, value.presetIds, value.completedAt)
-  } catch {
-    return null
+  const presetIds = uniquePresetIds(value.presetIds)
+  const createdNodeIds = normalizedNodeIds(value.createdNodeIds)
+  const toolId = safeId(value.toolId, 256)
+  if (
+    presetIds.length < MIN_SELECTED_PRESETS ||
+    createdNodeIds.length === 0 ||
+    !toolId ||
+    !Array.isArray(value.warnings)
+  ) return null
+  return {
+    completedAt: safeText(value.completedAt, 64),
+    createdNodeIds,
+    presetIds,
+    toolId,
+    warnings: normalizedWarnings(value.warnings),
   }
 }
 
@@ -159,7 +175,7 @@ function migrateLegacyState(value) {
     notes: safeText(value.notes, 1000),
     selectedPresetIds: selectedPresetIds.length ? selectedPresetIds : fallback.selectedPresetIds,
     // The retired field was ambiguously named and may contain a historical
-    // node id. Never promote it into an API 2 opaque input capability.
+    // node id. Never promote it into an opaque input capability.
     sourceInputKey: null,
     subjectType: SUBJECT_IDS.has(value.subjectType) ? value.subjectType : fallback.subjectType,
     toolId: safeId(value.toolId, 256),
@@ -170,6 +186,12 @@ export function hydratePluginState(value) {
   if (value === null || value === undefined) return { source: "empty", state: createDefaultState() }
   if (!isRecord(value)) return { source: "unsupported", state: createDefaultState() }
   if (value.schemaVersion === STATE_SCHEMA_VERSION) return { source: "current", state: hydrateCurrentState(value) }
+  if (value.schemaVersion === 4) {
+    // API 2 persisted one document-wide revision beside the generated node ids.
+    // API 3 removed that global authority. Preserve the portable state and node
+    // ids while normalizing the result into the API 3 summary shape.
+    return { source: "legacy", state: hydrateCurrentState(value) }
+  }
   if (value.schemaVersion === 1 || value.schemaVersion === 2 || value.schemaVersion === 3) {
     return { source: "legacy", state: migrateLegacyState(value) }
   }

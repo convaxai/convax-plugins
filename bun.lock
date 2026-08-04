@@ -16,25 +16,25 @@
     },
     "packages/plugins/chatcut": {
       "name": "@microvoid/convax-plugin-chatcut",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "dependencies": {
         "@microvoid/convax-chatcut-media-import-mcp": "workspace:*",
         "@microvoid/convax-skill-chatcut": "workspace:*",
       },
       "devDependencies": {
-        "@convax/plugin-sdk": "0.1.0",
+        "@convax/plugin-sdk": "0.1.1",
       },
     },
     "packages/plugins/codex-service": {
       "name": "@microvoid/convax-plugin-codex-service",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@microvoid/convax-codex-mcp": "workspace:*",
       },
     },
     "packages/plugins/convax-pet": {
       "name": "@microvoid/convax-plugin-convax-pet",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "devDependencies": {
         "@convax/plugin-sdk": "0.1.1",
         "@convax/plugin-ui": "0.1.0",
@@ -42,14 +42,14 @@
     },
     "packages/plugins/cutout-studio": {
       "name": "@microvoid/convax-plugin-cutout-studio",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "dependencies": {
         "@microvoid/convax-cutout-mcp": "workspace:*",
       },
     },
     "packages/plugins/ffmpeg-tools": {
       "name": "@microvoid/convax-plugin-ffmpeg-tools",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "dependencies": {
         "@microvoid/convax-ffmpeg-mcp": "workspace:*",
         "@microvoid/convax-skill-ffmpeg-canvas": "workspace:*",
@@ -57,54 +57,54 @@
     },
     "packages/plugins/hello-convax": {
       "name": "@microvoid/convax-plugin-hello-convax",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@microvoid/convax-skill-hello-convax-guide": "workspace:*",
       },
       "devDependencies": {
-        "@convax/plugin-sdk": "0.1.0",
+        "@convax/plugin-sdk": "0.1.1",
       },
     },
     "packages/plugins/jianying-editor": {
       "name": "@microvoid/convax-plugin-jianying-editor",
-      "version": "3.0.0",
+      "version": "3.0.1",
       "dependencies": {
         "@microvoid/convax-jianying-editor-mcp": "workspace:*",
         "@microvoid/convax-skill-jianying-editor": "workspace:*",
       },
       "devDependencies": {
-        "@convax/plugin-sdk": "0.1.0",
+        "@convax/plugin-sdk": "0.1.1",
       },
     },
     "packages/plugins/multi-angle": {
       "name": "@microvoid/convax-plugin-multi-angle",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "devDependencies": {
-        "@convax/plugin-sdk": "0.1.0",
+        "@convax/plugin-sdk": "0.1.1",
       },
     },
     "packages/plugins/nexus-service": {
       "name": "@microvoid/convax-plugin-nexus-service",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "dependencies": {
         "@microvoid/convax-nexus-mcp": "workspace:*",
       },
     },
     "packages/plugins/panorama-viewer": {
       "name": "@microvoid/convax-plugin-panorama-viewer",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "devDependencies": {
-        "@convax/plugin-sdk": "0.1.0",
+        "@convax/plugin-sdk": "0.1.1",
       },
     },
     "packages/plugins/relight-studio": {
       "name": "@microvoid/convax-plugin-relight-studio",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@microvoid/convax-skill-relight-studio": "workspace:*",
       },
       "devDependencies": {
-        "@convax/plugin-sdk": "0.1.0",
+        "@convax/plugin-sdk": "0.1.1",
         "@types/react": "19.2.14",
         "@types/react-dom": "19.2.3",
         "radix-ui": "1.6.2",
@@ -115,29 +115,29 @@
     },
     "packages/plugins/storyai-3d-director-desk": {
       "name": "@microvoid/convax-plugin-storyai-3d-director-desk",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "dependencies": {
         "@microvoid/convax-skill-storyai-3d-director-desk": "workspace:*",
       },
       "devDependencies": {
-        "@convax/plugin-sdk": "0.1.0",
+        "@convax/plugin-sdk": "0.1.1",
       },
     },
     "packages/plugins/storyboard-studio": {
       "name": "@microvoid/convax-plugin-storyboard-studio",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@microvoid/convax-skill-storyboard-studio": "workspace:*",
       },
       "devDependencies": {
-        "@convax/plugin-sdk": "0.1.0",
+        "@convax/plugin-sdk": "0.1.1",
       },
     },
     "packages/plugins/video-timeline": {
       "name": "@microvoid/convax-plugin-video-timeline",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "devDependencies": {
-        "@convax/plugin-sdk": "0.1.0",
+        "@convax/plugin-sdk": "0.1.1",
       },
     },
     "packages/skills/ad-idea": {
@@ -282,6 +282,10 @@
         "typescript": "5.9.3",
       },
     },
+    "vendor/host-packages/bounded-value": {
+      "name": "@convax/bounded-value",
+      "version": "0.1.0",
+    },
     "vendor/host-packages/marketplace": {
       "name": "@convax/marketplace",
       "version": "0.2.1",
@@ -303,7 +307,7 @@
     },
     "vendor/host-packages/plugin-api": {
       "name": "@convax/plugin-api",
-      "version": "2.0.0",
+      "version": "3.0.0",
       "bin": {
         "convax-plugin-api": "./dist/cli.js",
       },
@@ -312,6 +316,7 @@
       "name": "@convax/plugin-sdk",
       "version": "0.1.1",
       "dependencies": {
+        "@convax/bounded-value": "workspace:*",
         "@convax/plugin-api": "workspace:*",
       },
     },
@@ -321,6 +326,8 @@
     },
   },
   "packages": {
+    "@convax/bounded-value": ["@convax/bounded-value@workspace:vendor/host-packages/bounded-value"],
+
     "@convax/marketplace": ["@convax/marketplace@workspace:vendor/host-packages/marketplace"],
 
     "@convax/marketplace-kit": ["@convax/marketplace-kit@workspace:vendor/host-packages/marketplace-kit"],
@@ -379,7 +386,6 @@
 
     "@microvoid/convax-plugin-video-timeline": ["@microvoid/convax-plugin-video-timeline@workspace:packages/plugins/video-timeline"],
 
-
     "@microvoid/convax-skill-ad-idea": ["@microvoid/convax-skill-ad-idea@workspace:packages/skills/ad-idea"],
 
     "@microvoid/convax-skill-audiobook": ["@microvoid/convax-skill-audiobook@workspace:packages/skills/audiobook"],
@@ -417,7 +423,6 @@
     "@microvoid/convax-skill-storyboard-studio": ["@microvoid/convax-skill-storyboard-studio@workspace:packages/skills/storyboard-studio"],
 
     "@microvoid/convax-skill-video-prompting": ["@microvoid/convax-skill-video-prompting@workspace:packages/skills/video-prompting"],
-
 
     "@radix-ui/number": ["@radix-ui/number@1.1.2", "", {}, "sha512-ceTwaxc4I5IOi97DgCotl3pqiyRGvffcc0oOsE2dQYaJOFIDsDt4VWG6xEbg1QePv9QWausCEIppud/tJ1wNig=="],
 
