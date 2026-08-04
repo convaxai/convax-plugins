@@ -14,6 +14,22 @@ function migrateHostIdentity(source) {
     .replaceAll("125447777", "312877127")
 }
 
+function migrateVendoredHostPackageClosure(source) {
+  return source
+    .replace(
+      '                [.packages[].name] == [\n                  "@convax/marketplace",',
+      '                [.packages[].name] == [\n                  "@convax/bounded-value",\n                  "@convax/marketplace",',
+    )
+    .replace(
+      '                [.packages[].version] == ["0.2.1", "0.2.2", "2.0.0", "0.1.1", "0.1.0"] and',
+      '                [.packages[].version] == ["0.1.0", "0.2.1", "0.2.2", "3.0.0", "0.1.1", "0.1.0"] and',
+    )
+    .replace(
+      '                [.packages[].workspace] == [\n                  "vendor/host-packages/marketplace",',
+      '                [.packages[].workspace] == [\n                  "vendor/host-packages/bounded-value",\n                  "vendor/host-packages/marketplace",',
+    )
+}
+
 describe("protected Plugin publication policy", () => {
   test("keeps capability high-water first and the privileged job artifact-only", async () => {
     await expect(verifyPluginPublicationPolicy(root)).resolves.toEqual({
@@ -43,7 +59,7 @@ describe("protected Plugin publication policy", () => {
     )
   })
 
-  test("admits only one coherent legacy or migrated Host identity", async () => {
+  test("admits only coherent legacy or migrated Host identity and package closure", async () => {
     const fixture = await fs.mkdtemp(
       path.join(os.tmpdir(), "convax-publication-identity-"),
     )
@@ -91,6 +107,29 @@ describe("protected Plugin publication policy", () => {
         capabilityEvidenceIndependent: true,
         protectedBaseVerifier: true,
       })
+
+      const migratedRelease = migrateVendoredHostPackageClosure(
+        migrateHostIdentity(release),
+      )
+      await fs.writeFile(releasePath, migratedRelease)
+      await expect(verifyPluginPublicationPolicy(fixture)).resolves.toEqual({
+        artifactOnlyPublish: true,
+        capabilityEvidenceIndependent: true,
+        protectedBaseVerifier: true,
+      })
+
+      await fs.writeFile(
+        releasePath,
+        migratedRelease.replace(
+          '[.packages[].version] == ["0.1.0", "0.2.1", "0.2.2", "3.0.0", "0.1.1", "0.1.0"]',
+          '[.packages[].version] == ["0.2.1", "0.2.2", "2.0.0", "0.1.1", "0.1.0"]',
+        ),
+      )
+      await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
+        "one coherent admitted vendored Host package closure",
+      )
+
+      await fs.writeFile(releasePath, migrateHostIdentity(release))
 
       await fs.writeFile(approvalPath, approval)
       await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
@@ -270,7 +309,7 @@ describe("protected Plugin publication policy", () => {
         ),
       )
       await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
-        "vendored Host package version assertion drifted",
+        "one coherent admitted vendored Host package closure",
       )
 
       await fs.writeFile(

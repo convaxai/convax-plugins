@@ -51,42 +51,81 @@ const hostIdentityProfiles = Object.freeze([
     repositoryId: "1322708874",
   }),
 ])
-const vendoredHostPackages = Object.freeze([
-  {
-    name: "@convax/marketplace",
-    version: "0.2.1",
-    workspace: "vendor/host-packages/marketplace",
-  },
-  {
-    name: "@convax/marketplace-kit",
-    version: "0.2.2",
-    workspace: "vendor/host-packages/marketplace-kit",
-  },
-  {
-    name: "@convax/plugin-api",
-    version: "2.0.0",
-    workspace: "vendor/host-packages/plugin-api",
-  },
-  {
-    name: "@convax/plugin-sdk",
-    version: "0.1.1",
-    workspace: "vendor/host-packages/plugin-sdk",
-  },
-  {
-    name: "@convax/plugin-ui",
-    version: "0.1.0",
-    workspace: "vendor/host-packages/plugin-ui",
-  },
+const vendoredHostPackageProfiles = Object.freeze([
+  Object.freeze([
+    {
+      name: "@convax/marketplace",
+      version: "0.2.1",
+      workspace: "vendor/host-packages/marketplace",
+    },
+    {
+      name: "@convax/marketplace-kit",
+      version: "0.2.2",
+      workspace: "vendor/host-packages/marketplace-kit",
+    },
+    {
+      name: "@convax/plugin-api",
+      version: "2.0.0",
+      workspace: "vendor/host-packages/plugin-api",
+    },
+    {
+      name: "@convax/plugin-sdk",
+      version: "0.1.1",
+      workspace: "vendor/host-packages/plugin-sdk",
+    },
+    {
+      name: "@convax/plugin-ui",
+      version: "0.1.0",
+      workspace: "vendor/host-packages/plugin-ui",
+    },
+  ]),
+  Object.freeze([
+    {
+      name: "@convax/bounded-value",
+      version: "0.1.0",
+      workspace: "vendor/host-packages/bounded-value",
+    },
+    {
+      name: "@convax/marketplace",
+      version: "0.2.1",
+      workspace: "vendor/host-packages/marketplace",
+    },
+    {
+      name: "@convax/marketplace-kit",
+      version: "0.2.2",
+      workspace: "vendor/host-packages/marketplace-kit",
+    },
+    {
+      name: "@convax/plugin-api",
+      version: "3.0.0",
+      workspace: "vendor/host-packages/plugin-api",
+    },
+    {
+      name: "@convax/plugin-sdk",
+      version: "0.1.1",
+      workspace: "vendor/host-packages/plugin-sdk",
+    },
+    {
+      name: "@convax/plugin-ui",
+      version: "0.1.0",
+      workspace: "vendor/host-packages/plugin-ui",
+    },
+  ]),
 ])
 
 function requireVendoredHostPackageAssertion(shell) {
   const compactShell = shell.replace(/\s+/gu, "")
-  for (const field of ["name", "version", "workspace"]) {
-    const values = vendoredHostPackages.map((entry) => entry[field])
-    const assertion = `[.packages[].${field}]==${JSON.stringify(values)}and`
-    if (!compactShell.includes(assertion)) {
-      fail(`publish job vendored Host package ${field} assertion drifted`)
-    }
+  const matches = vendoredHostPackageProfiles.filter((packages) =>
+    ["name", "version", "workspace"].every((field) => {
+      const values = packages.map((entry) => entry[field])
+      const assertion = `[.packages[].${field}]==${JSON.stringify(values)}and`
+      return compactShell.includes(assertion)
+    }),
+  )
+  if (matches.length !== 1) {
+    fail(
+      "publish job must select one coherent admitted vendored Host package closure",
+    )
   }
 }
 
