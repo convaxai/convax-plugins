@@ -37,6 +37,20 @@ const hostSigstoreVerifierSha256s = new Set([
   "a142b3a85b766f6fd4ff2737a65c1e4d782ac02a2ba184128438087991272425",
   "28c205f1b5d90895f40a5edc39d19a8f52790eabee5ca169f701f84b53dd37f2",
 ])
+const hostIdentityProfiles = Object.freeze([
+  Object.freeze({
+    branch: "convax-next",
+    ownerId: "125447777",
+    repository: "microvoid/convax",
+    repositoryId: "1293264965",
+  }),
+  Object.freeze({
+    branch: "main",
+    ownerId: "312877127",
+    repository: "convaxai/convax",
+    repositoryId: "1322708874",
+  }),
+])
 const vendoredHostPackages = Object.freeze([
   {
     name: "@convax/marketplace",
@@ -87,7 +101,98 @@ function requireCosignInstaller(steps, label, expectedCondition) {
   }
 }
 
-function requireHostSigstoreCommands(shell, expectedCount, label) {
+function countOccurrences(source, fragment) {
+  return source.split(fragment).length - 1
+}
+
+function selectHostIdentityProfile({
+  approvalShell,
+  approvalSource,
+  releaseSource,
+  verifyShell,
+}) {
+  const matches = hostIdentityProfiles.filter(
+    (profile) =>
+      countOccurrences(
+        releaseSource,
+        `HOST_REPOSITORY: ${profile.repository}`,
+      ) === 1 &&
+      countOccurrences(
+        approvalSource,
+        `default: ${profile.repository}`,
+      ) === 1 &&
+      countOccurrences(
+        approvalShell,
+        `test "$HOST_REPOSITORY" = ${profile.repository}`,
+      ) === 1,
+  )
+  if (matches.length !== 1) {
+    fail("Host workflows must select one coherent admitted repository identity")
+  }
+  const profile = matches[0]
+  const otherProfile = hostIdentityProfiles.find(
+    (candidate) => candidate !== profile,
+  )
+  for (const [source, fragment, count, label] of [
+    [
+      verifyShell,
+      `sdk_workflow="$HOST_REPOSITORY/.github/workflows/plugin-sdk-release.yml@refs/heads/${profile.branch}"`,
+      1,
+      "SDK workflow identity",
+    ],
+    [
+      verifyShell,
+      `api_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/${profile.branch}"`,
+      1,
+      "API workflow identity",
+    ],
+    [
+      approvalShell,
+      `host_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/${profile.branch}"`,
+      1,
+      "approval workflow identity",
+    ],
+    [
+      verifyShell,
+      `hostIdentity.repository.id == "${profile.repositoryId}"`,
+      2,
+      "publication repository id",
+    ],
+    [
+      verifyShell,
+      `hostIdentity.owner.id == "${profile.ownerId}"`,
+      2,
+      "publication owner id",
+    ],
+    [
+      approvalShell,
+      `hostIdentity.repository.id == "${profile.repositoryId}"`,
+      1,
+      "approval repository id",
+    ],
+    [
+      approvalShell,
+      `hostIdentity.owner.id == "${profile.ownerId}"`,
+      1,
+      "approval owner id",
+    ],
+  ]) {
+    if (countOccurrences(source, fragment) !== count) {
+      fail(`${label} must match the selected Host identity exactly`)
+    }
+  }
+  for (const source of [releaseSource, approvalSource, verifyShell, approvalShell]) {
+    if (
+      source.includes(`hostIdentity.repository.id == "${otherProfile.repositoryId}"`) ||
+      source.includes(`hostIdentity.owner.id == "${otherProfile.ownerId}"`)
+    ) {
+      fail("Host workflows must not mix admitted repository identities")
+    }
+  }
+  return profile
+}
+
+function requireHostSigstoreCommands(shell, expectedCount, label, branch) {
   const commands = shell.split(/^\s*cosign verify-blob \\\s*$/gmu).slice(1)
   if (
     commands.length !== expectedCount ||
@@ -106,7 +211,7 @@ function requireHostSigstoreCommands(shell, expectedCount, label) {
       ) ||
       !command.includes("--certificate-github-workflow-repository") ||
       !command.includes(
-        "--certificate-github-workflow-ref refs/heads/convax-next",
+        `--certificate-github-workflow-ref refs/heads/${branch}`,
       ) ||
       !command.includes("--certificate-github-workflow-sha") ||
       !command.includes(
@@ -204,6 +309,12 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
   const approvalSteps = stepsFor(approval, "issue")
   const verifyShell = commandText(verifySteps)
   const approvalShell = commandText(approvalSteps)
+  const hostIdentity = selectHostIdentityProfile({
+    approvalShell,
+    approvalSource,
+    releaseSource,
+    verifyShell,
+  })
   if (release.env?.CONVAX_PLUGIN_SDK_SOURCE !== "workspace") {
     fail("the temporary Plugin SDK source must remain the reviewed workspace closure")
   }
@@ -231,6 +342,7 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
     verifyShell,
     2,
     "unprivileged publication workflow",
+    hostIdentity.branch,
   )
   const workspaceClosureStep = verifySteps.find(
     (step) =>
@@ -265,20 +377,23 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
     approvalShell,
     1,
     "Host capability approval workflow",
+    hostIdentity.branch,
   )
   if (
     !verifyShell.includes('--ignore-scripts') ||
     !verifyShell.includes("git diff --exit-code -- bun.lock") ||
     !verifyShell.includes(
-      'sdk_workflow="$HOST_REPOSITORY/.github/workflows/plugin-sdk-release.yml@refs/heads/convax-next"',
+      `sdk_workflow="$HOST_REPOSITORY/.github/workflows/plugin-sdk-release.yml@refs/heads/${hostIdentity.branch}"`,
     ) ||
     !verifyShell.includes(
-      'api_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/convax-next"',
+      `api_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/${hostIdentity.branch}"`,
     ) ||
     !verifyShell.includes("SHA256SUMS.sigstore.json") ||
     !verifyShell.includes("runtime-conformance.json.sigstore.json") ||
-    !verifyShell.includes('hostIdentity.repository.id == "1293264965"') ||
-    !verifyShell.includes('hostIdentity.owner.id == "125447777"') ||
+    !verifyShell.includes(
+      `hostIdentity.repository.id == "${hostIdentity.repositoryId}"`,
+    ) ||
+    !verifyShell.includes(`hostIdentity.owner.id == "${hostIdentity.ownerId}"`) ||
     !verifyShell.includes("realpath node_modules/@convax/plugin-sdk") ||
     !verifyShell.includes("realpath node_modules/@convax/plugin-api")
   ) {
@@ -324,10 +439,14 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
     !approvalShell.includes("gh release verify") ||
     !approvalShell.includes("gh release verify-asset") ||
     !approvalShell.includes(
-      'host_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/convax-next"',
+      `host_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/${hostIdentity.branch}"`,
     ) ||
-    !approvalShell.includes('hostIdentity.repository.id == "1293264965"') ||
-    !approvalShell.includes('hostIdentity.owner.id == "125447777"') ||
+    !approvalShell.includes(
+      `hostIdentity.repository.id == "${hostIdentity.repositoryId}"`,
+    ) ||
+    !approvalShell.includes(
+      `hostIdentity.owner.id == "${hostIdentity.ownerId}"`,
+    ) ||
     (approvalShell.match(
       /> "\$evidence\/catalog-verification\.json"/gu,
     ) ?? []).length !== 1 ||
