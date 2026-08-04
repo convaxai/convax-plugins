@@ -6,6 +6,14 @@ import path from "node:path"
 import { root } from "./lib.mjs"
 import { verifyPluginPublicationPolicy } from "./plugin-publication-policy.mjs"
 
+function migrateHostIdentity(source) {
+  return source
+    .replaceAll("microvoid/convax", "convaxai/convax")
+    .replaceAll("convax-next", "main")
+    .replaceAll("1293264965", "1322708874")
+    .replaceAll("125447777", "312877127")
+}
+
 describe("protected Plugin publication policy", () => {
   test("keeps capability high-water first and the privileged job artifact-only", async () => {
     await expect(verifyPluginPublicationPolicy(root)).resolves.toEqual({
@@ -33,6 +41,77 @@ describe("protected Plugin publication policy", () => {
     expect(stage.if).toBe(
       "env.CONVAX_FFMPEG_REQUIRE_PGP == '1' && steps.plan.outputs.ffmpeg_count != '0'",
     )
+  })
+
+  test("admits only one coherent legacy or migrated Host identity", async () => {
+    const fixture = await fs.mkdtemp(
+      path.join(os.tmpdir(), "convax-publication-identity-"),
+    )
+    try {
+      await fs.mkdir(path.join(fixture, ".github", "workflows"), {
+        recursive: true,
+      })
+      await fs.mkdir(path.join(fixture, "tooling"), { recursive: true })
+      const paths = [
+        ".github/workflows/release-on-main.yml",
+        ".github/workflows/pages.yml",
+        ".github/workflows/host-capability-governance.yml",
+        ".github/workflows/approve-host-capability.yml",
+        "tooling/host-capability-decision.mjs",
+        "tooling/host-sigstore-bundle.mjs",
+      ]
+      for (const relativePath of paths) {
+        await fs.copyFile(
+          path.join(root, relativePath),
+          path.join(fixture, relativePath),
+        )
+      }
+      const releasePath = path.join(
+        fixture,
+        ".github",
+        "workflows",
+        "release-on-main.yml",
+      )
+      const approvalPath = path.join(
+        fixture,
+        ".github",
+        "workflows",
+        "approve-host-capability.yml",
+      )
+      const [release, approval] = await Promise.all([
+        fs.readFile(releasePath, "utf8"),
+        fs.readFile(approvalPath, "utf8"),
+      ])
+      await Promise.all([
+        fs.writeFile(releasePath, migrateHostIdentity(release)),
+        fs.writeFile(approvalPath, migrateHostIdentity(approval)),
+      ])
+      await expect(verifyPluginPublicationPolicy(fixture)).resolves.toEqual({
+        artifactOnlyPublish: true,
+        capabilityEvidenceIndependent: true,
+        protectedBaseVerifier: true,
+      })
+
+      await fs.writeFile(approvalPath, approval)
+      await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
+        "one coherent admitted repository identity",
+      )
+
+      await fs.writeFile(approvalPath, migrateHostIdentity(approval))
+      await fs.writeFile(
+        releasePath,
+        migrateHostIdentity(release).replace(
+          'hostIdentity.repository.id == "1322708874"',
+          'hostIdentity.repository.id == "1322708874"\n' +
+            '               # hostIdentity.repository.id == "1293264965"',
+        ),
+      )
+      await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
+        "must not mix admitted repository identities",
+      )
+    } finally {
+      await fs.rm(fixture, { force: true, recursive: true })
+    }
   })
 
   test("rejects candidate self-approval through checkout or Host package evidence", async () => {
