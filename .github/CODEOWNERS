@@ -1,16 +1,16 @@
 # Human ownership must be backed by a repository ruleset that requires this
 # code-owner review, dismisses stale approvals, and does not accept bot approval.
-* @fearclear @smackgg @youking-lib @JPJeePee
+* @smackgg @RussellGe @ngo-c @ngo-cc @convax-fc
 
-/registry/host-capability-policy.json @fearclear @smackgg @youking-lib @JPJeePee
-/docs/host-capability-requests/ @fearclear @smackgg @youking-lib @JPJeePee
-/packages/skills/convax-plugin-authoring/ @fearclear @smackgg @youking-lib @JPJeePee
-/tooling/host-capability-history.mjs @fearclear @smackgg @youking-lib @JPJeePee
-/tooling/host-capability-request.mjs @fearclear @smackgg @youking-lib @JPJeePee
-/tooling/host-capability-decision.mjs @fearclear @smackgg @youking-lib @JPJeePee
-/tooling/create-host-capability-decision-receipt.mjs @fearclear @smackgg @youking-lib @JPJeePee
-/tooling/host-sigstore-bundle.mjs @fearclear @smackgg @youking-lib @JPJeePee
-/docs/host-capability-resolution.md @fearclear @smackgg @youking-lib @JPJeePee
-/tooling/publication-eligibility.mjs @fearclear @smackgg @youking-lib @JPJeePee
-/.github/CODEOWNERS @fearclear @smackgg @youking-lib @JPJeePee
-/.github/workflows/ @fearclear @smackgg @youking-lib @JPJeePee
+/registry/host-capability-policy.json @smackgg @RussellGe @ngo-c @ngo-cc @convax-fc
+/docs/host-capability-requests/ @smackgg @RussellGe @ngo-c @ngo-cc @convax-fc
+/packages/skills/convax-plugin-authoring/ @smackgg @RussellGe @ngo-c @ngo-cc @convax-fc
+/tooling/host-capability-history.mjs @smackgg @RussellGe @ngo-c @ngo-cc @convax-fc
+/tooling/host-capability-request.mjs @smackgg @RussellGe @ngo-c @ngo-cc @convax-fc
+/tooling/host-capability-decision.mjs @smackgg @RussellGe @ngo-c @ngo-cc @convax-fc
+/tooling/create-host-capability-decision-receipt.mjs @smackgg @RussellGe @ngo-c @ngo-cc @convax-fc
+/tooling/host-sigstore-bundle.mjs @smackgg @RussellGe @ngo-c @ngo-cc @convax-fc
+/docs/host-capability-resolution.md @smackgg @RussellGe @ngo-c @ngo-cc @convax-fc
+/tooling/publication-eligibility.mjs @smackgg @RussellGe @ngo-c @ngo-cc @convax-fc
+/.github/CODEOWNERS @smackgg @RussellGe @ngo-c @ngo-cc @convax-fc
+/.github/workflows/ @smackgg @RussellGe @ngo-c @ngo-cc @convax-fc

@@ -153,7 +153,7 @@ describe("Convax Plugin authoring governance", () => {
     expect(releaseWorkflow.match(
       /Fetch and verify the pinned official FFmpeg source/g,
     )).toHaveLength(1);
-    expect(codeowners).toContain("@fearclear");
+    expect(codeowners).toContain("@convax-fc");
     expect(codeowners).toContain(
       "/tooling/host-capability-history.mjs",
     );
