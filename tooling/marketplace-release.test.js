@@ -226,6 +226,24 @@ describe("Marketplace Kit release selection and publication policy", () => {
       blockers: [],
       status: "ready",
     })
+    const helloGuide = snapshot.get("skill\0hello-convax-guide")
+    expect(helloGuide?.ownerPluginId).toBe("hello-convax")
+    const excludedHello = createReleaseSelectionPlan([{
+      kind: helloGuide.kind,
+      id: helloGuide.id,
+      version: helloGuide.version,
+      releaseTag: helloGuide.releaseTag,
+    }], snapshot, {
+      excluded: [{ kind: "plugin", id: "hello-convax" }],
+    })
+    expect(excludedHello.selected).toEqual([])
+    expect(excludedHello.omissions.omitted).toMatchObject([{
+      kind: "skill",
+      id: "hello-convax-guide",
+      publication: {
+        blockers: [{ code: "catalog-policy-excluded" }],
+      },
+    }])
   }, 30_000)
 
   test("fails closed when the sole publication policy is missing", async () => {
@@ -600,6 +618,7 @@ describe("Marketplace Kit release selection and publication policy", () => {
     snapshot.set("skill\0ready-skill", {
       id: "ready-skill",
       kind: "skill",
+      ownerPluginId: "example-plugin",
       publication: { status: "ready", blockers: [], blockedBy: [] },
       releaseTag: "skill-ready-skill-v1.0.0",
       version: "1.0.0",
@@ -623,7 +642,7 @@ describe("Marketplace Kit release selection and publication policy", () => {
       publication: snapshot.get("plugin\0example-plugin").publication,
     }])
     const excludedPlan = createReleaseSelectionPlan([ready], snapshot, {
-      excludedIdentities: new Set(["skill/ready-skill"]),
+      excluded: [{ kind: "plugin", id: "example-plugin" }],
     })
     expect(excludedPlan.selected).toEqual([])
     expect(excludedPlan.omissions.omitted).toEqual([{
