@@ -619,6 +619,10 @@ describe("Official Marketplace tooling", () => {
         bootstrap: true,
         initialSequence: 58,
       })
+      const registryConfig = JSON.parse(
+        await fs.readFile(path.join(root, "registry", "config.json"), "utf8"),
+      )
+      expect(registryConfig.sequence + 1).toBe(58)
 
       await expect(fetchPreviousRegistry({
         bootstrapSha: currentSha,
