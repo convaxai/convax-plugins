@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { effectiveCatalogExclusionIdentities } from "./catalog-exclusions.mjs"
 import { effectivePackagePublications } from "./publication-eligibility.mjs"
 
 function containedRelativePath(workspaceRoot, source) {
@@ -76,30 +77,10 @@ export async function createMarketplacePublicationView({
       pkg,
     ]),
   )
-  const excludedIdentities = new Set(
-    excluded.map(({ kind, id }) => `${kind}/${id}`),
+  const excludedIdentities = effectiveCatalogExclusionIdentities(
+    packages.map(({ metadata }) => metadata),
+    excluded,
   )
-  for (const pkg of packages) {
-    if (
-      pkg.metadata.kind === "skill" &&
-      pkg.metadata.ownerPluginId &&
-      excludedIdentities.has(`plugin/${pkg.metadata.ownerPluginId}`)
-    ) {
-      excludedIdentities.add(`skill/${pkg.metadata.id}`)
-    }
-  }
-  for (const pkg of packages) {
-    if (
-      pkg.metadata.kind === "skill" &&
-      pkg.metadata.ownerPluginId &&
-      excludedIdentities.has(`skill/${pkg.metadata.id}`) &&
-      !excludedIdentities.has(`plugin/${pkg.metadata.ownerPluginId}`)
-    ) {
-      throw new Error(
-        `catalog exclusion cannot remove owned skill/${pkg.metadata.id} without plugin/${pkg.metadata.ownerPluginId}`,
-      )
-    }
-  }
   const omissions = packages.flatMap((pkg) => {
     const publication = effective.get(
       `${pkg.metadata.kind}/${pkg.metadata.id}`,

@@ -12,6 +12,7 @@ import { renderPluginApiJson } from "@convax/plugin-api/generator"
 import {
   discoverPackages,
 } from "./lib.mjs"
+import { effectiveCatalogExclusionIdentities } from "./catalog-exclusions.mjs"
 import {
   createOwnedSkillReferenceFiles,
   generateSkillApiReferences,
@@ -207,9 +208,12 @@ export async function packageVersionSnapshot(workspaceRoot) {
         `${candidate.kind}/${candidate.id}: duplicate package identity`,
       )
     }
+    const authoredPackage = authoredByIdentity.get(
+      `${candidate.kind}/${candidate.id}`,
+    )
     const files = []
     if (candidate.kind === "plugin" || candidate.kind === "skill") {
-      const pkg = authoredByIdentity.get(`${candidate.kind}/${candidate.id}`)
+      const pkg = authoredPackage
       if (!pkg) {
         throw new Error(
           `${candidate.kind}/${candidate.id}: missing admitted package`,
@@ -279,6 +283,9 @@ export async function packageVersionSnapshot(workspaceRoot) {
         { status: "ready", blockers: [], blockedBy: [] },
       releaseTag: releaseTagForPackage(candidate),
       version: candidate.version,
+      ...(authoredPackage?.metadata.ownerPluginId
+        ? { ownerPluginId: authoredPackage.metadata.ownerPluginId }
+        : {}),
     })
   }
   return result
@@ -334,10 +341,14 @@ export function assertSelectedCandidatesMatchSnapshot(
   }
 }
 
-export function createReleaseSelectionPlan(selected, current, { excludedIdentities = new Set() } = {}) {
+export function createReleaseSelectionPlan(selected, current, { excluded = [] } = {}) {
   assertSelectedCandidatesMatchSnapshot(selected, current, {
     allowBlocked: true,
   })
+  const excludedIdentities = effectiveCatalogExclusionIdentities(
+    [...current.values()],
+    excluded,
+  )
   const ready = []
   const omitted = []
   for (const entry of selected) {
@@ -454,9 +465,7 @@ async function main(argv) {
     : await changedMarketplaceVersions(repositoryRoot, args.base)
   const officialSource = await loadOfficialMarketplaceSource(repositoryRoot)
   const plan = createReleaseSelectionPlan(changed, current, {
-    excludedIdentities: new Set(
-      officialSource.excluded.map(({ kind, id }) => `${kind}/${id}`),
-    ),
+    excluded: officialSource.excluded,
   })
   const output = path.resolve(repositoryRoot, args.output)
   const omissionsOutput = path.resolve(
