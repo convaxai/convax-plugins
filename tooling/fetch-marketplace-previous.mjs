@@ -8,8 +8,18 @@ import {
 import { assertOfficialMarketplaceDescriptor } from "./official-marketplace.mjs"
 
 const maximumBytes = 8 * 1024 * 1024
+const bootstrapBaseRevision = "0".repeat(40)
+const bootstrapInitialSequence = 58
 const retiredRegistryV1Url =
-  "https://microvoid.github.io/convax-plugins/registry/v1/index.json"
+  "https://convaxai.github.io/convax-plugins/registry/v1/index.json"
+
+function authorizedBootstrap({ bootstrapSha, currentSha }) {
+  return (
+    typeof bootstrapSha === "string" &&
+    /^[a-f0-9]{40}$/.test(bootstrapSha) &&
+    bootstrapSha === currentSha
+  )
+}
 
 async function responseBytes(response, label) {
   const declared = response.headers.get("content-length")
@@ -199,7 +209,9 @@ async function writeSnapshot(outputDirectory, name, bytes) {
 }
 
 export async function fetchPreviousRegistry({
+  bootstrapSha,
   cutoverBaseline = officialV8CutoverBaseline,
+  currentSha,
   descriptorUrl,
   fetchImpl = fetch,
   outputDirectory,
@@ -211,6 +223,16 @@ export async function fetchPreviousRegistry({
     descriptorUrl,
     "production Marketplace descriptor",
   )
+  if (
+    descriptorResponse.status === 404 &&
+    authorizedBootstrap({ bootstrapSha, currentSha })
+  ) {
+    return {
+      baseRevision: bootstrapBaseRevision,
+      bootstrap: true,
+      initialSequence: bootstrapInitialSequence,
+    }
+  }
   if (descriptorResponse.status !== 200) {
     throw new Error(`production Marketplace descriptor returned HTTP ${descriptorResponse.status}`)
   }
@@ -267,10 +289,12 @@ export async function fetchPreviousRegistry({
 
 async function main() {
   const run = encodeURIComponent(process.env.GITHUB_RUN_ID ?? "local")
-  const registryUrl = "https://microvoid.github.io/convax-plugins/registry/v2/index.json"
-  const showcaseUrl = "https://microvoid.github.io/convax-plugins/showcase/v2/index.json"
+  const registryUrl = "https://convaxai.github.io/convax-plugins/registry/v2/index.json"
+  const showcaseUrl = "https://convaxai.github.io/convax-plugins/showcase/v2/index.json"
   const result = await fetchPreviousRegistry({
-    descriptorUrl: `https://microvoid.github.io/convax-plugins/marketplace.json?run=${run}`,
+    bootstrapSha: process.env.CONVAX_MARKETPLACE_BOOTSTRAP_SHA,
+    currentSha: process.env.GITHUB_SHA,
+    descriptorUrl: `https://convaxai.github.io/convax-plugins/marketplace.json?run=${run}`,
     outputDirectory: path.resolve("dist/production"),
     registryUrl,
     showcaseUrl,
@@ -280,7 +304,11 @@ async function main() {
   const lines = [
     `CONVAX_MARKETPLACE_BASE_SHA=${result.baseRevision}`,
   ]
-  if (result.cutover) {
+  if (result.bootstrap) {
+    lines.push(
+      `CONVAX_MARKETPLACE_INITIAL_SEQUENCE=${result.initialSequence}`,
+    )
+  } else if (result.cutover) {
     lines.push(
       `CONVAX_MARKETPLACE_CUTOVER_PREVIOUS=${path.relative(process.cwd(), result.snapshot)}`,
       `CONVAX_MARKETPLACE_INITIAL_SEQUENCE=${result.registry.sequence + 1}`,
@@ -293,7 +321,13 @@ async function main() {
     )
   }
   await fs.appendFile(environment, `${lines.join("\n")}\n`)
-  console.log(`Using strict production Registry v2 sequence ${result.registry.sequence}.`)
+  if (result.bootstrap) {
+    console.log(
+      `Using the exact-SHA Official Marketplace bootstrap at sequence ${result.initialSequence}.`,
+    )
+  } else {
+    console.log(`Using strict production Registry v2 sequence ${result.registry.sequence}.`)
+  }
 }
 
 if (import.meta.main) {

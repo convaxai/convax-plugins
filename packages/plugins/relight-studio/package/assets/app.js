@@ -893,7 +893,8 @@ function validGenerationResult(value) {
   return isRecord(value) &&
     Array.isArray(value.createdNodeIds) && value.createdNodeIds.length > 0 &&
     value.createdNodeIds.every((id) => typeof id === "string" && id.length > 0) &&
-    Number.isSafeInteger(value.revision) && value.revision >= 0 &&
+    Object.prototype.hasOwnProperty.call(value, "operationReceipt") &&
+    Object.prototype.hasOwnProperty.call(value, "projection") &&
     typeof value.toolId === "string" && value.toolId.length > 0 &&
     Array.isArray(value.warnings)
 }
@@ -932,7 +933,7 @@ async function generateRelight() {
     )
     if (!validGenerationResult(result)) throw new Error("宿主返回了无效生成结果")
     const count = result.createdNodeIds.length
-    elements.generationResult.textContent = "已生成 " + String(count) + " 张图片到 Canvas（revision " + String(result.revision) + "）。"
+    elements.generationResult.textContent = "已生成 " + String(count) + " 张图片到 Canvas。"
     elements.generationResult.dataset.kind = "success"
     setHidden(elements.generationResult, false)
     result.warnings.filter((warning) => typeof warning === "string").forEach(function (warning) {

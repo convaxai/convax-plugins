@@ -55,6 +55,8 @@ export interface SourceQualifiedItem {
     };
     presentation: Presentation;
     delivery: MarketplaceDelivery;
+    /** Present only for a Skill published atomically inside its owner Plugin closure. */
+    ownerPluginId?: string;
 }
 export interface CatalogDisplayGroup {
     identity: {

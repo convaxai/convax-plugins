@@ -6,6 +6,12 @@ import { readJson, readJsonc, root } from "./lib.mjs"
 
 const PACKAGE_SPECS = [
   {
+    directory: "bounded-value",
+    name: "@convax/bounded-value",
+    version: "0.1.0",
+    dependencies: {},
+  },
+  {
     directory: "marketplace",
     name: "@convax/marketplace",
     version: "0.2.1",
@@ -24,14 +30,17 @@ const PACKAGE_SPECS = [
   {
     directory: "plugin-api",
     name: "@convax/plugin-api",
-    version: "2.0.0",
+    version: "3.0.0",
     dependencies: {},
   },
   {
     directory: "plugin-sdk",
     name: "@convax/plugin-sdk",
     version: "0.1.1",
-    dependencies: { "@convax/plugin-api": "workspace:*" },
+    dependencies: {
+      "@convax/bounded-value": "workspace:*",
+      "@convax/plugin-api": "workspace:*",
+    },
   },
   {
     directory: "plugin-ui",
@@ -145,6 +154,119 @@ function requireExactObject(actual, expected, label) {
   }
 }
 
+function collectPackageTargetStrings(value, label, targets) {
+  if (typeof value === "string") {
+    targets.push({ label, target: value })
+    return
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) fail(`${label} must not be empty`)
+    value.forEach((entry, index) =>
+      collectPackageTargetStrings(entry, `${label}[${index}]`, targets),
+    )
+    return
+  }
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value)
+    if (entries.length === 0) fail(`${label} must not be empty`)
+    for (const [key, entry] of entries) {
+      collectPackageTargetStrings(
+        entry,
+        `${label}[${JSON.stringify(key)}]`,
+        targets,
+      )
+    }
+    return
+  }
+  fail(`${label} must contain only local file targets`)
+}
+
+function collectPackageFileTargets(manifest, workspace) {
+  const targets = []
+  if (typeof manifest.main !== "string") {
+    fail(`${workspace} package.json main must be a local file target`)
+  }
+  targets.push({
+    label: `${workspace} package.json main`,
+    target: manifest.main,
+  })
+  if (typeof manifest.types !== "string") {
+    fail(`${workspace} package.json types must be a local file target`)
+  }
+  targets.push({
+    label: `${workspace} package.json types`,
+    target: manifest.types,
+  })
+  if (manifest.exports === undefined) {
+    fail(`${workspace} package.json exports must be present`)
+  }
+  collectPackageTargetStrings(
+    manifest.exports,
+    `${workspace} package.json exports`,
+    targets,
+  )
+  if (manifest.bin !== undefined) {
+    collectPackageTargetStrings(
+      manifest.bin,
+      `${workspace} package.json bin`,
+      targets,
+    )
+  }
+  return targets
+}
+
+async function requirePackageFileTarget(packageRoot, { label, target }) {
+  if (
+    !target.startsWith("./") ||
+    target === "./" ||
+    target.includes("\\") ||
+    target.includes("\0") ||
+    target.includes("*")
+  ) {
+    fail(`${label} must be one explicit package-relative file target`)
+  }
+  const segments = target.slice(2).split("/")
+  if (
+    segments.some(
+      (segment) =>
+        segment.length === 0 ||
+        segment === "." ||
+        segment === ".." ||
+        segment === "node_modules",
+    )
+  ) {
+    fail(`${label} must be one explicit package-relative file target`)
+  }
+  const absolutePath = path.join(packageRoot, ...segments)
+  let stat
+  try {
+    stat = await fs.lstat(absolutePath)
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      fail(`${label} target ${target} is missing`)
+    }
+    throw error
+  }
+  if (stat.isSymbolicLink()) {
+    fail(`${label} target ${target} must not be a symbolic link`)
+  }
+  if (!stat.isFile()) {
+    fail(`${label} target ${target} must be a regular file`)
+  }
+  const [resolvedPackageRoot, resolvedTarget] = await Promise.all([
+    fs.realpath(packageRoot),
+    fs.realpath(absolutePath),
+  ])
+  const relativeTarget = path.relative(resolvedPackageRoot, resolvedTarget)
+  if (
+    relativeTarget === ".." ||
+    relativeTarget.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeTarget)
+  ) {
+    fail(`${label} target ${target} must stay inside its package`)
+  }
+}
+
 export async function createVendoredHostPackageClosure(
   workspaceRoot,
   { commit },
@@ -195,6 +317,9 @@ export async function createVendoredHostPackageClosure(
       spec.dependencies,
       `${workspace} dependencies`,
     )
+    for (const target of collectPackageFileTargets(manifest, workspace)) {
+      await requirePackageFileTarget(packageRoot, target)
+    }
     const lockWorkspace = lock.workspaces?.[workspace]
     if (
       lockWorkspace?.name !== spec.name ||
@@ -254,6 +379,10 @@ export async function createVendoredHostPackageClosure(
       "plugin-sdk",
     ],
     [
+      "vendor/host-packages/plugin-sdk/node_modules/@convax/bounded-value",
+      "bounded-value",
+    ],
+    [
       "vendor/host-packages/plugin-sdk/node_modules/@convax/plugin-api",
       "plugin-api",
     ],
@@ -272,9 +401,9 @@ export async function createVendoredHostPackageClosure(
   const catalog = JSON.parse(catalogBytes.toString("utf8"))
   if (
     catalog.schema !== "convax.plugin-api-catalog/3" ||
-    catalog.version !== "2.0.0"
+    catalog.version !== "3.0.0"
   ) {
-    fail("vendored Plugin API Catalog must be contract v3 at API version 2.0.0")
+    fail("vendored Plugin API Catalog must be contract v3 at API version 3.0.0")
   }
 
   return {
@@ -282,7 +411,7 @@ export async function createVendoredHostPackageClosure(
     source: {
       commit,
       kind: "workspace",
-      repository: "microvoid/convax-plugins",
+      repository: "convaxai/convax-plugins",
     },
     lockfile: {
       path: "bun.lock",

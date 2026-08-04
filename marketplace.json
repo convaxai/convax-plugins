@@ -6,17 +6,17 @@
     "name": "Microvoid"
   },
   "repository": {
-    "owner": "microvoid",
+    "owner": "convaxai",
     "name": "convax-plugins"
   },
   "registry": {
     "v2": {
-      "url": "https://microvoid.github.io/convax-plugins/registry/v2/index.json"
+      "url": "https://convaxai.github.io/convax-plugins/registry/v2/index.json"
     }
   },
   "showcase": {
     "v2": {
-      "url": "https://microvoid.github.io/convax-plugins/showcase/v2/index.json"
+      "url": "https://convaxai.github.io/convax-plugins/showcase/v2/index.json"
     }
   },
   "compatibility": {

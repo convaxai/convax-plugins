@@ -1,10 +1,12 @@
 import { type PortablePluginUiCommand, type PortablePluginUiMenuItem, type PortablePluginUiToolbarItem } from "./ui";
+import { type PortableBoundedValueSchemaV1 } from "./state-schema";
 export interface PortablePluginCanvasRendererContribution {
     readonly create?: boolean;
     readonly extensions?: readonly string[];
     readonly height?: number;
     readonly mimeTypes?: readonly string[];
     readonly nodeKinds?: readonly string[];
+    readonly stateSchema?: PortableBoundedValueSchemaV1;
     readonly width?: number;
 }
 export interface PortablePluginLocalizedText {

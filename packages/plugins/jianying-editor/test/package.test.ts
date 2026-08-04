@@ -15,13 +15,13 @@ describe("JianYing Plugin package", () => {
     expect(manifest).toMatchObject({
       capabilities: ["canvas.connectedInputs.read", "generation.execute"],
       hostApi: {
-        major: 2,
+        major: 3,
         optional: [],
         required: ["canvas.inputs.list", "generation.execute", "host.context.get"],
       },
       id: "jianying-editor",
       schema: "convax.plugin/8",
-      version: "3.0.0",
+      version: "3.0.1",
       runtime: {
         command: "convax-jianying-editor-mcp",
         type: "mcp-stdio",
@@ -92,8 +92,8 @@ describe("JianYing Plugin package", () => {
       "utf8",
     ))
 
-    expect(metadata.version).toBe("3.0.0")
-    expect(workspace.version).toBe("3.0.0")
+    expect(metadata.version).toBe("3.0.1")
+    expect(workspace.version).toBe("3.0.1")
     expect(workspace["convax.hostCapabilityRequests"]).toEqual([
       "web-plugin-generation-input-binding",
     ])

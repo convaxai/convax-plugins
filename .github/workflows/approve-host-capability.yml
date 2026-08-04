@@ -24,9 +24,9 @@ on:
         required: true
         type: string
       host_repository:
-        description: Host repository; only microvoid/convax is accepted
+        description: Host repository; only convaxai/convax is accepted
         required: true
-        default: microvoid/convax
+        default: convaxai/convax
         type: string
       host_commit:
         description: Exact Host release commit containing the merged PR
@@ -107,7 +107,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = refs/heads/main
-          test "$HOST_REPOSITORY" = microvoid/convax
+          test "$HOST_REPOSITORY" = convaxai/convax
           [[ "$REQUEST_ID" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]
           [[ "$PLUGIN_API_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
           [[ "$CATALOG_SHA256" =~ ^[a-f0-9]{64}$ ]]
@@ -157,7 +157,7 @@ jobs:
             --repo "$HOST_REPOSITORY" \
             --format json > "$evidence/conformance-verification.json"
           gh api "repos/$HOST_REPOSITORY" > "$evidence/host-repository.json"
-          host_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/convax-next"
+          host_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/main"
           for asset_name in \
             "$CATALOG_ASSET" \
             "$PACKAGE_ASSET" \
@@ -173,7 +173,7 @@ jobs:
               --certificate-identity "https://github.com/$host_workflow" \
               --certificate-oidc-issuer https://token.actions.githubusercontent.com \
               --certificate-github-workflow-repository "$HOST_REPOSITORY" \
-              --certificate-github-workflow-ref refs/heads/convax-next \
+              --certificate-github-workflow-ref refs/heads/main \
               --certificate-github-workflow-sha "$HOST_COMMIT" \
               --certificate-github-workflow-trigger workflow_dispatch \
               "$asset" >/dev/null
@@ -194,8 +194,8 @@ jobs:
                .certificate.sourceRepositoryDigest == $commit and
                .certificate.runnerEnvironment == "github-hosted" and
                .certificate.trigger == "workflow_dispatch" and
-               .hostIdentity.repository.id == "1293264965" and
-               .hostIdentity.owner.id == "125447777"' \
+               .hostIdentity.repository.id == "1322708874" and
+               .hostIdentity.owner.id == "312877127"' \
               "$verification" >/dev/null
           done
           echo "EVIDENCE_DIRECTORY=$evidence" >> "$GITHUB_ENV"

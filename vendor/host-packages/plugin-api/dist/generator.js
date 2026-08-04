@@ -188,10 +188,9 @@ var hostNode = object({
   id: string(),
   parentId: string(),
   position: point,
-  revision: integer,
   style: jsonObject(),
   type: string(80)
-}, ["data", "id", "position", "revision", "type"]);
+}, ["data", "id", "position", "type"]);
 var generationReference = object({ inputKey: string(), role: inputRole }, ["inputKey", "role"]);
 var nodeQuery = object({
   ids: stringList(),
@@ -290,18 +289,41 @@ var geometryDocument = object({
   edges: array(edge, 1e4),
   id: string(256),
   nodes: array(geometryNode, 1e4),
-  revision: integer,
   title: string(512)
-}, ["edges", "id", "nodes", "revision", "title"]);
+}, ["edges", "id", "nodes", "title"]);
 var structureDocument = object({
   description: string(8000, { allowEmpty: true }),
   edges: array(edge, 1e4),
   id: string(256),
   nodes: array(structureNode, 1e4),
-  revision: integer,
   tags: array(string(), 256),
   title: string(512)
-}, ["edges", "id", "nodes", "revision", "title"]);
+}, ["edges", "id", "nodes", "title"]);
+var operationReceipt = object({
+  actorId: string(43),
+  baseFrontierDigest: string(64, { refinement: "lowercase-sha256" }),
+  format: literal("convax.canvas-operation-receipt/2"),
+  historyMaterialDigest: union(nil, string(64, { refinement: "lowercase-sha256" })),
+  intentDigest: string(64, { refinement: "lowercase-sha256" }),
+  intentKind: string(256),
+  operationId: string(22),
+  resultEntities: array(object({
+    id: string(256),
+    incarnation: string(256),
+    kind: enumString(["node", "edge"])
+  }, ["id", "incarnation", "kind"]), 1e4),
+  semanticRoot: bool
+}, [
+  "actorId",
+  "baseFrontierDigest",
+  "format",
+  "historyMaterialDigest",
+  "intentDigest",
+  "intentKind",
+  "operationId",
+  "resultEntities",
+  "semanticRoot"
+]);
 var nodeSummary = object({
   id: string(),
   incomingNodeIds: stringList(),
@@ -354,11 +376,19 @@ var pluginApiWireContracts = Object.freeze({
   }, ["probe", "sessionId", "url"])),
   "canvas.inputs.close": contract(object({ sessionId: string(128) }, ["sessionId"]), object({ closed: bool }, ["closed"])),
   "canvas.node.get": contract(none, hostNode, { result: MiB }),
-  "canvas.node.state.replace": contract(object({ state: jsonObject(256 * KiB) }, ["state"]), object({ updated: literal(true) }, ["updated"]), { request: 256 * KiB + 4 * KiB }),
+  "canvas.node.state.replace": contract(object({ state: jsonObject(256 * KiB) }, ["state"]), object({ operationReceipt, projection: hostNode, updated: literal(true) }, [
+    "operationReceipt",
+    "projection",
+    "updated"
+  ]), { request: 256 * KiB + 4 * KiB }),
   "canvas.resource.image.create": contract(object({
     dataUrl: string(24 * MiB, { prefix: "data:image/png;base64," }),
     name: string(120, { refinement: "safe-png-file-name" })
-  }, ["dataUrl", "name"]), object({ createdNodeId: string(), revision: integer }, ["createdNodeId", "revision"]), { request: 24 * MiB + 4 * KiB }),
+  }, ["dataUrl", "name"]), object({ createdNodeId: string(), operationReceipt, projection: structureDocument }, [
+    "createdNodeId",
+    "operationReceipt",
+    "projection"
+  ]), { request: 24 * MiB + 4 * KiB }),
   "project.file.text.read": contract(object({ path: string(1024, { refinement: "portable-project-relative-path" }) }, ["path"]), object({
     content: string(MiB, { allowEmpty: true }),
     exists: bool,
@@ -375,54 +405,46 @@ var pluginApiWireContracts = Object.freeze({
   }, ["prompt"]), object({
     createdNodeIds: array(string(), 32),
     outputText: string(64 * KiB, { allowEmpty: true }),
-    revision: integer,
+    operationReceipt: union(nil, operationReceipt),
+    projection: union(nil, structureDocument),
     toolId: string(256),
     warnings: array(string(), 32)
-  }, ["createdNodeIds", "revision", "toolId", "warnings"]), { result: 256 * KiB }),
+  }, ["createdNodeIds", "operationReceipt", "projection", "toolId", "warnings"]), { result: 256 * KiB }),
   "projects.list": contract(none, object({
     projects: array(object({ available: bool, id: string(256), name: string(512) }, ["available", "id", "name"]), 1000)
   }, ["projects"]), { result: MiB }),
   "canvas.catalog.list": contract(object({ projectId: string(256) }, ["projectId"]), object({
-    canvases: array(object({ createdAt: finite, id: string(256), name: string(512), updatedAt: finite }, [
-      "createdAt",
-      "id",
-      "name",
-      "updatedAt"
-    ]), 1e4),
+    canvases: array(object({ id: string(256), name: string(512) }, ["id", "name"]), 1e4),
     projectId: string(256)
   }, ["canvases", "projectId"]), { result: 8 * MiB }),
   "canvas.document.get": contract(object({ projection: enumString(["geometry", "structure"]), ref: canvasRef }, ["ref"]), union(object({
     document: geometryDocument,
     projection: literal("geometry"),
-    ref: canvasRef,
-    storageVersion: union(nil, string(256))
-  }, ["document", "projection", "ref", "storageVersion"]), object({
+    ref: canvasRef
+  }, ["document", "projection", "ref"]), object({
     document: structureDocument,
     projection: literal("structure"),
-    ref: canvasRef,
-    storageVersion: union(nil, string(256))
-  }, ["document", "projection", "ref", "storageVersion"])), { result: 8 * MiB }),
+    ref: canvasRef
+  }, ["document", "projection", "ref"])), { result: 8 * MiB }),
   "canvas.nodes.query": contract(object({ query: nodeQuery, ref: canvasRef }, ["ref"]), object({
     nodes: array(nodeSummary, 1000),
-    ref: canvasRef,
-    revision: integer,
-    storageVersion: union(nil, string(256))
-  }, ["nodes", "ref", "revision", "storageVersion"]), { request: MiB, result: 8 * MiB }),
+    projection: structureDocument,
+    ref: canvasRef
+  }, ["nodes", "projection", "ref"]), { request: MiB, result: 8 * MiB }),
   "canvas.transaction.execute": contract(object({
-    commands: array(transactionCommand, 256, 1),
-    expectedRevision: integer,
-    ref: canvasRef,
-    transactionId: string(128)
-  }, ["commands", "expectedRevision", "ref", "transactionId"]), object({
+    command: transactionCommand,
+    commandId: string(128),
+    ref: canvasRef
+  }, ["command", "commandId", "ref"]), object({
     affectedNodeIds: stringList(1e4),
     changed: bool,
     createdNodeIds: stringList(1e4),
+    operationReceipt,
+    projection: structureDocument,
     ref: canvasRef,
-    revision: integer,
-    storageVersion: string(256),
     summaryTruncated: bool,
     warnings: stringList()
-  }, ["affectedNodeIds", "changed", "createdNodeIds", "ref", "revision", "storageVersion", "warnings"]), { request: MiB, result: 2 * MiB }),
+  }, ["affectedNodeIds", "changed", "createdNodeIds", "operationReceipt", "projection", "ref", "warnings"]), { request: MiB, result: 2 * MiB }),
   "canvas.events.subscribe": contract(object({ ref: object({ canvasId: string(256), projectId: string(256) }, ["projectId"]) }, ["ref"]), object({ subscriptionId: string(128) }, ["subscriptionId"])),
   "canvas.events.unsubscribe": contract(object({ subscriptionId: string(128) }, ["subscriptionId"]), object({ removed: bool }, ["removed"]))
 });
@@ -509,8 +531,12 @@ var defineV2Contract = (definition) => definePluginApi({
   ...definition,
   contractSince: "2.0.0"
 });
+var defineV3Contract = (definition) => definePluginApi({
+  ...definition,
+  contractSince: "3.0.0"
+});
 var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
-  defineV2Contract({
+  defineV3Contract({
     id: "host.context.get",
     completion: "cancelable",
     grant: null,
@@ -567,7 +593,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "An acknowledgement; closing an already closed handle is idempotent."
     }
   }),
-  defineV2Contract({
+  defineV3Contract({
     id: "canvas.node.get",
     completion: "cancelable",
     grant: "canvas.node.read",
@@ -578,24 +604,24 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       summary: "Read the owning Plugin node projection.",
       description: "Returns a bounded renderer-safe projection of the exact node bound to the connection.",
       request: "No parameters; the owning node comes from the bound connection.",
-      response: "The owning node identity, revision, geometry, and Plugin state projection."
+      response: "The owning node identity, geometry, and Plugin state projection."
     }
   }),
-  defineV2Contract({
+  defineV3Contract({
     id: "canvas.node.state.replace",
     completion: "commit-preserving",
     grant: "canvas.node.write",
     scope: "own-node",
     sideEffect: "write",
-    errors: [...contextErrors, ...permissionErrors],
+    errors: [...contextErrors, ...permissionErrors, ...resourceErrors],
     docs: {
       summary: "Replace the owning node's bounded Plugin state.",
-      description: "Commits only the namespaced Plugin state through the authoritative Canvas application service with revision checks.",
+      description: "Commits only the namespaced Plugin state through one Canvas-owned semantic intent guarded by the current node incarnation.",
       request: "`{ state }`, where state is a bounded JSON value.",
-      response: "`{ updated: true }` after the authoritative state replacement commits."
+      response: "The durable operation receipt and current owning-node projection after the replacement commits."
     }
   }),
-  defineV2Contract({
+  defineV3Contract({
     id: "canvas.resource.image.create",
     completion: "commit-preserving",
     grant: "canvas.image.write",
@@ -651,7 +677,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "A bounded list of available generation tools and their public input contracts."
     }
   }),
-  defineV2Contract({
+  defineV3Contract({
     id: "generation.execute",
     completion: "commit-preserving",
     grant: "generation.execute",
@@ -662,7 +688,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       summary: "Execute one selected generation tool through the shared host executor.",
       description: "Revalidates the active Plugin, authorized executable, inputs, cancellation, and live resource guards immediately before execution.",
       request: "`{ output?, prompt, references?: Array<{ inputKey, role }>, resultMode?, toolId? }`; every opaque input key must come from the current owning node's canvas.inputs.list result.",
-      response: "The bounded selected tool result, created node ids, authoritative revision, and warnings."
+      response: "The bounded selected tool result, created node ids, optional committed operation receipt/projection, and warnings."
     }
   }),
   defineV2Contract({
@@ -680,7 +706,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "A bounded list of renderer-safe Project summaries."
     }
   }),
-  defineV2Contract({
+  defineV3Contract({
     id: "canvas.catalog.list",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -695,7 +721,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "A bounded list of portable Canvas catalog entries."
     }
   }),
-  defineV2Contract({
+  defineV3Contract({
     id: "canvas.document.get",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -707,10 +733,10 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       summary: "Read one authorized Canvas document projection.",
       description: "Returns a bounded portable structure or geometry projection from Main's authoritative Canvas application service.",
       request: "`{ ref, projection }`, using an explicit portable Project/Canvas reference and supported projection.",
-      response: "The requested pathless document projection and authoritative revision."
+      response: "The requested pathless document projection."
     }
   }),
-  defineV2Contract({
+  defineV3Contract({
     id: "canvas.nodes.query",
     completion: "cancelable",
     audience: ["web-plugin", "companion"],
@@ -722,10 +748,10 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       summary: "Query bounded node projections in one authorized Canvas.",
       description: "Executes a host-defined bounded query without exposing native paths or resource bytes.",
       request: "`{ ref, query }`, using an explicit portable Project/Canvas reference and bounded query.",
-      response: "Matching node projections and the authoritative Canvas revision."
+      response: "Matching node summaries and the current pathless Canvas projection."
     }
   }),
-  defineV2Contract({
+  defineV3Contract({
     id: "canvas.transaction.execute",
     completion: "commit-preserving",
     audience: ["web-plugin", "companion"],
@@ -734,10 +760,10 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
     sideEffect: "write",
     errors: [...contextErrors, ...permissionErrors],
     docs: {
-      summary: "Commit one non-empty revision-bound Canvas transaction.",
-      description: "Validates bounded commands against one authoritative revision and persists the accepted transaction atomically.",
-      request: "`{ ref, expectedRevision, commands, transactionId }` with a bounded non-empty command list.",
-      response: "The committed authoritative revision and bounded command results."
+      summary: "Commit one closed Canvas command through the authoritative application service.",
+      description: "Maps one bounded command to a Canvas-owned semantic intent, commits it atomically, and returns its durable operation identity.",
+      request: "`{ ref, command, commandId }` with one bounded closed command and an idempotency key.",
+      response: "The durable operation receipt, current pathless projection, and bounded command result."
     }
   }),
   defineV2Contract({
@@ -750,7 +776,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
     errors: [...contextErrors, ...permissionErrors],
     docs: {
       summary: "Subscribe to bounded events for one authorized Canvas.",
-      description: "Creates a connection-scoped subscription; events are revisioned invalidations or safe projections, never native data.",
+      description: "Creates a connection-scoped subscription; events carry operation receipts as invalidations or safe projections, never native data.",
       request: "`{ ref }`, using an explicit portable Project/Canvas reference.",
       response: "A connection-bound subscription identifier."
     }
@@ -800,7 +826,7 @@ var pluginApiCatalog = definePluginApiCatalog(definePluginApiRelease("1.0.0", [
       response: "An acknowledgement that the caller's image session is closed; repeated close calls are idempotent."
     }
   })
-]));
+]), definePluginApiRelease("3.0.0", []));
 var catalogIds = pluginApiCatalog.apis.map(({ id }) => id).sort();
 if (catalogIds.length !== pluginApiContractIds.length || catalogIds.some((id, index) => id !== pluginApiContractIds[index])) {
   throw new TypeError("Plugin API Catalog and portable method contracts are incomplete or inconsistent");
@@ -1595,5 +1621,5 @@ export {
   appendPluginApiHistory
 };
 
-//# debugId=1FF42558A484A75664756E2164756E21
+//# debugId=D44F21191A424BF464756E2164756E21
 //# sourceMappingURL=generator.js.map

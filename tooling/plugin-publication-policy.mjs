@@ -33,99 +33,49 @@ function requireOrdered(source, fragments, label) {
 
 const cosignInstaller =
   "sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6"
-const hostSigstoreVerifierSha256s = new Set([
-  "a142b3a85b766f6fd4ff2737a65c1e4d782ac02a2ba184128438087991272425",
-  "28c205f1b5d90895f40a5edc39d19a8f52790eabee5ca169f701f84b53dd37f2",
-])
-const hostIdentityProfiles = Object.freeze([
-  Object.freeze({
-    branch: "convax-next",
-    ownerId: "125447777",
-    repository: "microvoid/convax",
-    repositoryId: "1293264965",
-  }),
-  Object.freeze({
-    branch: "main",
-    ownerId: "312877127",
-    repository: "convaxai/convax",
-    repositoryId: "1322708874",
-  }),
-])
-const vendoredHostPackageProfiles = Object.freeze([
-  Object.freeze([
-    {
-      name: "@convax/marketplace",
-      version: "0.2.1",
-      workspace: "vendor/host-packages/marketplace",
-    },
-    {
-      name: "@convax/marketplace-kit",
-      version: "0.2.2",
-      workspace: "vendor/host-packages/marketplace-kit",
-    },
-    {
-      name: "@convax/plugin-api",
-      version: "2.0.0",
-      workspace: "vendor/host-packages/plugin-api",
-    },
-    {
-      name: "@convax/plugin-sdk",
-      version: "0.1.1",
-      workspace: "vendor/host-packages/plugin-sdk",
-    },
-    {
-      name: "@convax/plugin-ui",
-      version: "0.1.0",
-      workspace: "vendor/host-packages/plugin-ui",
-    },
-  ]),
-  Object.freeze([
-    {
-      name: "@convax/bounded-value",
-      version: "0.1.0",
-      workspace: "vendor/host-packages/bounded-value",
-    },
-    {
-      name: "@convax/marketplace",
-      version: "0.2.1",
-      workspace: "vendor/host-packages/marketplace",
-    },
-    {
-      name: "@convax/marketplace-kit",
-      version: "0.2.2",
-      workspace: "vendor/host-packages/marketplace-kit",
-    },
-    {
-      name: "@convax/plugin-api",
-      version: "3.0.0",
-      workspace: "vendor/host-packages/plugin-api",
-    },
-    {
-      name: "@convax/plugin-sdk",
-      version: "0.1.1",
-      workspace: "vendor/host-packages/plugin-sdk",
-    },
-    {
-      name: "@convax/plugin-ui",
-      version: "0.1.0",
-      workspace: "vendor/host-packages/plugin-ui",
-    },
-  ]),
+const hostSigstoreVerifierSha256 =
+  "28c205f1b5d90895f40a5edc39d19a8f52790eabee5ca169f701f84b53dd37f2"
+const vendoredHostPackages = Object.freeze([
+  {
+    name: "@convax/bounded-value",
+    version: "0.1.0",
+    workspace: "vendor/host-packages/bounded-value",
+  },
+  {
+    name: "@convax/marketplace",
+    version: "0.2.1",
+    workspace: "vendor/host-packages/marketplace",
+  },
+  {
+    name: "@convax/marketplace-kit",
+    version: "0.2.2",
+    workspace: "vendor/host-packages/marketplace-kit",
+  },
+  {
+    name: "@convax/plugin-api",
+    version: "3.0.0",
+    workspace: "vendor/host-packages/plugin-api",
+  },
+  {
+    name: "@convax/plugin-sdk",
+    version: "0.1.1",
+    workspace: "vendor/host-packages/plugin-sdk",
+  },
+  {
+    name: "@convax/plugin-ui",
+    version: "0.1.0",
+    workspace: "vendor/host-packages/plugin-ui",
+  },
 ])
 
 function requireVendoredHostPackageAssertion(shell) {
   const compactShell = shell.replace(/\s+/gu, "")
-  const matches = vendoredHostPackageProfiles.filter((packages) =>
-    ["name", "version", "workspace"].every((field) => {
-      const values = packages.map((entry) => entry[field])
-      const assertion = `[.packages[].${field}]==${JSON.stringify(values)}and`
-      return compactShell.includes(assertion)
-    }),
-  )
-  if (matches.length !== 1) {
-    fail(
-      "publish job must select one coherent admitted vendored Host package closure",
-    )
+  for (const field of ["name", "version", "workspace"]) {
+    const values = vendoredHostPackages.map((entry) => entry[field])
+    const assertion = `[.packages[].${field}]==${JSON.stringify(values)}and`
+    if (!compactShell.includes(assertion)) {
+      fail(`publish job vendored Host package ${field} assertion drifted`)
+    }
   }
 }
 
@@ -140,98 +90,7 @@ function requireCosignInstaller(steps, label, expectedCondition) {
   }
 }
 
-function countOccurrences(source, fragment) {
-  return source.split(fragment).length - 1
-}
-
-function selectHostIdentityProfile({
-  approvalShell,
-  approvalSource,
-  releaseSource,
-  verifyShell,
-}) {
-  const matches = hostIdentityProfiles.filter(
-    (profile) =>
-      countOccurrences(
-        releaseSource,
-        `HOST_REPOSITORY: ${profile.repository}`,
-      ) === 1 &&
-      countOccurrences(
-        approvalSource,
-        `default: ${profile.repository}`,
-      ) === 1 &&
-      countOccurrences(
-        approvalShell,
-        `test "$HOST_REPOSITORY" = ${profile.repository}`,
-      ) === 1,
-  )
-  if (matches.length !== 1) {
-    fail("Host workflows must select one coherent admitted repository identity")
-  }
-  const profile = matches[0]
-  const otherProfile = hostIdentityProfiles.find(
-    (candidate) => candidate !== profile,
-  )
-  for (const [source, fragment, count, label] of [
-    [
-      verifyShell,
-      `sdk_workflow="$HOST_REPOSITORY/.github/workflows/plugin-sdk-release.yml@refs/heads/${profile.branch}"`,
-      1,
-      "SDK workflow identity",
-    ],
-    [
-      verifyShell,
-      `api_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/${profile.branch}"`,
-      1,
-      "API workflow identity",
-    ],
-    [
-      approvalShell,
-      `host_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/${profile.branch}"`,
-      1,
-      "approval workflow identity",
-    ],
-    [
-      verifyShell,
-      `hostIdentity.repository.id == "${profile.repositoryId}"`,
-      2,
-      "publication repository id",
-    ],
-    [
-      verifyShell,
-      `hostIdentity.owner.id == "${profile.ownerId}"`,
-      2,
-      "publication owner id",
-    ],
-    [
-      approvalShell,
-      `hostIdentity.repository.id == "${profile.repositoryId}"`,
-      1,
-      "approval repository id",
-    ],
-    [
-      approvalShell,
-      `hostIdentity.owner.id == "${profile.ownerId}"`,
-      1,
-      "approval owner id",
-    ],
-  ]) {
-    if (countOccurrences(source, fragment) !== count) {
-      fail(`${label} must match the selected Host identity exactly`)
-    }
-  }
-  for (const source of [releaseSource, approvalSource, verifyShell, approvalShell]) {
-    if (
-      source.includes(`hostIdentity.repository.id == "${otherProfile.repositoryId}"`) ||
-      source.includes(`hostIdentity.owner.id == "${otherProfile.ownerId}"`)
-    ) {
-      fail("Host workflows must not mix admitted repository identities")
-    }
-  }
-  return profile
-}
-
-function requireHostSigstoreCommands(shell, expectedCount, label, branch) {
+function requireHostSigstoreCommands(shell, expectedCount, label) {
   const commands = shell.split(/^\s*cosign verify-blob \\\s*$/gmu).slice(1)
   if (
     commands.length !== expectedCount ||
@@ -250,7 +109,7 @@ function requireHostSigstoreCommands(shell, expectedCount, label, branch) {
       ) ||
       !command.includes("--certificate-github-workflow-repository") ||
       !command.includes(
-        `--certificate-github-workflow-ref refs/heads/${branch}`,
+        "--certificate-github-workflow-ref refs/heads/main",
       ) ||
       !command.includes("--certificate-github-workflow-sha") ||
       !command.includes(
@@ -318,9 +177,8 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
       ),
     ])
   if (
-    !hostSigstoreVerifierSha256s.has(
-      createHash("sha256").update(hostSigstoreVerifierBytes).digest("hex"),
-    )
+    createHash("sha256").update(hostSigstoreVerifierBytes).digest("hex") !==
+    hostSigstoreVerifierSha256
   ) {
     fail(
       "Host Sigstore verifier bytes changed without a prior protected-base digest transition",
@@ -348,12 +206,6 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
   const approvalSteps = stepsFor(approval, "issue")
   const verifyShell = commandText(verifySteps)
   const approvalShell = commandText(approvalSteps)
-  const hostIdentity = selectHostIdentityProfile({
-    approvalShell,
-    approvalSource,
-    releaseSource,
-    verifyShell,
-  })
   if (release.env?.CONVAX_PLUGIN_SDK_SOURCE !== "workspace") {
     fail("the temporary Plugin SDK source must remain the reviewed workspace closure")
   }
@@ -381,7 +233,6 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
     verifyShell,
     2,
     "unprivileged publication workflow",
-    hostIdentity.branch,
   )
   const workspaceClosureStep = verifySteps.find(
     (step) =>
@@ -416,23 +267,20 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
     approvalShell,
     1,
     "Host capability approval workflow",
-    hostIdentity.branch,
   )
   if (
     !verifyShell.includes('--ignore-scripts') ||
     !verifyShell.includes("git diff --exit-code -- bun.lock") ||
     !verifyShell.includes(
-      `sdk_workflow="$HOST_REPOSITORY/.github/workflows/plugin-sdk-release.yml@refs/heads/${hostIdentity.branch}"`,
+      'sdk_workflow="$HOST_REPOSITORY/.github/workflows/plugin-sdk-release.yml@refs/heads/main"',
     ) ||
     !verifyShell.includes(
-      `api_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/${hostIdentity.branch}"`,
+      'api_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/main"',
     ) ||
     !verifyShell.includes("SHA256SUMS.sigstore.json") ||
     !verifyShell.includes("runtime-conformance.json.sigstore.json") ||
-    !verifyShell.includes(
-      `hostIdentity.repository.id == "${hostIdentity.repositoryId}"`,
-    ) ||
-    !verifyShell.includes(`hostIdentity.owner.id == "${hostIdentity.ownerId}"`) ||
+    !verifyShell.includes('hostIdentity.repository.id == "1322708874"') ||
+    !verifyShell.includes('hostIdentity.owner.id == "312877127"') ||
     !verifyShell.includes("realpath node_modules/@convax/plugin-sdk") ||
     !verifyShell.includes("realpath node_modules/@convax/plugin-api")
   ) {
@@ -478,14 +326,10 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
     !approvalShell.includes("gh release verify") ||
     !approvalShell.includes("gh release verify-asset") ||
     !approvalShell.includes(
-      `host_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/${hostIdentity.branch}"`,
+      'host_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/main"',
     ) ||
-    !approvalShell.includes(
-      `hostIdentity.repository.id == "${hostIdentity.repositoryId}"`,
-    ) ||
-    !approvalShell.includes(
-      `hostIdentity.owner.id == "${hostIdentity.ownerId}"`,
-    ) ||
+    !approvalShell.includes('hostIdentity.repository.id == "1322708874"') ||
+    !approvalShell.includes('hostIdentity.owner.id == "312877127"') ||
     (approvalShell.match(
       /> "\$evidence\/catalog-verification\.json"/gu,
     ) ?? []).length !== 1 ||

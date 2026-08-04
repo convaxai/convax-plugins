@@ -74,7 +74,7 @@
       "completion": "cancelable",
       "contract": {
         "dialect": "convax.plugin-api-wire-schema/3",
-        "digest": "sha256:f05aac5b477c820f40b7d365d2a30537f5051f994793915796f4b83cd253fa06",
+        "digest": "sha256:cece71c712b1e8895077cfa6bc164a3c2eb34ba572a0bc5bd2303652f1f1802d",
         "request": {
           "maxBytes": 65536,
           "schema": {
@@ -102,10 +102,6 @@
                 "items": {
                   "additionalProperties": false,
                   "properties": {
-                    "createdAt": {
-                      "finite": true,
-                      "type": "number"
-                    },
                     "id": {
                       "controlCharacters": false,
                       "maxLength": 256,
@@ -117,17 +113,11 @@
                       "maxLength": 512,
                       "minLength": 1,
                       "type": "string"
-                    },
-                    "updatedAt": {
-                      "finite": true,
-                      "type": "number"
                     }
                   },
                   "required": [
-                    "createdAt",
                     "id",
-                    "name",
-                    "updatedAt"
+                    "name"
                   ],
                   "type": "object"
                 },
@@ -150,7 +140,7 @@
           }
         }
       },
-      "contractSince": "2.0.0",
+      "contractSince": "3.0.0",
       "docs": {
         "description": "Reads the Project-owned Canvas catalog without selecting a Project or Canvas in the Workbench.",
         "request": "`{ projectId }`, naming one explicit portable Project.",
@@ -180,7 +170,7 @@
       "completion": "cancelable",
       "contract": {
         "dialect": "convax.plugin-api-wire-schema/3",
-        "digest": "sha256:6113d97a2c3dafa9f2a18dac1f824b95f6e5d7f166cc0d0a08ed67aec7f8b87f",
+        "digest": "sha256:fd9709961876088ac7f78498555993e0d37ea23d7d6c8cde9ce288a3e3e1851c",
         "request": {
           "maxBytes": 65536,
           "schema": {
@@ -359,11 +349,6 @@
                         "minItems": 0,
                         "type": "array"
                       },
-                      "revision": {
-                        "finite": true,
-                        "minimum": 0,
-                        "type": "integer"
-                      },
                       "title": {
                         "controlCharacters": false,
                         "maxLength": 512,
@@ -375,7 +360,6 @@
                       "edges",
                       "id",
                       "nodes",
-                      "revision",
                       "title"
                     ],
                     "type": "object"
@@ -404,26 +388,12 @@
                       "projectId"
                     ],
                     "type": "object"
-                  },
-                  "storageVersion": {
-                    "oneOf": [
-                      {
-                        "type": "null"
-                      },
-                      {
-                        "controlCharacters": false,
-                        "maxLength": 256,
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    ]
                   }
                 },
                 "required": [
                   "document",
                   "projection",
-                  "ref",
-                  "storageVersion"
+                  "ref"
                 ],
                 "type": "object"
               },
@@ -616,11 +586,6 @@
                         "minItems": 0,
                         "type": "array"
                       },
-                      "revision": {
-                        "finite": true,
-                        "minimum": 0,
-                        "type": "integer"
-                      },
                       "tags": {
                         "items": {
                           "controlCharacters": false,
@@ -643,7 +608,6 @@
                       "edges",
                       "id",
                       "nodes",
-                      "revision",
                       "title"
                     ],
                     "type": "object"
@@ -672,26 +636,12 @@
                       "projectId"
                     ],
                     "type": "object"
-                  },
-                  "storageVersion": {
-                    "oneOf": [
-                      {
-                        "type": "null"
-                      },
-                      {
-                        "controlCharacters": false,
-                        "maxLength": 256,
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    ]
                   }
                 },
                 "required": [
                   "document",
                   "projection",
-                  "ref",
-                  "storageVersion"
+                  "ref"
                 ],
                 "type": "object"
               }
@@ -699,11 +649,11 @@
           }
         }
       },
-      "contractSince": "2.0.0",
+      "contractSince": "3.0.0",
       "docs": {
         "description": "Returns a bounded portable structure or geometry projection from Main's authoritative Canvas application service.",
         "request": "`{ ref, projection }`, using an explicit portable Project/Canvas reference and supported projection.",
-        "response": "The requested pathless document projection and authoritative revision.",
+        "response": "The requested pathless document projection.",
         "summary": "Read one authorized Canvas document projection."
       },
       "errors": [
@@ -784,7 +734,7 @@
       },
       "contractSince": "2.0.0",
       "docs": {
-        "description": "Creates a connection-scoped subscription; events are revisioned invalidations or safe projections, never native data.",
+        "description": "Creates a connection-scoped subscription; events carry operation receipts as invalidations or safe projections, never native data.",
         "request": "`{ ref }`, using an explicit portable Project/Canvas reference.",
         "response": "A connection-bound subscription identifier.",
         "summary": "Subscribe to bounded events for one authorized Canvas."
@@ -1424,7 +1374,7 @@
       "completion": "cancelable",
       "contract": {
         "dialect": "convax.plugin-api-wire-schema/3",
-        "digest": "sha256:ecdd44fae098723ba7d8b54f74b60e75cac64042e95af9705beec170e147eee3",
+        "digest": "sha256:a49de198766062415b9941444d19c341a888dbf4df86de12ce121394e725ef95",
         "request": {
           "maxBytes": 65536,
           "schema": {
@@ -1472,11 +1422,6 @@
                 ],
                 "type": "object"
               },
-              "revision": {
-                "finite": true,
-                "minimum": 0,
-                "type": "integer"
-              },
               "style": {
                 "keyMaxLength": 128,
                 "maxBytes": 1048576,
@@ -1494,18 +1439,17 @@
               "data",
               "id",
               "position",
-              "revision",
               "type"
             ],
             "type": "object"
           }
         }
       },
-      "contractSince": "2.0.0",
+      "contractSince": "3.0.0",
       "docs": {
         "description": "Returns a bounded renderer-safe projection of the exact node bound to the connection.",
         "request": "No parameters; the owning node comes from the bound connection.",
-        "response": "The owning node identity, revision, geometry, and Plugin state projection.",
+        "response": "The owning node identity, geometry, and Plugin state projection.",
         "summary": "Read the owning Plugin node projection."
       },
       "errors": [
@@ -1531,7 +1475,7 @@
       "completion": "commit-preserving",
       "contract": {
         "dialect": "convax.plugin-api-wire-schema/3",
-        "digest": "sha256:2c19b67847d378a2c60c2f2fcbc180e0ad18f85c3dce3248f4285ca105a4bca4",
+        "digest": "sha256:9e11fd4dea5e3bccb021568985b0d3db156d10162870b15a70bece010316a0fb",
         "request": {
           "maxBytes": 266240,
           "schema": {
@@ -1555,22 +1499,191 @@
           "schema": {
             "additionalProperties": false,
             "properties": {
+              "operationReceipt": {
+                "additionalProperties": false,
+                "properties": {
+                  "actorId": {
+                    "controlCharacters": false,
+                    "maxLength": 43,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "baseFrontierDigest": {
+                    "controlCharacters": false,
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "refinement": "lowercase-sha256",
+                    "type": "string"
+                  },
+                  "format": {
+                    "const": "convax.canvas-operation-receipt/2"
+                  },
+                  "historyMaterialDigest": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "controlCharacters": false,
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "refinement": "lowercase-sha256",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "intentDigest": {
+                    "controlCharacters": false,
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "refinement": "lowercase-sha256",
+                    "type": "string"
+                  },
+                  "intentKind": {
+                    "controlCharacters": false,
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "controlCharacters": false,
+                    "maxLength": 22,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "resultEntities": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "controlCharacters": false,
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "incarnation": {
+                          "controlCharacters": false,
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "kind": {
+                          "controlCharacters": false,
+                          "enum": [
+                            "node",
+                            "edge"
+                          ],
+                          "maxLength": 4,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "incarnation",
+                        "kind"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 10000,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "semanticRoot": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "actorId",
+                  "baseFrontierDigest",
+                  "format",
+                  "historyMaterialDigest",
+                  "intentDigest",
+                  "intentKind",
+                  "operationId",
+                  "resultEntities",
+                  "semanticRoot"
+                ],
+                "type": "object"
+              },
+              "projection": {
+                "additionalProperties": false,
+                "properties": {
+                  "data": {
+                    "keyMaxLength": 128,
+                    "maxBytes": 1048576,
+                    "maxDepth": 32,
+                    "type": "json-object"
+                  },
+                  "id": {
+                    "controlCharacters": false,
+                    "maxLength": 2048,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "parentId": {
+                    "controlCharacters": false,
+                    "maxLength": 2048,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "position": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "x": {
+                        "finite": true,
+                        "type": "number"
+                      },
+                      "y": {
+                        "finite": true,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "type": "object"
+                  },
+                  "style": {
+                    "keyMaxLength": 128,
+                    "maxBytes": 1048576,
+                    "maxDepth": 32,
+                    "type": "json-object"
+                  },
+                  "type": {
+                    "controlCharacters": false,
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "data",
+                  "id",
+                  "position",
+                  "type"
+                ],
+                "type": "object"
+              },
               "updated": {
                 "const": true
               }
             },
             "required": [
+              "operationReceipt",
+              "projection",
               "updated"
             ],
             "type": "object"
           }
         }
       },
-      "contractSince": "2.0.0",
+      "contractSince": "3.0.0",
       "docs": {
-        "description": "Commits only the namespaced Plugin state through the authoritative Canvas application service with revision checks.",
+        "description": "Commits only the namespaced Plugin state through one Canvas-owned semantic intent guarded by the current node incarnation.",
         "request": "`{ state }`, where state is a bounded JSON value.",
-        "response": "`{ updated: true }` after the authoritative state replacement commits.",
+        "response": "The durable operation receipt and current owning-node projection after the replacement commits.",
         "summary": "Replace the owning node's bounded Plugin state."
       },
       "errors": [
@@ -1578,6 +1691,11 @@
           "code": "permission-denied",
           "description": "The installed Plugin principal does not currently hold the required grant.",
           "recoverable": false
+        },
+        {
+          "code": "resource-unavailable",
+          "description": "The authoritative Project resource is missing, changed, or cannot be read safely.",
+          "recoverable": true
         },
         {
           "code": "stale-context",
@@ -1596,7 +1714,7 @@
       "completion": "cancelable",
       "contract": {
         "dialect": "convax.plugin-api-wire-schema/3",
-        "digest": "sha256:7dcae9e1f03d18828e875076d235faf41e1f3a9e85dec157584c971f59869d3c",
+        "digest": "sha256:2c30b158f167b3a9628831ea02aeb46e3672a924eaf517adb1620be0b5a99eb4",
         "request": {
           "maxBytes": 1048576,
           "schema": {
@@ -1782,6 +1900,218 @@
                 "minItems": 0,
                 "type": "array"
               },
+              "projection": {
+                "additionalProperties": false,
+                "properties": {
+                  "description": {
+                    "controlCharacters": false,
+                    "maxLength": 8000,
+                    "minLength": 0,
+                    "type": "string"
+                  },
+                  "edges": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "source": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "source",
+                        "target"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 10000,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "id": {
+                    "controlCharacters": false,
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "nodes": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "description": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "durationMs": {
+                          "finite": true,
+                          "type": "number"
+                        },
+                        "id": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "kind": {
+                          "controlCharacters": false,
+                          "maxLength": 80,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "label": {
+                          "controlCharacters": false,
+                          "maxLength": 512,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "name": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "parentId": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "position": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "finite": true,
+                              "type": "number"
+                            },
+                            "y": {
+                              "finite": true,
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y"
+                          ],
+                          "type": "object"
+                        },
+                        "resource": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "kind": {
+                              "const": "project-file"
+                            },
+                            "path": {
+                              "controlCharacters": false,
+                              "maxLength": 1024,
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "path"
+                          ],
+                          "type": "object"
+                        },
+                        "size": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "height": {
+                              "finite": true,
+                              "type": "number"
+                            },
+                            "width": {
+                              "finite": true,
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "height",
+                            "width"
+                          ],
+                          "type": "object"
+                        },
+                        "status": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "text": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "type": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "kind",
+                        "label",
+                        "position",
+                        "size"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 10000,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "tags": {
+                    "items": {
+                      "controlCharacters": false,
+                      "maxLength": 2048,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "maxItems": 256,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "title": {
+                    "controlCharacters": false,
+                    "maxLength": 512,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "edges",
+                  "id",
+                  "nodes",
+                  "title"
+                ],
+                "type": "object"
+              },
               "ref": {
                 "additionalProperties": false,
                 "properties": {
@@ -1803,41 +2133,22 @@
                   "projectId"
                 ],
                 "type": "object"
-              },
-              "revision": {
-                "finite": true,
-                "minimum": 0,
-                "type": "integer"
-              },
-              "storageVersion": {
-                "oneOf": [
-                  {
-                    "type": "null"
-                  },
-                  {
-                    "controlCharacters": false,
-                    "maxLength": 256,
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                ]
               }
             },
             "required": [
               "nodes",
-              "ref",
-              "revision",
-              "storageVersion"
+              "projection",
+              "ref"
             ],
             "type": "object"
           }
         }
       },
-      "contractSince": "2.0.0",
+      "contractSince": "3.0.0",
       "docs": {
         "description": "Executes a host-defined bounded query without exposing native paths or resource bytes.",
         "request": "`{ ref, query }`, using an explicit portable Project/Canvas reference and bounded query.",
-        "response": "Matching node projections and the authoritative Canvas revision.",
+        "response": "Matching node summaries and the current pathless Canvas projection.",
         "summary": "Query bounded node projections in one authorized Canvas."
       },
       "errors": [
@@ -1863,7 +2174,7 @@
       "completion": "commit-preserving",
       "contract": {
         "dialect": "convax.plugin-api-wire-schema/3",
-        "digest": "sha256:4d180f1e9f4ee715d8debeb91011836051e9aecfe5f0bc9e5f1c2a458b5391c4",
+        "digest": "sha256:81f133e8b7e1450b642ba27da69c8710ab099b43e9c4888f85b6533ac71604bf",
         "request": {
           "maxBytes": 25169920,
           "schema": {
@@ -1902,21 +2213,336 @@
                 "minLength": 1,
                 "type": "string"
               },
-              "revision": {
-                "finite": true,
-                "minimum": 0,
-                "type": "integer"
+              "operationReceipt": {
+                "additionalProperties": false,
+                "properties": {
+                  "actorId": {
+                    "controlCharacters": false,
+                    "maxLength": 43,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "baseFrontierDigest": {
+                    "controlCharacters": false,
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "refinement": "lowercase-sha256",
+                    "type": "string"
+                  },
+                  "format": {
+                    "const": "convax.canvas-operation-receipt/2"
+                  },
+                  "historyMaterialDigest": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "controlCharacters": false,
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "refinement": "lowercase-sha256",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "intentDigest": {
+                    "controlCharacters": false,
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "refinement": "lowercase-sha256",
+                    "type": "string"
+                  },
+                  "intentKind": {
+                    "controlCharacters": false,
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "controlCharacters": false,
+                    "maxLength": 22,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "resultEntities": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "controlCharacters": false,
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "incarnation": {
+                          "controlCharacters": false,
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "kind": {
+                          "controlCharacters": false,
+                          "enum": [
+                            "node",
+                            "edge"
+                          ],
+                          "maxLength": 4,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "incarnation",
+                        "kind"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 10000,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "semanticRoot": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "actorId",
+                  "baseFrontierDigest",
+                  "format",
+                  "historyMaterialDigest",
+                  "intentDigest",
+                  "intentKind",
+                  "operationId",
+                  "resultEntities",
+                  "semanticRoot"
+                ],
+                "type": "object"
+              },
+              "projection": {
+                "additionalProperties": false,
+                "properties": {
+                  "description": {
+                    "controlCharacters": false,
+                    "maxLength": 8000,
+                    "minLength": 0,
+                    "type": "string"
+                  },
+                  "edges": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "source": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "source",
+                        "target"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 10000,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "id": {
+                    "controlCharacters": false,
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "nodes": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "description": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "durationMs": {
+                          "finite": true,
+                          "type": "number"
+                        },
+                        "id": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "kind": {
+                          "controlCharacters": false,
+                          "maxLength": 80,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "label": {
+                          "controlCharacters": false,
+                          "maxLength": 512,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "name": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "parentId": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "position": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "finite": true,
+                              "type": "number"
+                            },
+                            "y": {
+                              "finite": true,
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y"
+                          ],
+                          "type": "object"
+                        },
+                        "resource": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "kind": {
+                              "const": "project-file"
+                            },
+                            "path": {
+                              "controlCharacters": false,
+                              "maxLength": 1024,
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "path"
+                          ],
+                          "type": "object"
+                        },
+                        "size": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "height": {
+                              "finite": true,
+                              "type": "number"
+                            },
+                            "width": {
+                              "finite": true,
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "height",
+                            "width"
+                          ],
+                          "type": "object"
+                        },
+                        "status": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "text": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "type": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "kind",
+                        "label",
+                        "position",
+                        "size"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 10000,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "tags": {
+                    "items": {
+                      "controlCharacters": false,
+                      "maxLength": 2048,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "maxItems": 256,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "title": {
+                    "controlCharacters": false,
+                    "maxLength": 512,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "edges",
+                  "id",
+                  "nodes",
+                  "title"
+                ],
+                "type": "object"
               }
             },
             "required": [
               "createdNodeId",
-              "revision"
+              "operationReceipt",
+              "projection"
             ],
             "type": "object"
           }
         }
       },
-      "contractSince": "2.0.0",
+      "contractSince": "3.0.0",
       "docs": {
         "description": "Admits bounded image content as a user-visible Project resource and commits its Canvas reference without exposing native paths.",
         "request": "`{ dataUrl, name }`, containing a bounded validated image data URL and safe file name.",
@@ -1951,459 +2577,455 @@
       "completion": "commit-preserving",
       "contract": {
         "dialect": "convax.plugin-api-wire-schema/3",
-        "digest": "sha256:2a4fdfd35c67b7f6c87219e34e7d8d6d9450f822a202c70d6454a7a769f55fe4",
+        "digest": "sha256:c0b91d2619a89928171ca4fd0f77aab93a6b0a625154b01a309f8e0de2cdfb93",
         "request": {
           "maxBytes": 1048576,
           "schema": {
             "additionalProperties": false,
             "properties": {
-              "commands": {
-                "items": {
-                  "oneOf": [
-                    {
-                      "additionalProperties": false,
-                      "properties": {
-                        "edgeIds": {
-                          "items": {
-                            "controlCharacters": false,
-                            "maxLength": 2048,
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "maxItems": 1000,
-                          "minItems": 0,
-                          "type": "array"
-                        },
-                        "nodeIds": {
-                          "items": {
-                            "controlCharacters": false,
-                            "maxLength": 2048,
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "maxItems": 1000,
-                          "minItems": 0,
-                          "type": "array"
-                        },
-                        "type": {
-                          "const": "elements.remove"
-                        }
-                      },
-                      "required": [
-                        "type"
-                      ],
-                      "type": "object"
-                    },
-                    {
-                      "additionalProperties": false,
-                      "properties": {
-                        "direction": {
-                          "controlCharacters": false,
-                          "enum": [
-                            "left",
-                            "center",
-                            "right",
-                            "top",
-                            "middle",
-                            "bottom"
-                          ],
-                          "maxLength": 6,
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "nodeIds": {
-                          "items": {
-                            "controlCharacters": false,
-                            "maxLength": 2048,
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "maxItems": 1000,
-                          "minItems": 0,
-                          "type": "array"
-                        },
-                        "type": {
-                          "const": "nodes.align"
-                        }
-                      },
-                      "required": [
-                        "direction",
-                        "nodeIds",
-                        "type"
-                      ],
-                      "type": "object"
-                    },
-                    {
-                      "additionalProperties": false,
-                      "properties": {
-                        "connection": {
-                          "additionalProperties": false,
-                          "properties": {
-                            "animated": {
-                              "type": "boolean"
-                            },
-                            "id": {
-                              "controlCharacters": false,
-                              "maxLength": 2048,
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            "source": {
-                              "controlCharacters": false,
-                              "maxLength": 2048,
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            "target": {
-                              "controlCharacters": false,
-                              "maxLength": 2048,
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            "type": {
-                              "controlCharacters": false,
-                              "maxLength": 80,
-                              "minLength": 1,
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "source",
-                            "target"
-                          ],
-                          "type": "object"
-                        },
-                        "type": {
-                          "const": "nodes.connect"
-                        }
-                      },
-                      "required": [
-                        "connection",
-                        "type"
-                      ],
-                      "type": "object"
-                    },
-                    {
-                      "additionalProperties": false,
-                      "properties": {
-                        "axis": {
-                          "controlCharacters": false,
-                          "enum": [
-                            "horizontal",
-                            "vertical"
-                          ],
-                          "maxLength": 10,
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "nodeIds": {
-                          "items": {
-                            "controlCharacters": false,
-                            "maxLength": 2048,
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "maxItems": 1000,
-                          "minItems": 0,
-                          "type": "array"
-                        },
-                        "type": {
-                          "const": "nodes.distribute"
-                        }
-                      },
-                      "required": [
-                        "axis",
-                        "nodeIds",
-                        "type"
-                      ],
-                      "type": "object"
-                    },
-                    {
-                      "additionalProperties": false,
-                      "properties": {
-                        "label": {
-                          "controlCharacters": false,
-                          "maxLength": 512,
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "nodeIds": {
-                          "items": {
-                            "controlCharacters": false,
-                            "maxLength": 2048,
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "maxItems": 1000,
-                          "minItems": 0,
-                          "type": "array"
-                        },
-                        "type": {
-                          "const": "nodes.group"
-                        }
-                      },
-                      "required": [
-                        "nodeIds",
-                        "type"
-                      ],
-                      "type": "object"
-                    },
-                    {
-                      "additionalProperties": false,
-                      "properties": {
-                        "gap": {
-                          "finite": true,
-                          "type": "number"
-                        },
-                        "layout": {
-                          "controlCharacters": false,
-                          "enum": [
-                            "grid",
-                            "horizontal",
-                            "vertical"
-                          ],
-                          "maxLength": 10,
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "nodeIds": {
-                          "items": {
-                            "controlCharacters": false,
-                            "maxLength": 2048,
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "maxItems": 1000,
-                          "minItems": 0,
-                          "type": "array"
-                        },
-                        "type": {
-                          "const": "nodes.layout"
-                        }
-                      },
-                      "required": [
-                        "nodeIds",
-                        "type"
-                      ],
-                      "type": "object"
-                    },
-                    {
-                      "additionalProperties": false,
-                      "properties": {
-                        "delta": {
-                          "additionalProperties": false,
-                          "properties": {
-                            "x": {
-                              "finite": true,
-                              "type": "number"
-                            },
-                            "y": {
-                              "finite": true,
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "x",
-                            "y"
-                          ],
-                          "type": "object"
-                        },
-                        "nodeIds": {
-                          "items": {
-                            "controlCharacters": false,
-                            "maxLength": 2048,
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "maxItems": 1000,
-                          "minItems": 0,
-                          "type": "array"
-                        },
-                        "type": {
-                          "const": "nodes.move"
-                        }
-                      },
-                      "required": [
-                        "delta",
-                        "nodeIds",
-                        "type"
-                      ],
-                      "type": "object"
-                    },
-                    {
-                      "additionalProperties": false,
-                      "properties": {
-                        "type": {
-                          "const": "nodes.setGeometry"
-                        },
-                        "updates": {
-                          "items": {
-                            "additionalProperties": false,
-                            "properties": {
-                              "nodeId": {
-                                "controlCharacters": false,
-                                "maxLength": 2048,
-                                "minLength": 1,
-                                "type": "string"
-                              },
-                              "position": {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "x": {
-                                    "finite": true,
-                                    "type": "number"
-                                  },
-                                  "y": {
-                                    "finite": true,
-                                    "type": "number"
-                                  }
-                                },
-                                "required": [
-                                  "x",
-                                  "y"
-                                ],
-                                "type": "object"
-                              },
-                              "size": {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "height": {
-                                    "finite": true,
-                                    "type": "number"
-                                  },
-                                  "width": {
-                                    "finite": true,
-                                    "type": "number"
-                                  }
-                                },
-                                "required": [
-                                  "height",
-                                  "width"
-                                ],
-                                "type": "object"
-                              }
-                            },
-                            "required": [
-                              "nodeId",
-                              "position"
-                            ],
-                            "type": "object"
-                          },
-                          "maxItems": 1000,
-                          "minItems": 0,
-                          "type": "array"
-                        }
-                      },
-                      "required": [
-                        "type",
-                        "updates"
-                      ],
-                      "type": "object"
-                    },
-                    {
-                      "additionalProperties": false,
-                      "properties": {
-                        "nodeId": {
+              "command": {
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "edgeIds": {
+                        "items": {
                           "controlCharacters": false,
                           "maxLength": 2048,
                           "minLength": 1,
                           "type": "string"
                         },
-                        "type": {
-                          "const": "nodes.ungroup"
-                        }
+                        "maxItems": 1000,
+                        "minItems": 0,
+                        "type": "array"
                       },
-                      "required": [
-                        "nodeId",
-                        "type"
-                      ],
-                      "type": "object"
+                      "nodeIds": {
+                        "items": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 1000,
+                        "minItems": 0,
+                        "type": "array"
+                      },
+                      "type": {
+                        "const": "elements.remove"
+                      }
                     },
-                    {
-                      "additionalProperties": false,
-                      "properties": {
-                        "nodeIds": {
-                          "items": {
+                    "required": [
+                      "type"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "direction": {
+                        "controlCharacters": false,
+                        "enum": [
+                          "left",
+                          "center",
+                          "right",
+                          "top",
+                          "middle",
+                          "bottom"
+                        ],
+                        "maxLength": 6,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "nodeIds": {
+                        "items": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 1000,
+                        "minItems": 0,
+                        "type": "array"
+                      },
+                      "type": {
+                        "const": "nodes.align"
+                      }
+                    },
+                    "required": [
+                      "direction",
+                      "nodeIds",
+                      "type"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "connection": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "animated": {
+                            "type": "boolean"
+                          },
+                          "id": {
                             "controlCharacters": false,
                             "maxLength": 2048,
                             "minLength": 1,
                             "type": "string"
                           },
-                          "maxItems": 1000,
-                          "minItems": 0,
-                          "type": "array"
+                          "source": {
+                            "controlCharacters": false,
+                            "maxLength": 2048,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "target": {
+                            "controlCharacters": false,
+                            "maxLength": 2048,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "type": {
+                            "controlCharacters": false,
+                            "maxLength": 80,
+                            "minLength": 1,
+                            "type": "string"
+                          }
                         },
-                        "options": {
+                        "required": [
+                          "source",
+                          "target"
+                        ],
+                        "type": "object"
+                      },
+                      "type": {
+                        "const": "nodes.connect"
+                      }
+                    },
+                    "required": [
+                      "connection",
+                      "type"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "axis": {
+                        "controlCharacters": false,
+                        "enum": [
+                          "horizontal",
+                          "vertical"
+                        ],
+                        "maxLength": 10,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "nodeIds": {
+                        "items": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 1000,
+                        "minItems": 0,
+                        "type": "array"
+                      },
+                      "type": {
+                        "const": "nodes.distribute"
+                      }
+                    },
+                    "required": [
+                      "axis",
+                      "nodeIds",
+                      "type"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "label": {
+                        "controlCharacters": false,
+                        "maxLength": 512,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "nodeIds": {
+                        "items": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 1000,
+                        "minItems": 0,
+                        "type": "array"
+                      },
+                      "type": {
+                        "const": "nodes.group"
+                      }
+                    },
+                    "required": [
+                      "nodeIds",
+                      "type"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "gap": {
+                        "finite": true,
+                        "type": "number"
+                      },
+                      "layout": {
+                        "controlCharacters": false,
+                        "enum": [
+                          "grid",
+                          "horizontal",
+                          "vertical"
+                        ],
+                        "maxLength": 10,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "nodeIds": {
+                        "items": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 1000,
+                        "minItems": 0,
+                        "type": "array"
+                      },
+                      "type": {
+                        "const": "nodes.layout"
+                      }
+                    },
+                    "required": [
+                      "nodeIds",
+                      "type"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "delta": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "x": {
+                            "finite": true,
+                            "type": "number"
+                          },
+                          "y": {
+                            "finite": true,
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y"
+                        ],
+                        "type": "object"
+                      },
+                      "nodeIds": {
+                        "items": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 1000,
+                        "minItems": 0,
+                        "type": "array"
+                      },
+                      "type": {
+                        "const": "nodes.move"
+                      }
+                    },
+                    "required": [
+                      "delta",
+                      "nodeIds",
+                      "type"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "type": {
+                        "const": "nodes.setGeometry"
+                      },
+                      "updates": {
+                        "items": {
                           "additionalProperties": false,
                           "properties": {
-                            "componentGap": {
-                              "finite": true,
-                              "type": "number"
-                            },
-                            "componentPackingScale": {
-                              "finite": true,
-                              "type": "number"
-                            },
-                            "crossGap": {
-                              "finite": true,
-                              "type": "number"
-                            },
-                            "isolatedPlacement": {
+                            "nodeId": {
                               "controlCharacters": false,
-                              "enum": [
-                                "left",
-                                "preserve"
-                              ],
-                              "maxLength": 8,
+                              "maxLength": 2048,
                               "minLength": 1,
                               "type": "string"
                             },
-                            "mainGap": {
-                              "finite": true,
-                              "type": "number"
-                            },
-                            "nodeGap": {
-                              "finite": true,
-                              "type": "number"
-                            },
-                            "nodePackingScale": {
-                              "finite": true,
-                              "type": "number"
-                            },
-                            "strategy": {
-                              "controlCharacters": false,
-                              "enum": [
-                                "component-packing",
-                                "horizontal-directed-cluster",
-                                "vertical-directed-cluster"
+                            "position": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "x": {
+                                  "finite": true,
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "finite": true,
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "x",
+                                "y"
                               ],
-                              "maxLength": 27,
-                              "minLength": 1,
-                              "type": "string"
+                              "type": "object"
+                            },
+                            "size": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "height": {
+                                  "finite": true,
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "finite": true,
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "height",
+                                "width"
+                              ],
+                              "type": "object"
                             }
                           },
-                          "required": [],
+                          "required": [
+                            "nodeId",
+                            "position"
+                          ],
                           "type": "object"
                         },
-                        "type": {
-                          "const": "canvas.auto-layout"
-                        }
+                        "maxItems": 1000,
+                        "minItems": 0,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "updates"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "nodeId": {
+                        "controlCharacters": false,
+                        "maxLength": 2048,
+                        "minLength": 1,
+                        "type": "string"
                       },
-                      "required": [
-                        "type"
-                      ],
-                      "type": "object"
-                    }
-                  ]
-                },
-                "maxItems": 256,
-                "minItems": 1,
-                "type": "array"
+                      "type": {
+                        "const": "nodes.ungroup"
+                      }
+                    },
+                    "required": [
+                      "nodeId",
+                      "type"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "nodeIds": {
+                        "items": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 1000,
+                        "minItems": 0,
+                        "type": "array"
+                      },
+                      "options": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "componentGap": {
+                            "finite": true,
+                            "type": "number"
+                          },
+                          "componentPackingScale": {
+                            "finite": true,
+                            "type": "number"
+                          },
+                          "crossGap": {
+                            "finite": true,
+                            "type": "number"
+                          },
+                          "isolatedPlacement": {
+                            "controlCharacters": false,
+                            "enum": [
+                              "left",
+                              "preserve"
+                            ],
+                            "maxLength": 8,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "mainGap": {
+                            "finite": true,
+                            "type": "number"
+                          },
+                          "nodeGap": {
+                            "finite": true,
+                            "type": "number"
+                          },
+                          "nodePackingScale": {
+                            "finite": true,
+                            "type": "number"
+                          },
+                          "strategy": {
+                            "controlCharacters": false,
+                            "enum": [
+                              "component-packing",
+                              "horizontal-directed-cluster",
+                              "vertical-directed-cluster"
+                            ],
+                            "maxLength": 27,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [],
+                        "type": "object"
+                      },
+                      "type": {
+                        "const": "canvas.auto-layout"
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ],
+                    "type": "object"
+                  }
+                ]
               },
-              "expectedRevision": {
-                "finite": true,
-                "minimum": 0,
-                "type": "integer"
+              "commandId": {
+                "controlCharacters": false,
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
               },
               "ref": {
                 "additionalProperties": false,
@@ -2426,19 +3048,12 @@
                   "projectId"
                 ],
                 "type": "object"
-              },
-              "transactionId": {
-                "controlCharacters": false,
-                "maxLength": 128,
-                "minLength": 1,
-                "type": "string"
               }
             },
             "required": [
-              "commands",
-              "expectedRevision",
-              "ref",
-              "transactionId"
+              "command",
+              "commandId",
+              "ref"
             ],
             "type": "object"
           }
@@ -2473,6 +3088,325 @@
                 "minItems": 0,
                 "type": "array"
               },
+              "operationReceipt": {
+                "additionalProperties": false,
+                "properties": {
+                  "actorId": {
+                    "controlCharacters": false,
+                    "maxLength": 43,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "baseFrontierDigest": {
+                    "controlCharacters": false,
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "refinement": "lowercase-sha256",
+                    "type": "string"
+                  },
+                  "format": {
+                    "const": "convax.canvas-operation-receipt/2"
+                  },
+                  "historyMaterialDigest": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "controlCharacters": false,
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "refinement": "lowercase-sha256",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "intentDigest": {
+                    "controlCharacters": false,
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "refinement": "lowercase-sha256",
+                    "type": "string"
+                  },
+                  "intentKind": {
+                    "controlCharacters": false,
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "controlCharacters": false,
+                    "maxLength": 22,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "resultEntities": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "controlCharacters": false,
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "incarnation": {
+                          "controlCharacters": false,
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "kind": {
+                          "controlCharacters": false,
+                          "enum": [
+                            "node",
+                            "edge"
+                          ],
+                          "maxLength": 4,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "incarnation",
+                        "kind"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 10000,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "semanticRoot": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "actorId",
+                  "baseFrontierDigest",
+                  "format",
+                  "historyMaterialDigest",
+                  "intentDigest",
+                  "intentKind",
+                  "operationId",
+                  "resultEntities",
+                  "semanticRoot"
+                ],
+                "type": "object"
+              },
+              "projection": {
+                "additionalProperties": false,
+                "properties": {
+                  "description": {
+                    "controlCharacters": false,
+                    "maxLength": 8000,
+                    "minLength": 0,
+                    "type": "string"
+                  },
+                  "edges": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "source": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "source",
+                        "target"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 10000,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "id": {
+                    "controlCharacters": false,
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "nodes": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "description": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "durationMs": {
+                          "finite": true,
+                          "type": "number"
+                        },
+                        "id": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "kind": {
+                          "controlCharacters": false,
+                          "maxLength": 80,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "label": {
+                          "controlCharacters": false,
+                          "maxLength": 512,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "name": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "parentId": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "position": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "finite": true,
+                              "type": "number"
+                            },
+                            "y": {
+                              "finite": true,
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y"
+                          ],
+                          "type": "object"
+                        },
+                        "resource": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "kind": {
+                              "const": "project-file"
+                            },
+                            "path": {
+                              "controlCharacters": false,
+                              "maxLength": 1024,
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "path"
+                          ],
+                          "type": "object"
+                        },
+                        "size": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "height": {
+                              "finite": true,
+                              "type": "number"
+                            },
+                            "width": {
+                              "finite": true,
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "height",
+                            "width"
+                          ],
+                          "type": "object"
+                        },
+                        "status": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "text": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "type": {
+                          "controlCharacters": false,
+                          "maxLength": 65536,
+                          "minLength": 0,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "kind",
+                        "label",
+                        "position",
+                        "size"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 10000,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "tags": {
+                    "items": {
+                      "controlCharacters": false,
+                      "maxLength": 2048,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "maxItems": 256,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "title": {
+                    "controlCharacters": false,
+                    "maxLength": 512,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "edges",
+                  "id",
+                  "nodes",
+                  "title"
+                ],
+                "type": "object"
+              },
               "ref": {
                 "additionalProperties": false,
                 "properties": {
@@ -2495,17 +3429,6 @@
                 ],
                 "type": "object"
               },
-              "revision": {
-                "finite": true,
-                "minimum": 0,
-                "type": "integer"
-              },
-              "storageVersion": {
-                "controlCharacters": false,
-                "maxLength": 256,
-                "minLength": 1,
-                "type": "string"
-              },
               "summaryTruncated": {
                 "type": "boolean"
               },
@@ -2525,21 +3448,21 @@
               "affectedNodeIds",
               "changed",
               "createdNodeIds",
+              "operationReceipt",
+              "projection",
               "ref",
-              "revision",
-              "storageVersion",
               "warnings"
             ],
             "type": "object"
           }
         }
       },
-      "contractSince": "2.0.0",
+      "contractSince": "3.0.0",
       "docs": {
-        "description": "Validates bounded commands against one authoritative revision and persists the accepted transaction atomically.",
-        "request": "`{ ref, expectedRevision, commands, transactionId }` with a bounded non-empty command list.",
-        "response": "The committed authoritative revision and bounded command results.",
-        "summary": "Commit one non-empty revision-bound Canvas transaction."
+        "description": "Maps one bounded command to a Canvas-owned semantic intent, commits it atomically, and returns its durable operation identity.",
+        "request": "`{ ref, command, commandId }` with one bounded closed command and an idempotency key.",
+        "response": "The durable operation receipt, current pathless projection, and bounded command result.",
+        "summary": "Commit one closed Canvas command through the authoritative application service."
       },
       "errors": [
         {
@@ -2564,7 +3487,7 @@
       "completion": "commit-preserving",
       "contract": {
         "dialect": "convax.plugin-api-wire-schema/3",
-        "digest": "sha256:a7ec11a6894247ae4485414a82a8a409f618d00bf3206e973ab111d4e7fa8247",
+        "digest": "sha256:c00cba532377ce144fb27d0bc2e9195b6cda796159cff251bce218c3a55da26e",
         "request": {
           "maxBytes": 65536,
           "schema": {
@@ -2663,16 +3586,344 @@
                 "minItems": 0,
                 "type": "array"
               },
+              "operationReceipt": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "actorId": {
+                        "controlCharacters": false,
+                        "maxLength": 43,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "baseFrontierDigest": {
+                        "controlCharacters": false,
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "refinement": "lowercase-sha256",
+                        "type": "string"
+                      },
+                      "format": {
+                        "const": "convax.canvas-operation-receipt/2"
+                      },
+                      "historyMaterialDigest": {
+                        "oneOf": [
+                          {
+                            "type": "null"
+                          },
+                          {
+                            "controlCharacters": false,
+                            "maxLength": 64,
+                            "minLength": 1,
+                            "refinement": "lowercase-sha256",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "intentDigest": {
+                        "controlCharacters": false,
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "refinement": "lowercase-sha256",
+                        "type": "string"
+                      },
+                      "intentKind": {
+                        "controlCharacters": false,
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "operationId": {
+                        "controlCharacters": false,
+                        "maxLength": 22,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "resultEntities": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "controlCharacters": false,
+                              "maxLength": 256,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "incarnation": {
+                              "controlCharacters": false,
+                              "maxLength": 256,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "kind": {
+                              "controlCharacters": false,
+                              "enum": [
+                                "node",
+                                "edge"
+                              ],
+                              "maxLength": 4,
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "incarnation",
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 10000,
+                        "minItems": 0,
+                        "type": "array"
+                      },
+                      "semanticRoot": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "actorId",
+                      "baseFrontierDigest",
+                      "format",
+                      "historyMaterialDigest",
+                      "intentDigest",
+                      "intentKind",
+                      "operationId",
+                      "resultEntities",
+                      "semanticRoot"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
               "outputText": {
                 "controlCharacters": false,
                 "maxLength": 65536,
                 "minLength": 0,
                 "type": "string"
               },
-              "revision": {
-                "finite": true,
-                "minimum": 0,
-                "type": "integer"
+              "projection": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "description": {
+                        "controlCharacters": false,
+                        "maxLength": 8000,
+                        "minLength": 0,
+                        "type": "string"
+                      },
+                      "edges": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "controlCharacters": false,
+                              "maxLength": 2048,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "source": {
+                              "controlCharacters": false,
+                              "maxLength": 2048,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "target": {
+                              "controlCharacters": false,
+                              "maxLength": 2048,
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "source",
+                            "target"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 10000,
+                        "minItems": 0,
+                        "type": "array"
+                      },
+                      "id": {
+                        "controlCharacters": false,
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "nodes": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "description": {
+                              "controlCharacters": false,
+                              "maxLength": 65536,
+                              "minLength": 0,
+                              "type": "string"
+                            },
+                            "durationMs": {
+                              "finite": true,
+                              "type": "number"
+                            },
+                            "id": {
+                              "controlCharacters": false,
+                              "maxLength": 2048,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "kind": {
+                              "controlCharacters": false,
+                              "maxLength": 80,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "label": {
+                              "controlCharacters": false,
+                              "maxLength": 512,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "mimeType": {
+                              "controlCharacters": false,
+                              "maxLength": 65536,
+                              "minLength": 0,
+                              "type": "string"
+                            },
+                            "name": {
+                              "controlCharacters": false,
+                              "maxLength": 65536,
+                              "minLength": 0,
+                              "type": "string"
+                            },
+                            "parentId": {
+                              "controlCharacters": false,
+                              "maxLength": 65536,
+                              "minLength": 0,
+                              "type": "string"
+                            },
+                            "position": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "x": {
+                                  "finite": true,
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "finite": true,
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "x",
+                                "y"
+                              ],
+                              "type": "object"
+                            },
+                            "resource": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "kind": {
+                                  "const": "project-file"
+                                },
+                                "path": {
+                                  "controlCharacters": false,
+                                  "maxLength": 1024,
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "path"
+                              ],
+                              "type": "object"
+                            },
+                            "size": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "height": {
+                                  "finite": true,
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "finite": true,
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "height",
+                                "width"
+                              ],
+                              "type": "object"
+                            },
+                            "status": {
+                              "controlCharacters": false,
+                              "maxLength": 65536,
+                              "minLength": 0,
+                              "type": "string"
+                            },
+                            "text": {
+                              "controlCharacters": false,
+                              "maxLength": 65536,
+                              "minLength": 0,
+                              "type": "string"
+                            },
+                            "type": {
+                              "controlCharacters": false,
+                              "maxLength": 65536,
+                              "minLength": 0,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind",
+                            "label",
+                            "position",
+                            "size"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 10000,
+                        "minItems": 0,
+                        "type": "array"
+                      },
+                      "tags": {
+                        "items": {
+                          "controlCharacters": false,
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 256,
+                        "minItems": 0,
+                        "type": "array"
+                      },
+                      "title": {
+                        "controlCharacters": false,
+                        "maxLength": 512,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "edges",
+                      "id",
+                      "nodes",
+                      "title"
+                    ],
+                    "type": "object"
+                  }
+                ]
               },
               "toolId": {
                 "controlCharacters": false,
@@ -2694,7 +3945,8 @@
             },
             "required": [
               "createdNodeIds",
-              "revision",
+              "operationReceipt",
+              "projection",
               "toolId",
               "warnings"
             ],
@@ -2702,11 +3954,11 @@
           }
         }
       },
-      "contractSince": "2.0.0",
+      "contractSince": "3.0.0",
       "docs": {
         "description": "Revalidates the active Plugin, authorized executable, inputs, cancellation, and live resource guards immediately before execution.",
         "request": "`{ output?, prompt, references?: Array<{ inputKey, role }>, resultMode?, toolId? }`; every opaque input key must come from the current owning node's canvas.inputs.list result.",
-        "response": "The bounded selected tool result, created node ids, authoritative revision, and warnings.",
+        "response": "The bounded selected tool result, created node ids, optional committed operation receipt/projection, and warnings.",
         "summary": "Execute one selected generation tool through the shared host executor."
       },
       "errors": [
@@ -2888,7 +4140,7 @@
       "completion": "cancelable",
       "contract": {
         "dialect": "convax.plugin-api-wire-schema/3",
-        "digest": "sha256:20af31a6f46ead24e983f413f0e37942abffab78c6bc2c97eec41977b28cbc90",
+        "digest": "sha256:d0c7de7d300659270e5de48a5ff9f0cac85f49dab1b00d19f97672c913d14167",
         "request": {
           "maxBytes": 65536,
           "schema": {
@@ -3078,11 +4330,6 @@
                     ],
                     "type": "object"
                   },
-                  "revision": {
-                    "finite": true,
-                    "minimum": 0,
-                    "type": "integer"
-                  },
                   "style": {
                     "keyMaxLength": 128,
                     "maxBytes": 1048576,
@@ -3100,7 +4347,6 @@
                   "data",
                   "id",
                   "position",
-                  "revision",
                   "type"
                 ],
                 "type": "object"
@@ -3167,7 +4413,7 @@
           }
         }
       },
-      "contractSince": "2.0.0",
+      "contractSince": "3.0.0",
       "docs": {
         "description": "Returns only renderer-safe identifiers and feature metadata for the exact live connection; it grants no additional authority.",
         "request": "No parameters.",
@@ -3346,5 +4592,5 @@
     }
   ],
   "schema": "convax.plugin-api-catalog/3",
-  "version": "2.0.0"
+  "version": "3.0.0"
 }

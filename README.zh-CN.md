@@ -9,7 +9,7 @@ Server 的官方源码仓库、开发工具和发布目录。这里发布的技�
 开发者或 AI 可以从模板开始，编写能够独立校验、确定性打包并由 Convax 安全下载的
 Plugin、Skill 或 MCP Server。包源码通过 Git 进行审查，不可变工件由 GitHub
 Releases 发布，Marketplace descriptor 由 GitHub Pages 承载：
-`https://microvoid.github.io/convax-plugins/marketplace.json`。当前只发布 Registry
+`https://convaxai.github.io/convax-plugins/marketplace.json`。当前只发布 Registry
 v2；本仓不再生成或发布旧 Registry 投影。
 
 ![图像重绘、有声书和电商图片技能的动态预览](docs/assets/skill-showcases.gif)
@@ -204,8 +204,8 @@ Pet 功能插件通过 `contributes.pet`
 插件拥有的技能也在同一插件事务中接纳和移除，不能在 Convax 中
 独立安装或卸载。
 
-`microvoid/convax-plugins` 仓库、Registry 和 Release 资源都是公开的，不需要
-GitHub 账号或令牌。主应用仓库 `microvoid/convax` 可以继续保持私有，不会影响包安装。
+`convaxai/convax-plugins` 仓库、Registry 和 Release 资源都是公开的，不需要
+GitHub 账号或令牌。主应用仓库 `convaxai/convax` 可以继续保持私有，不会影响包安装。
 
 ## 仓库结构
 
@@ -245,9 +245,10 @@ bun run check               # 执行完整 fail-closed 本地 CI
 ```
 
 Marketplace 发布消费公开 authoring contract：
-`@convax/plugin-api@2.0.0`、`@convax/plugin-sdk@0.1.1` 与
-`@convax/marketplace-kit@0.2.2`。本地源码 link 只用于验证，不是有效的发布依赖；
-三个精确版本都必须先在配置的 registry 可用，干净 frozen install 与发布才可成功。
+`@convax/plugin-api@3.0.0`、`@convax/plugin-sdk@0.1.1` 与
+`@convax/marketplace-kit@0.2.2`；SDK 闭包还需要
+`@convax/bounded-value@0.1.0`。本地源码 link 只用于验证，不是有效的发布依赖；
+四个精确版本都必须先在配置的 registry 可用，干净 frozen install 与发布才可成功。
 参见 [SDK authoring rollout blocker](docs/sdk-authoring-contract-rollout.md)。
 
 作者只修改 Plugin、

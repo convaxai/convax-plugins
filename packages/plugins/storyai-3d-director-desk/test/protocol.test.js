@@ -38,13 +38,13 @@ describe("storyai-3d-director-desk v8 Web Host API", () => {
     ])
 
     expect([manifest.version, metadata.version, workspace.version]).toEqual([
-      "0.3.0",
-      "0.3.0",
-      "0.3.0",
+      "0.3.1",
+      "0.3.1",
+      "0.3.1",
     ])
     expect([skillMetadata.version, skillWorkspace.version]).toEqual(["0.2.0", "0.2.0"])
     expect(manifest.hostApi).toEqual({
-        major: 2,
+      major: 3,
       required: [
         "canvas.node.state.replace",
         "canvas.resource.image.create",

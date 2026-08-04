@@ -12,7 +12,7 @@ import {
 } from "./plugin-sdk-provenance.mjs"
 
 const releaseBase =
-  "https://github.com/microvoid/convax-plugins/releases/download"
+  "https://github.com/convaxai/convax-plugins/releases/download"
 
 function fail(message) {
   throw new Error(`Plugin SDK provenance CLI: ${message}`)

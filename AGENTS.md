@@ -7,7 +7,7 @@ These rules apply to people and AI agents in this repository.
 - This repository is the authoritative source for concrete Convax Plugins,
   Plugin-owned Skills, standalone Skills, MCP Servers, reviewed companion tools,
   the Official Marketplace, and the immutable Builtin bundle.
-- The `microvoid/convax` repository owns the generic host platform: manifest ABI,
+- The `convaxai/convax` repository owns the generic host platform: manifest ABI,
   validation at installation, lifecycle, runtime bridges, IPC/UI, and Registry
   consumption. Do not copy its private implementation or create a package-specific
   host fork here.

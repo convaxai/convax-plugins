@@ -13,7 +13,7 @@ Plugin, Skill, or MCP Server that can be validated independently and published d
 and downloaded safely by Convax. Package source is reviewed in Git, immutable ZIPs
 are published through GitHub Releases, and GitHub Pages hosts the lightweight
 Marketplace descriptor at
-`https://microvoid.github.io/convax-plugins/marketplace.json`. Current clients use
+`https://convaxai.github.io/convax-plugins/marketplace.json`. Current clients use
 Registry v2. Legacy Registry projections are not authored or published here.
 
 ![Animated previews of the Image Remix, Audiobook, and Ecommerce Image Skills](docs/assets/skill-showcases.gif)
@@ -285,8 +285,8 @@ Plugin-owned Skills are admitted and removed in that same Plugin
 transaction;
 they are never an independent Convax install action.
 
-The `microvoid/convax-plugins` repository, Registry, and Release assets are public
-and require no GitHub account or token. The main `microvoid/convax` application
+The `convaxai/convax-plugins` repository, Registry, and Release assets are public
+and require no GitHub account or token. The main `convaxai/convax` application
 repository may remain private without affecting package installation.
 
 ## Repository layout
@@ -327,9 +327,10 @@ bun run check               # complete fail-closed local CI sequence
 ```
 
 Marketplace publication consumes the public authoring contracts
-`@convax/plugin-api@2.0.0`, `@convax/plugin-sdk@0.1.1`, and
-`@convax/marketplace-kit@0.2.2`. Local source links are validation aids, not valid
-publication dependencies. All three exact packages must be available from the
+`@convax/plugin-api@3.0.0`, `@convax/plugin-sdk@0.1.1`, and
+`@convax/marketplace-kit@0.2.2`; the SDK closure additionally requires
+`@convax/bounded-value@0.1.0`. Local source links are validation aids, not valid
+publication dependencies. All four exact packages must be available from the
 configured registry before a clean frozen install or publication can succeed.
 See the [SDK authoring rollout blocker](docs/sdk-authoring-contract-rollout.md).
 

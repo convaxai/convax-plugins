@@ -15,7 +15,7 @@ function manifest(overrides = {}) {
     entry: "index.html",
     capabilities: [],
     hostApi: {
-      major: 2,
+      major: 3,
       required: ["host.context.get"],
       optional: [],
     },
@@ -69,7 +69,7 @@ describe("convax.package/2 and convax.plugin/8 publication contract", () => {
     expect(() =>
       parsePluginManifest({
         ...manifest(),
-        hostApi: { major: 2, required: [], optional: [] },
+        hostApi: { major: 3, required: [], optional: [] },
       }),
     ).toThrow("host.context.get");
   });
@@ -78,11 +78,11 @@ describe("convax.package/2 and convax.plugin/8 publication contract", () => {
     const parsed = parsePluginManifest({
       ...manifest(),
       entry: undefined,
-      hostApi: { major: 2, required: [], optional: [] },
+      hostApi: { major: 3, required: [], optional: [] },
       contributes: {},
       hooks: "hooks.mjs",
     });
-    expect(parsed.hostApi).toEqual({ major: 2, required: [], optional: [] });
+    expect(parsed.hostApi).toEqual({ major: 3, required: [], optional: [] });
   });
 
   test("keeps publication policy outside portable package metadata", () => {
@@ -239,7 +239,7 @@ describe("convax.package/2 and convax.plugin/8 publication contract", () => {
   test("keeps Skill Host APIs within top-level declaration and tools within contributions", () => {
     const base = manifest({
       hostApi: {
-        major: 2,
+        major: 3,
         required: ["host.context.get"],
         optional: ["generation.tools.list"],
       },

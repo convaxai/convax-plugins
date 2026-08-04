@@ -98,10 +98,12 @@ describe("Bun workspace ownership", () => {
     expect(candidateReadme).toContain("own or modify their source")
     expect(candidateReadme).toContain("workspace:*")
     const hostCandidates = {
+      "bounded-value": ["@convax/bounded-value", "0.1.0"],
       marketplace: ["@convax/marketplace", "0.2.1"],
       "marketplace-kit": ["@convax/marketplace-kit", "0.2.2"],
-      "plugin-api": ["@convax/plugin-api", "2.0.0"],
+      "plugin-api": ["@convax/plugin-api", "3.0.0"],
       "plugin-sdk": ["@convax/plugin-sdk", "0.1.1"],
+      "plugin-ui": ["@convax/plugin-ui", "0.1.0"],
     }
     for (const [directory, [packageName, version]] of Object.entries(hostCandidates)) {
       const candidatePath = path.join(root, "vendor", "host-packages", directory)
@@ -130,7 +132,10 @@ describe("Bun workspace ownership", () => {
     const pluginSdk = await readJson(
       path.join(root, "vendor", "host-packages", "plugin-sdk", "package.json"),
     )
-    expect(pluginSdk.dependencies["@convax/plugin-api"]).toBe("workspace:*")
+    expect(pluginSdk.dependencies).toEqual({
+      "@convax/bounded-value": "workspace:*",
+      "@convax/plugin-api": "workspace:*",
+    })
     expect(rootPackage.scripts["marketplace:check"]).toBe(
       "bun tooling/marketplace-preflight.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" && convax-marketplace check .",
     )
@@ -219,7 +224,7 @@ describe("Bun workspace ownership", () => {
     ]))
     expect(pet.manifest).toEqual(expect.objectContaining({
       schema: "convax.plugin/8",
-      hostApi: { major: 2, required: [], optional: [] },
+      hostApi: { major: 3, required: [], optional: [] },
     }))
     expect(pet.manifest.contributes.pet).toEqual({
       library: "pet-library.json",
@@ -396,10 +401,10 @@ describe("Bun workspace ownership", () => {
       )
 
       expect(await fs.readFile(siblingFile, "utf8")).toBe("keep")
-      expect(packed.tag).toBe("plugin-hello-convax-v0.2.0")
+      expect(packed.tag).toBe("plugin-hello-convax-v0.2.1")
       expect(catalog).toMatchObject({
         schema: "convax.plugin-api-catalog/3",
-        version: "2.0.0",
+        version: "3.0.0",
       })
       expect(packed.catalogVersion).toBe(catalog.version)
       expect(packed.catalogDigest).toBe(

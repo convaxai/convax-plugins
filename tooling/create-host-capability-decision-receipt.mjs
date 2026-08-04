@@ -178,7 +178,7 @@ export async function createHostCapabilityDecisionReceipt({
       `https://github.com/${hostRepository}/pull/${values.hostPullRequest}` ||
     typeof hostPullRequest.merge_commit_sha !== "string"
   ) {
-    fail("Host pull request must be the exact merged microvoid/convax PR")
+    fail("Host pull request must be the exact merged convaxai/convax PR")
   }
   if (
     !["ahead", "identical"].includes(hostCompare.status) ||

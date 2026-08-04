@@ -30,7 +30,7 @@ function canonicalJson(value) {
 
 async function writeFixture() {
   const catalogDirectory = await temporaryDirectory()
-  const repository = "https://github.com/microvoid/convax-plugins/releases/download"
+  const repository = "https://github.com/convaxai/convax-plugins/releases/download"
   const definitions = [
     { kind: "plugin", id: "fixture-plugin", version: "1.0.0" },
     { kind: "skill", id: "fixture-skill", version: "2.0.0" },
@@ -70,7 +70,7 @@ async function writeFixture() {
               schema: "convax.plugin/8",
               id: definition.id,
               version: definition.version,
-              hostApi: { major: 2, required: [], optional: [] },
+              hostApi: { major: 3, required: [], optional: [] },
             },
           }
         : {}),
@@ -91,12 +91,12 @@ async function writeFixture() {
     id: "convax-official",
     name: "Convax Official",
     publisher: { name: "Microvoid" },
-    repository: { owner: "microvoid", name: "convax-plugins" },
+    repository: { owner: "convaxai", name: "convax-plugins" },
     registry: {
-      v2: { url: "https://microvoid.github.io/convax-plugins/registry/v2/index.json" },
+      v2: { url: "https://convaxai.github.io/convax-plugins/registry/v2/index.json" },
     },
     showcase: {
-      v2: { url: "https://microvoid.github.io/convax-plugins/showcase/v2/index.json" },
+      v2: { url: "https://convaxai.github.io/convax-plugins/showcase/v2/index.json" },
     },
     compatibility: { convax: ">=0.1.0" },
     delivery: { kind: "github-pages-releases" },

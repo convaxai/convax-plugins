@@ -56,12 +56,12 @@ function runtimeConformance({
     schema: "convax.plugin-api-runtime-conformance/1",
     profile: "convax.plugin-api-host-runtime/1",
     host: {
-      repository: "microvoid/convax",
+      repository: "convaxai/convax",
       commit,
     },
     workflow: {
       ref:
-        "microvoid/convax/.github/workflows/plugin-api-release.yml@refs/heads/convax-next",
+        "convaxai/convax/.github/workflows/plugin-api-release.yml@refs/heads/main",
       runId: "88",
       runAttempt: "2",
     },
@@ -154,12 +154,12 @@ function fixture() {
     schema: "convax.host-package-release/1",
     profile: "convax.plugin-sdk-authoring-package/1",
     host: {
-      repository: "microvoid/convax",
+      repository: "convaxai/convax",
       commit: sdkCommit,
     },
     workflow: {
       ref:
-        "microvoid/convax/.github/workflows/plugin-sdk-release.yml@refs/heads/convax-next",
+        "convaxai/convax/.github/workflows/plugin-sdk-release.yml@refs/heads/main",
       runId: "77",
       runAttempt: "1",
     },
@@ -199,11 +199,11 @@ function fixture() {
       version: actualApiVersion,
     },
     actualApiRelease: {
-      repository: "microvoid/convax",
+      repository: "convaxai/convax",
       commit: apiCommit,
       tag: `plugin-api-v${actualApiVersion}-${apiCommit}`,
       workflowRef:
-        "microvoid/convax/.github/workflows/plugin-api-release.yml@refs/heads/convax-next",
+        "convaxai/convax/.github/workflows/plugin-api-release.yml@refs/heads/main",
     },
     actualApiRuntimeConformanceBytes: runtimeConformance({
       catalogBytes: actualApiCatalogBytes,
@@ -232,11 +232,11 @@ function fixture() {
       },
     },
     sdkRelease: {
-      repository: "microvoid/convax",
+      repository: "convaxai/convax",
       commit: sdkCommit,
       tag: `plugin-sdk-v${sdkVersion}-${sdkCommit}`,
       workflowRef:
-        "microvoid/convax/.github/workflows/plugin-sdk-release.yml@refs/heads/convax-next",
+        "convaxai/convax/.github/workflows/plugin-sdk-release.yml@refs/heads/main",
     },
     sdkReleaseApiCatalogBytes: releaseApiCatalogBytes,
     sdkReleaseApiPackageJson: {
@@ -358,7 +358,7 @@ describe("Plugin SDK consumer provenance", () => {
         sdkRelease: {
           ...input.sdkRelease,
           workflowRef:
-            "microvoid/convax/.github/workflows/plugin-sdk-bootstrap.yml@refs/heads/convax-next",
+            "convaxai/convax/.github/workflows/plugin-sdk-bootstrap.yml@refs/heads/main",
         },
       }),
     ).toThrow("protected final release workflow")

@@ -17,7 +17,7 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly response: "The current Plugin, Project, Canvas, node, and negotiated Host API context when present.";
     };
 } & {
-    readonly contractSince: "2.0.0";
+    readonly contractSince: "3.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -131,10 +131,10 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly summary: "Read the owning Plugin node projection.";
         readonly description: "Returns a bounded renderer-safe projection of the exact node bound to the connection.";
         readonly request: "No parameters; the owning node comes from the bound connection.";
-        readonly response: "The owning node identity, revision, geometry, and Plugin state projection.";
+        readonly response: "The owning node identity, geometry, and Plugin state projection.";
     };
 } & {
-    readonly contractSince: "2.0.0";
+    readonly contractSince: "3.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -154,15 +154,19 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly code: "permission-denied";
         readonly description: "The installed Plugin principal does not currently hold the required grant.";
         readonly recoverable: false;
+    }, {
+        readonly code: "resource-unavailable";
+        readonly description: "The authoritative Project resource is missing, changed, or cannot be read safely.";
+        readonly recoverable: true;
     }];
     readonly docs: {
         readonly summary: "Replace the owning node's bounded Plugin state.";
-        readonly description: "Commits only the namespaced Plugin state through the authoritative Canvas application service with revision checks.";
+        readonly description: "Commits only the namespaced Plugin state through one Canvas-owned semantic intent guarded by the current node incarnation.";
         readonly request: "`{ state }`, where state is a bounded JSON value.";
-        readonly response: "`{ updated: true }` after the authoritative state replacement commits.";
+        readonly response: "The durable operation receipt and current owning-node projection after the replacement commits.";
     };
 } & {
-    readonly contractSince: "2.0.0";
+    readonly contractSince: "3.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -194,7 +198,7 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly response: "The created renderer-safe image result after Project publication and Canvas commit.";
     };
 } & {
-    readonly contractSince: "2.0.0";
+    readonly contractSince: "3.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -307,10 +311,10 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly summary: "Execute one selected generation tool through the shared host executor.";
         readonly description: "Revalidates the active Plugin, authorized executable, inputs, cancellation, and live resource guards immediately before execution.";
         readonly request: "`{ output?, prompt, references?: Array<{ inputKey, role }>, resultMode?, toolId? }`; every opaque input key must come from the current owning node's canvas.inputs.list result.";
-        readonly response: "The bounded selected tool result, created node ids, authoritative revision, and warnings.";
+        readonly response: "The bounded selected tool result, created node ids, optional committed operation receipt/projection, and warnings.";
     };
 } & {
-    readonly contractSince: "2.0.0";
+    readonly contractSince: "3.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -364,7 +368,7 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly response: "A bounded list of portable Canvas catalog entries.";
     };
 } & {
-    readonly contractSince: "2.0.0";
+    readonly contractSince: "3.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -390,10 +394,10 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly summary: "Read one authorized Canvas document projection.";
         readonly description: "Returns a bounded portable structure or geometry projection from Main's authoritative Canvas application service.";
         readonly request: "`{ ref, projection }`, using an explicit portable Project/Canvas reference and supported projection.";
-        readonly response: "The requested pathless document projection and authoritative revision.";
+        readonly response: "The requested pathless document projection.";
     };
 } & {
-    readonly contractSince: "2.0.0";
+    readonly contractSince: "3.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -419,10 +423,10 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly summary: "Query bounded node projections in one authorized Canvas.";
         readonly description: "Executes a host-defined bounded query without exposing native paths or resource bytes.";
         readonly request: "`{ ref, query }`, using an explicit portable Project/Canvas reference and bounded query.";
-        readonly response: "Matching node projections and the authoritative Canvas revision.";
+        readonly response: "Matching node summaries and the current pathless Canvas projection.";
     };
 } & {
-    readonly contractSince: "2.0.0";
+    readonly contractSince: "3.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -445,13 +449,13 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
         readonly recoverable: false;
     }];
     readonly docs: {
-        readonly summary: "Commit one non-empty revision-bound Canvas transaction.";
-        readonly description: "Validates bounded commands against one authoritative revision and persists the accepted transaction atomically.";
-        readonly request: "`{ ref, expectedRevision, commands, transactionId }` with a bounded non-empty command list.";
-        readonly response: "The committed authoritative revision and bounded command results.";
+        readonly summary: "Commit one closed Canvas command through the authoritative application service.";
+        readonly description: "Maps one bounded command to a Canvas-owned semantic intent, commits it atomically, and returns its durable operation identity.";
+        readonly request: "`{ ref, command, commandId }` with one bounded closed command and an idempotency key.";
+        readonly response: "The durable operation receipt, current pathless projection, and bounded command result.";
     };
 } & {
-    readonly contractSince: "2.0.0";
+    readonly contractSince: "3.0.0";
 } & {
     audience: readonly import("./contracts").PluginApiAudience[];
 }>, "audience"> & {
@@ -475,7 +479,7 @@ export declare const pluginApiCatalog: import("./contracts").PluginApiCatalog<(O
     }];
     readonly docs: {
         readonly summary: "Subscribe to bounded events for one authorized Canvas.";
-        readonly description: "Creates a connection-scoped subscription; events are revisioned invalidations or safe projections, never native data.";
+        readonly description: "Creates a connection-scoped subscription; events carry operation receipts as invalidations or safe projections, never native data.";
         readonly request: "`{ ref }`, using an explicit portable Project/Canvas reference.";
         readonly response: "A connection-bound subscription identifier.";
     };

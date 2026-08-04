@@ -42,7 +42,7 @@ The Convax build differs from upstream in nine deliberate ways:
 
 The complete static Plugin package lives under
 `packages/plugins/storyai-3d-director-desk/package/` in the
-`microvoid/convax-plugins` repository. The deterministic release ZIP is installed
+`convaxai/convax-plugins` repository. The deterministic release ZIP is installed
 through the ordinary Convax Registry lifecycle. Convax Desktop does not carry a
 second static bundle or reserve this package as a built-in id. The iframe never
 executes code from a development dependency or Node module.
@@ -62,7 +62,7 @@ these SHA-256 hashes:
 
 - `vendor/app.js`: `ca87a7d8f2666eaf728dd5ea9ae7078821996d032140c4437ce5047e7bba65a1`
 - `package/assets/app.js`: `2fe096047aa10f51dbbf92ad2542b97ed4d73437bd281867f277e9027bd7b22f`
-- `package/assets/plugin-host-client.js`: `b7d26c08bafb0635a9eff4f146d08ffe2daa59ac536e17ba91b79374336be9dc`
+- `package/assets/plugin-host-client.js`: `e71771b9e2a77e7ce43512d0ede698206d71ffad00b0324780de6aeaad6090b5`
 - `assets/convax-theme.css`: `a27a031b299856bd4bd6d31b7cbb54e9996e0679e13db14ae3945197b1de41af`
 - `assets/styles.css`: `6cce301d037ab3483cda7a5d1587fcd6258e59e7baee4ed6d8b17fc080ac8620`
 - `index.html`: `9bdc8343951384b999fdcd86e489a5f52ad3eb1648d9362ee5e9246345a732b6`

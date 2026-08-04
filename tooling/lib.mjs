@@ -20,7 +20,7 @@ import {
 import { validateHostCapabilityRequestDocument } from "./host-capability-request.mjs";
 
 export const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
-export const repository = "microvoid/convax-plugins";
+export const repository = "convaxai/convax-plugins";
 export const maxFileBytes = 2 * 1024 * 1024;
 export const maxPackageBytes = 10 * 1024 * 1024;
 export const maxPluginEntries = 2_000;
@@ -449,10 +449,10 @@ export function parseHostCapabilityPolicy(
         `${resolutionLabel} receipt repository`,
         128,
       );
-      if (repository !== "microvoid/convax-plugins") {
+      if (repository !== "convaxai/convax-plugins") {
         error(
           `${resolutionLabel} receipt`,
-          "repository must be the protected microvoid/convax-plugins authority",
+          "repository must be the protected convaxai/convax-plugins authority",
         );
       }
       const releaseTag = cleanString(

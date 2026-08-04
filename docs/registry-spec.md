@@ -50,7 +50,7 @@ and an older compatibility envelope around a newer manifest are rejected. Skill
 compatibility is exactly
 `{"skillSchema":"opencode.skill/1"}`.
 Artifact objects contain only `url`, `size`, and lowercase hex `sha256`; URLs always
-target `microvoid/convax-plugins` Release assets.
+target `convaxai/convax-plugins` Release assets.
 
 ## Pet feature Plugins
 
@@ -146,7 +146,7 @@ same rule. Its Plugin item has the following optional strict field:
     "platform": "darwin",
     "arch": "arm64",
     "artifact": {
-      "url": "https://github.com/microvoid/convax-plugins/releases/download/plugin-creative-tools-v1.0.0/convax-companion-creative-tools-mcp-1.2.3-darwin-arm64",
+      "url": "https://github.com/convaxai/convax-plugins/releases/download/plugin-creative-tools-v1.0.0/convax-companion-creative-tools-mcp-1.2.3-darwin-arm64",
       "size": 123456,
       "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     }
@@ -200,7 +200,7 @@ Immutable historical Releases remain available for audit and recovery.
 ## Showcase sidecars
 
 The current Marketplace descriptor exposes `convax.showcase/2` at
-`https://microvoid.github.io/convax-plugins/showcase/v2/index.json`.
+`https://convaxai.github.io/convax-plugins/showcase/v2/index.json`.
 
 Presentation media is published separately at
 that v2 URL. It never enters a package ZIP. Its revision must exactly match the

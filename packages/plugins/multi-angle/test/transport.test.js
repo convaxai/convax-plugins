@@ -26,9 +26,9 @@ describe("multi-angle v8 transport", () => {
     ])
 
     expect([manifest.version, metadata.version, workspace.version]).toEqual([
-      "0.2.0",
-      "0.2.0",
-      "0.2.0",
+      "0.2.1",
+      "0.2.1",
+      "0.2.1",
     ])
     expect(metadata).not.toHaveProperty("publication")
     expect(publication.requests.flatMap((request) => request.affected)
@@ -37,7 +37,7 @@ describe("multi-angle v8 transport", () => {
     })
     expect(manifest.capabilities).toContain("canvas.connectedImages.read")
     expect(manifest.capabilities).not.toContain("canvas.connectedMedia.stream")
-    expect(manifest.hostApi.major).toBe(2)
+    expect(manifest.hostApi.major).toBe(3)
     expect(manifest.hostApi.required).toEqual(expect.arrayContaining([
       "canvas.inputs.image.close",
       "canvas.inputs.image.open",

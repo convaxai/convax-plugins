@@ -42,6 +42,10 @@ async function createFixture() {
       "plugin-sdk",
     ],
     [
+      "vendor/host-packages/plugin-sdk/node_modules/@convax/bounded-value",
+      "bounded-value",
+    ],
+    [
       "vendor/host-packages/plugin-sdk/node_modules/@convax/plugin-api",
       "plugin-api",
     ],
@@ -69,19 +73,20 @@ describe("vendored Host package publication closure", () => {
         source: {
           commit,
           kind: "workspace",
-          repository: "microvoid/convax-plugins",
+          repository: "convaxai/convax-plugins",
         },
         catalog: expect.objectContaining({
           schema: "convax.plugin-api-catalog/3",
-          version: "2.0.0",
+          version: "3.0.0",
         }),
       }),
     )
     expect(closure.packages.map(({ name, version }) => `${name}@${version}`))
       .toEqual([
+        "@convax/bounded-value@0.1.0",
         "@convax/marketplace@0.2.1",
         "@convax/marketplace-kit@0.2.2",
-        "@convax/plugin-api@2.0.0",
+        "@convax/plugin-api@3.0.0",
         "@convax/plugin-sdk@0.1.1",
         "@convax/plugin-ui@0.1.0",
       ])
@@ -131,6 +136,80 @@ describe("vendored Host package publication closure", () => {
       ).rejects.toThrow("must not be a symbolic link")
     } finally {
       await fs.rm(fixture, { force: true, recursive: true })
+    }
+  })
+
+  test("rejects missing bounded-value main output", async () => {
+    const fixture = await createFixture()
+    try {
+      await fs.rm(
+        path.join(
+          fixture,
+          "vendor",
+          "host-packages",
+          "bounded-value",
+          "dist",
+          "index.js",
+        ),
+      )
+      await expect(
+        createVendoredHostPackageClosure(fixture, { commit }),
+      ).rejects.toThrow(
+        "vendor/host-packages/bounded-value package.json main target ./dist/index.js is missing",
+      )
+    } finally {
+      await fs.rm(fixture, { force: true, recursive: true })
+    }
+  })
+
+  test("rejects missing types, exports, and bin targets", async () => {
+    for (const mutation of [
+      {
+        directory: "bounded-value",
+        label:
+          "vendor/host-packages/bounded-value package.json types target ./dist/missing.d.ts is missing",
+        mutate(manifest) {
+          manifest.types = "./dist/missing.d.ts"
+        },
+      },
+      {
+        directory: "bounded-value",
+        label:
+          'vendor/host-packages/bounded-value package.json exports["."]["import"] target ./dist/missing.js is missing',
+        mutate(manifest) {
+          manifest.exports["."].import = "./dist/missing.js"
+        },
+      },
+      {
+        directory: "plugin-api",
+        label:
+          'vendor/host-packages/plugin-api package.json bin["convax-plugin-api"] target ./dist/missing.js is missing',
+        mutate(manifest) {
+          manifest.bin["convax-plugin-api"] = "./dist/missing.js"
+        },
+      },
+    ]) {
+      const fixture = await createFixture()
+      try {
+        const manifestPath = path.join(
+          fixture,
+          "vendor",
+          "host-packages",
+          mutation.directory,
+          "package.json",
+        )
+        const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"))
+        mutation.mutate(manifest)
+        await fs.writeFile(
+          manifestPath,
+          `${JSON.stringify(manifest, null, 2)}\n`,
+        )
+        await expect(
+          createVendoredHostPackageClosure(fixture, { commit }),
+        ).rejects.toThrow(mutation.label)
+      } finally {
+        await fs.rm(fixture, { force: true, recursive: true })
+      }
     }
   })
 })

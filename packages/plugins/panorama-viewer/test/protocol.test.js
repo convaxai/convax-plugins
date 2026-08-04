@@ -23,9 +23,9 @@ describe("panorama-viewer v8 Web Host API", () => {
     ])
 
     expect([manifest.version, metadata.version, workspace.version]).toEqual([
-      "0.3.0",
-      "0.3.0",
-      "0.3.0",
+      "0.3.1",
+      "0.3.1",
+      "0.3.1",
     ])
     expect(metadata).not.toHaveProperty("publication")
     expect(publication.requests.flatMap((request) => request.affected)
@@ -43,7 +43,7 @@ describe("panorama-viewer v8 Web Host API", () => {
       "ui.fullscreen",
     ])
     expect(manifest.hostApi).toEqual({
-      major: 2,
+      major: 3,
       required: [
         "canvas.inputs.image.close",
         "canvas.inputs.image.open",

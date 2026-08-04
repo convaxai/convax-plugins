@@ -121,7 +121,7 @@ and optional API ids:
   "version": "1.0.0",
   "entry": "index.html",
   "hostApi": {
-    "major": 2,
+    "major": 3,
     "required": ["host.context.get"],
     "optional": []
   },
@@ -137,7 +137,7 @@ and optional API ids:
 A Plugin with `entry` must require `host.context.get`; the negotiated profile and
 availability query are exposed through that connection API. A pure headless Tool,
 Hook, Pet, or remote MCP Plugin still declares
-`{"major":2,"required":[],"optional":[]}` and must not claim Web-only APIs.
+`{"major":3,"required":[],"optional":[]}` and must not claim Web-only APIs.
 
 `hostApi` is an availability/compatibility declaration. Existing capability
 grants remain the authority request. Declaring an API does not bypass permission,

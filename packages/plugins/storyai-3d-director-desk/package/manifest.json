@@ -3,7 +3,7 @@
   "id": "storyai-3d-director-desk",
   "name": "3D Director Desk",
   "description": "An open-source browser-based 3D blocking surface for characters, props, cameras, panoramas, and shot previews.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "entry": "index.html",
   "capabilities": [
     "canvas.node.write",
@@ -46,7 +46,7 @@
     ]
   },
   "hostApi": {
-    "major": 2,
+    "major": 3,
     "required": [
       "canvas.node.state.replace",
       "canvas.resource.image.create",

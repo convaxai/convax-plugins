@@ -17,8 +17,8 @@ receipt.
 - `plugin-host-capability-governance` is a dedicated GitHub Environment. It must
   have named required reviewers, prevent self-review, disallow administrator
   bypass, and admit only protected `main`.
-- Release immutability must be enabled for both `microvoid/convax` and
-  `microvoid/convax-plugins`. A normal mutable Release is rejected even when its
+- Release immutability must be enabled for both `convaxai/convax` and
+  `convaxai/convax-plugins`. A normal mutable Release is rejected even when its
   current SHA-256 happens to match.
 - `Host capability governance / protected-base` must be a required check. It runs
   on `pull_request_target`, executes the verifier from the exact protected base,
@@ -62,8 +62,8 @@ externally verified receipt transition.
 
 Runtime evidence is not trusted as an opaque digest. It must use exactly
 `convax.plugin-api-runtime-conformance/1` with no unknown or missing keys and bind
-`microvoid/convax`, the exact release commit, the protected
-`plugin-api-release.yml@refs/heads/convax-next` workflow and positive run identity,
+`convaxai/convax`, the exact release commit, the protected
+`plugin-api-release.yml@refs/heads/main` workflow and positive run identity,
 the exact `@convax/plugin-api` version, Catalog `/3` digest, package tarball digest,
 and npm integrity. Its check set is closed: `plugin-api-typecheck`,
 `plugin-api-test`, `plugin-api-compat`, `plugin-api-generate-check`,
@@ -75,7 +75,7 @@ is rejected.
 
 All assets are addressed by SHA-256. The
 `Issue protected Host capability decision` workflow on protected `main` accepts
-the pending request id, exact `microvoid/convax` identity, merged PR, release
+the pending request id, exact `convaxai/convax` identity, merged PR, release
 commit/tag, Catalog version/digest, and conformance asset/digest. The protected
 job:
 
@@ -85,14 +85,14 @@ job:
 - requires a paired `<asset>.sigstore.json` bundle for the Catalog, package
   tarball, and runtime evidence and runs `cosign verify-blob --bundle` with
   default transparency-log verification against
-  `microvoid/convax/.github/workflows/plugin-api-release.yml`,
-  `refs/heads/convax-next`, the exact Host commit, `workflow_dispatch`, the
+  `convaxai/convax/.github/workflows/plugin-api-release.yml`,
+  `refs/heads/main`, the exact Host commit, `workflow_dispatch`, the
   GitHub OIDC issuer, and a GitHub-hosted runner;
 - emits and validates a canonical `convax.host-sigstore-verification/1` evidence
   manifest for each asset. In addition to Cosign's cryptographic checks, the
   verifier reads bounded Fulcio certificate extensions and binds the immutable
-  `microvoid/convax` repository id `1293264965` and `microvoid` owner id
-  `125447777`. Both the live GitHub repository metadata and the certificate OID
+  `convaxai/convax` repository id `1322708874` and `convaxai` owner id
+  `312877127`. Both the live GitHub repository metadata and the certificate OID
   claims must match these compiled pins. Repository names alone are insufficient
   because names can be reused;
 - fetches the same npm version from `registry.npmjs.org`, verifies npm SHA-512
@@ -120,7 +120,7 @@ with one `convax.host-capability-policy/2` resolution tombstone:
 {
   "id": "example-request",
   "receipt": {
-    "repository": "microvoid/convax-plugins",
+    "repository": "convaxai/convax-plugins",
     "releaseTag": "host-capability-decision-v1-example-request-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "asset": "example-request.decision.json",
     "sha256": "<64 lowercase hex characters>"
