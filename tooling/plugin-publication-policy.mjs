@@ -33,8 +33,10 @@ function requireOrdered(source, fragments, label) {
 
 const cosignInstaller =
   "sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6"
-const hostSigstoreVerifierSha256 =
-  "a142b3a85b766f6fd4ff2737a65c1e4d782ac02a2ba184128438087991272425"
+const hostSigstoreVerifierSha256s = new Set([
+  "a142b3a85b766f6fd4ff2737a65c1e4d782ac02a2ba184128438087991272425",
+  "28c205f1b5d90895f40a5edc39d19a8f52790eabee5ca169f701f84b53dd37f2",
+])
 const vendoredHostPackages = Object.freeze([
   {
     name: "@convax/marketplace",
@@ -172,8 +174,9 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
       ),
     ])
   if (
-    createHash("sha256").update(hostSigstoreVerifierBytes).digest("hex") !==
-    hostSigstoreVerifierSha256
+    !hostSigstoreVerifierSha256s.has(
+      createHash("sha256").update(hostSigstoreVerifierBytes).digest("hex"),
+    )
   ) {
     fail(
       "Host Sigstore verifier bytes changed without a prior protected-base digest transition",
