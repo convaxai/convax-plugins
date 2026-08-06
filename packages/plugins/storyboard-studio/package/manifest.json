@@ -3,7 +3,7 @@
   "id": "storyboard-studio",
   "name": "故事板",
   "description": "把一句话构思或直接连入的剧本交给 Agent，生成可追踪的分集、分镜和人物/场景资产，并以专用故事与人物卡片呈现。",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "entry": "index.html",
   "capabilities": [
     "agent.prompt",
@@ -23,7 +23,164 @@
           ".character.card.json"
         ],
         "width": 760,
-        "height": 560
+        "height": 560,
+        "stateSchema": {
+          "type": "union",
+          "variants": [
+            {
+              "type": "object",
+              "maxProperties": "0",
+              "required": [],
+              "properties": {},
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "maxProperties": "10",
+              "required": [
+                "idea",
+                "libraryScope",
+                "production",
+                "schema",
+                "selectedAssetTab",
+                "selectedEpisodeId",
+                "selectedSegmentId",
+                "settings",
+                "storyPath"
+              ],
+              "properties": {
+                "schema": {
+                  "type": "string",
+                  "maxUtf8Bytes": "64",
+                  "enum": [
+                    "convax.storyboard-studio-state/2"
+                  ]
+                },
+                "idea": {
+                  "type": "string",
+                  "maxUtf8Bytes": "36000"
+                },
+                "settings": {
+                  "type": "object",
+                  "maxProperties": "4",
+                  "required": [
+                    "aspectRatio",
+                    "durationSeconds",
+                    "episodeCount",
+                    "genre"
+                  ],
+                  "properties": {
+                    "aspectRatio": {
+                      "type": "string",
+                      "maxUtf8Bytes": "8",
+                      "enum": [
+                        "1:1",
+                        "16:9",
+                        "9:16"
+                      ]
+                    },
+                    "durationSeconds": {
+                      "type": "integer",
+                      "minimum": "60",
+                      "maximum": "180"
+                    },
+                    "episodeCount": {
+                      "type": "integer",
+                      "minimum": "4",
+                      "maximum": "24"
+                    },
+                    "genre": {
+                      "type": "string",
+                      "maxUtf8Bytes": "300"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "production": {
+                  "type": "object",
+                  "maxProperties": "4",
+                  "required": [
+                    "aspectRatio",
+                    "planning",
+                    "resolution",
+                    "style"
+                  ],
+                  "properties": {
+                    "planning": {
+                      "type": "string",
+                      "maxUtf8Bytes": "64",
+                      "enum": [
+                        "Agent 智能分镜",
+                        "连续性优先",
+                        "导演强化"
+                      ]
+                    },
+                    "resolution": {
+                      "type": "string",
+                      "maxUtf8Bytes": "8",
+                      "enum": [
+                        "1080P",
+                        "2K",
+                        "720P"
+                      ]
+                    },
+                    "style": {
+                      "type": "string",
+                      "maxUtf8Bytes": "64",
+                      "enum": [
+                        "90 年代写实电影",
+                        "都市纪实",
+                        "高反差悬疑"
+                      ]
+                    },
+                    "aspectRatio": {
+                      "type": "string",
+                      "maxUtf8Bytes": "8",
+                      "enum": [
+                        "",
+                        "1:1",
+                        "16:9",
+                        "9:16"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "selectedEpisodeId": {
+                  "type": "string",
+                  "maxUtf8Bytes": "480"
+                },
+                "selectedSegmentId": {
+                  "type": "string",
+                  "maxUtf8Bytes": "480"
+                },
+                "libraryScope": {
+                  "type": "string",
+                  "maxUtf8Bytes": "16",
+                  "enum": [
+                    "episode",
+                    "story"
+                  ]
+                },
+                "selectedAssetTab": {
+                  "type": "string",
+                  "maxUtf8Bytes": "16",
+                  "enum": [
+                    "characters",
+                    "locations",
+                    "materials",
+                    "props"
+                  ]
+                },
+                "storyPath": {
+                  "type": "string",
+                  "maxUtf8Bytes": "3072"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
       },
       "commands": [
         {

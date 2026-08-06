@@ -115,7 +115,7 @@
     },
     "packages/plugins/storyai-3d-director-desk": {
       "name": "@microvoid/convax-plugin-storyai-3d-director-desk",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "dependencies": {
         "@microvoid/convax-skill-storyai-3d-director-desk": "workspace:*",
       },
@@ -125,7 +125,7 @@
     },
     "packages/plugins/storyboard-studio": {
       "name": "@microvoid/convax-plugin-storyboard-studio",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@microvoid/convax-skill-storyboard-studio": "workspace:*",
       },

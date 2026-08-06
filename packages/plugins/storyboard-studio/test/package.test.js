@@ -30,7 +30,7 @@ describe("storyboard-studio package contract", () => {
     expect(manifest).toMatchObject({
       schema: "convax.plugin/8",
       id: "storyboard-studio",
-      version: "0.2.1",
+      version: "0.2.2",
       entry: "index.html",
       contributes: {
         canvas: {
@@ -43,6 +43,10 @@ describe("storyboard-studio package contract", () => {
         skills: [{ name: "storyboard-studio", path: "skills/storyboard-studio" }],
       },
     })
+    expect(manifest.contributes.canvas.renderer.stateSchema).toMatchObject({
+      type: "union",
+    })
+    expect(manifest.contributes.canvas.renderer.stateSchema.variants).toHaveLength(2)
     expect(manifest.capabilities).toEqual([
       "agent.prompt",
       "canvas.document.read",
