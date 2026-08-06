@@ -52,7 +52,7 @@ describe("storyai-3d-director-desk package", () => {
       id: "storyai-3d-director-desk",
       name: "3D Director Desk",
       description: manifest.description,
-      version: "0.3.1",
+      version: "0.3.2",
       publication: {
         status: "ready",
         blockers: [],
@@ -96,7 +96,45 @@ describe("storyai-3d-director-desk package", () => {
     }))
     expect(manifest.contributes).toEqual({
       canvas: {
-        renderer: { create: true, width: 1100, height: 700 },
+        renderer: {
+          create: true,
+          width: 1100,
+          height: 700,
+          stateSchema: {
+            type: "union",
+            variants: [
+              {
+                type: "object",
+                maxProperties: "0",
+                required: [],
+                properties: {},
+                additionalProperties: false,
+              },
+              {
+                type: "object",
+                maxProperties: "3",
+                required: ["encoding", "payload", "schemaVersion"],
+                properties: {
+                  schemaVersion: {
+                    type: "integer",
+                    minimum: "1",
+                    maximum: "1",
+                  },
+                  encoding: {
+                    type: "string",
+                    maxUtf8Bytes: "32",
+                    enum: ["base64-json-utf8"],
+                  },
+                  payload: {
+                    type: "string",
+                    maxUtf8Bytes: "65536",
+                  },
+                },
+                additionalProperties: false,
+              },
+            ],
+          },
+        },
         commands: [{
           id: "scene.play",
           title: {
@@ -143,6 +181,7 @@ describe("storyai-3d-director-desk package", () => {
       "assets/app.js",
       "assets/convax-theme.css",
       "assets/plugin-host-client.js",
+      "assets/state-envelope.js",
       "assets/styles.css",
       "index.html",
       "manifest.json",
@@ -152,10 +191,13 @@ describe("storyai-3d-director-desk package", () => {
       "ca87a7d8f2666eaf728dd5ea9ae7078821996d032140c4437ce5047e7bba65a1",
     )
     expect(await sha256("assets/app.js")).toBe(
-      "2fe096047aa10f51dbbf92ad2542b97ed4d73437bd281867f277e9027bd7b22f",
+      "d34b64f0fc5e4e0d5851d5118a304f241077d00f41c28eb4693b1cff4a86d3e8",
+    )
+    expect(await sha256("assets/state-envelope.js")).toBe(
+      "e0429c47c734fd697db9bd55b546e116c8a1c4c36b5f002f3ac39dc9bde4aa60",
     )
     expect(await sha256("assets/plugin-host-client.js")).toBe(
-      "e71771b9e2a77e7ce43512d0ede698206d71ffad00b0324780de6aeaad6090b5",
+      "829b52c986d459172d84f1299a469a960cd718b768de532be8bb4cd289d5a72f",
     )
     expect(await sha256("assets/convax-theme.css")).toBe(
       "a27a031b299856bd4bd6d31b7cbb54e9996e0679e13db14ae3945197b1de41af",
