@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs"
 import path from "node:path"
+import { parseCatalogExclusions } from "./catalog-exclusions.mjs"
 
 function isObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -83,40 +84,14 @@ function assertPreinstalled(preinstalled) {
   }
 }
 
-function assertExcluded(excluded) {
-  exactKeys(excluded, ["schema", "members"], ["schema", "members"], "catalogs/excluded.json")
-  if (
-    excluded.schema !== "convax.catalog-exclusions/1" ||
-    !Array.isArray(excluded.members) ||
-    excluded.members.length > 128
-  ) {
-    throw new Error("catalogs/excluded.json: unsupported schema or member count")
-  }
-  const identities = excluded.members.map((member, index) => {
-    exactKeys(member, ["kind", "id"], ["kind", "id"], `catalogs/excluded.json member ${index}`)
-    if (
-      !["plugin", "skill", "mcp-server"].includes(member.kind) ||
-      typeof member.id !== "string" ||
-      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(member.id)
-    ) {
-      throw new Error(`catalogs/excluded.json member ${index}: invalid package identity`)
-    }
-    return `${member.kind}/${member.id}`
-  })
-  if (new Set(identities).size !== identities.length) {
-    throw new Error("catalogs/excluded.json: members must be unique")
-  }
-  const sorted = [...identities].sort((left, right) => left.localeCompare(right, "en"))
-  if (identities.some((identity, index) => identity !== sorted[index])) {
-    throw new Error("catalogs/excluded.json: members must use canonical identity order")
-  }
-}
-
 export function assertOfficialMarketplaceSource(source) {
   assertOfficialMarketplaceDescriptor(source.descriptor)
   assertBuiltin(source.builtin)
   assertPreinstalled({ schema: "convax.preinstalled-config/1", packages: source.preinstalled })
-  assertExcluded({ schema: "convax.catalog-exclusions/1", members: source.excluded })
+  parseCatalogExclusions(
+    { schema: "convax.catalog-exclusions/1", members: source.excluded },
+    "catalogs/excluded.json",
+  )
   const excluded = new Set(source.excluded.map(({ kind, id }) => `${kind}/${id}`))
   for (const member of source.builtin.members) {
     if (excluded.has(`${member.kind}/${member.id}`)) {
@@ -141,7 +116,7 @@ export async function loadOfficialMarketplaceSource(workspaceRoot) {
     descriptor,
     builtin,
     preinstalled: preinstalledConfig.packages,
-    excluded: excludedConfig.members,
+    excluded: parseCatalogExclusions(excludedConfig, "catalogs/excluded.json"),
   }
   assertOfficialMarketplaceSource(source)
   return source
