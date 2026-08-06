@@ -119,7 +119,6 @@ describe("Official Marketplace tooling", () => {
       },
     ])
     expect(source.excluded).toEqual([
-      { kind: "plugin", id: "hello-convax" },
       { kind: "skill", id: "clip-export" },
     ])
     expect(() => assertOfficialMarketplaceSource(source)).not.toThrow()
