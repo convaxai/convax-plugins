@@ -11,7 +11,7 @@ This is not the private MiniMax Hub `3d-director-stage` plugin. Convax uses the
 open-source project as an independent built-in Plugin and does not copy MiniMax
 Hub assets or code.
 
-The Convax build differs from upstream in nine deliberate ways:
+The Convax build differs from upstream in ten deliberate ways:
 
 1. it bundles `createPluginHostClient` from `@convax/plugin-sdk/client` and uses
    its `convax.plugin-host/8` MessageChannel instead of handwritten request,
@@ -39,6 +39,14 @@ The Convax build differs from upstream in nine deliberate ways:
    Convax Midnight semantic tokens without editing the pinned upstream stylesheet;
    the trusted bundle transform also resolves the Three.js grid from
    `--ui-border-default` instead of retaining an unrelated fixed blue.
+10. Host-admitted node state is either `{}` or a closed
+   `base64-json-utf8` envelope (`schemaVersion: 1`) because the portable
+   bounded-value dialect cannot yet claim finite floats as integers. The trusted
+   `scripts/build.ts` step wires `assets/state-envelope.js` so writes validate the
+   complete finite scene and size before encoding, and reads decode then
+   re-validate; legacy raw director snapshots still hydrate once and migrate on
+   the next successful replace. Raw JSON stays under ~48 KiB so the base64 payload
+   fits the 64 KiB string ceiling while the full Host value stays under 256 KiB.
 
 The complete static Plugin package lives under
 `packages/plugins/storyai-3d-director-desk/package/` in the
@@ -52,17 +60,19 @@ The consolidated `UPSTREAM.patch` makes the application import a build-external
 surface. The repository build supplies that module from the pinned
 `@convax/plugin-sdk/client`; the standalone upstream demo uses an inert adapter.
 The upstream-generated JavaScript is preserved byte-for-byte as `vendor/app.js`.
-The trusted `scripts/build.ts` step builds the SDK client, replaces inert remote
-documentation literals, splits XML namespace identifiers, and replaces the four
-bundled generic `fetch` loaders with an explicit local rejection, then maps the
-fixed grid color to the package-owned semantic theme before publishing
-`package/assets/app.js`. Do not hand-edit generated files or the
+The trusted `scripts/build.ts` step builds the SDK client, copies the state
+envelope helper, replaces inert remote documentation literals, splits XML
+namespace identifiers, replaces the four bundled generic `fetch` loaders with an
+explicit local rejection, maps the fixed grid color to the package-owned semantic
+theme, and wires envelope encode/decode around Host state replace before
+publishing `package/assets/app.js`. Do not hand-edit generated files or the
 upstream-generated stylesheet. The checked-in inputs and outputs are pinned by
 these SHA-256 hashes:
 
 - `vendor/app.js`: `ca87a7d8f2666eaf728dd5ea9ae7078821996d032140c4437ce5047e7bba65a1`
-- `package/assets/app.js`: `2fe096047aa10f51dbbf92ad2542b97ed4d73437bd281867f277e9027bd7b22f`
-- `package/assets/plugin-host-client.js`: `e71771b9e2a77e7ce43512d0ede698206d71ffad00b0324780de6aeaad6090b5`
+- `package/assets/app.js`: `d34b64f0fc5e4e0d5851d5118a304f241077d00f41c28eb4693b1cff4a86d3e8`
+- `package/assets/plugin-host-client.js`: `829b52c986d459172d84f1299a469a960cd718b768de532be8bb4cd289d5a72f`
+- `package/assets/state-envelope.js`: `e0429c47c734fd697db9bd55b546e116c8a1c4c36b5f002f3ac39dc9bde4aa60`
 - `assets/convax-theme.css`: `a27a031b299856bd4bd6d31b7cbb54e9996e0679e13db14ae3945197b1de41af`
 - `assets/styles.css`: `6cce301d037ab3483cda7a5d1587fcd6258e59e7baee4ed6d8b17fc080ac8620`
 - `index.html`: `9bdc8343951384b999fdcd86e489a5f52ad3eb1648d9362ee5e9246345a732b6`

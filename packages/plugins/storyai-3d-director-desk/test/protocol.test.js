@@ -38,11 +38,20 @@ describe("storyai-3d-director-desk v8 Web Host API", () => {
     ])
 
     expect([manifest.version, metadata.version, workspace.version]).toEqual([
-      "0.3.1",
-      "0.3.1",
-      "0.3.1",
+      "0.3.2",
+      "0.3.2",
+      "0.3.2",
     ])
     expect([skillMetadata.version, skillWorkspace.version]).toEqual(["0.2.0", "0.2.0"])
+    expect(manifest.contributes.canvas.renderer.stateSchema).toMatchObject({
+      type: "union",
+    })
+    expect(manifest.contributes.canvas.renderer.stateSchema.variants).toHaveLength(2)
+    expect(application).toContain("./state-envelope.js")
+    expect(application).toContain("__cvxEnc")
+    expect(application).toContain("__cvxDec")
+    expect(application).toContain("可持久化上限")
+    expect(application).not.toContain("240 KiB")
     expect(manifest.hostApi).toEqual({
       major: 3,
       required: [
