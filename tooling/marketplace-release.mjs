@@ -12,7 +12,10 @@ import { renderPluginApiJson } from "@convax/plugin-api/generator"
 import {
   discoverPackages,
 } from "./lib.mjs"
-import { effectiveCatalogExclusionIdentities } from "./catalog-exclusions.mjs"
+import {
+  effectiveCatalogExclusionIdentities,
+  parseCatalogExclusions,
+} from "./catalog-exclusions.mjs"
 import {
   createOwnedSkillReferenceFiles,
   generateSkillApiReferences,
@@ -386,6 +389,71 @@ export function createReleaseSelectionPlan(selected, current, { excluded = [] } 
   }
 }
 
+export function includeCatalogReactivations(
+  selected,
+  current,
+  { excluded = [], previousExcluded = [] } = {},
+) {
+  assertSelectedCandidatesMatchSnapshot(selected, current, {
+    allowBlocked: true,
+  })
+  const packages = [...current.values()]
+  const previousIdentities = effectiveCatalogExclusionIdentities(
+    packages,
+    previousExcluded,
+  )
+  const currentIdentities = effectiveCatalogExclusionIdentities(
+    packages,
+    excluded,
+  )
+  const selections = new Map(
+    selected.map((entry) => [`${entry.kind}/${entry.id}`, entry]),
+  )
+  for (const identity of previousIdentities) {
+    if (currentIdentities.has(identity) || selections.has(identity)) continue
+    const separator = identity.indexOf("/")
+    const kind = identity.slice(0, separator)
+    const id = identity.slice(separator + 1)
+    const candidate = current.get(`${kind}\0${id}`)
+    if (!candidate) {
+      throw new Error(
+        `catalog reactivation ${identity} is absent from current source`,
+      )
+    }
+    selections.set(identity, {
+      kind: candidate.kind,
+      id: candidate.id,
+      version: candidate.version,
+      releaseTag: candidate.releaseTag,
+    })
+  }
+  return [...selections.values()].sort((left, right) =>
+    `${left.kind}/${left.id}`.localeCompare(`${right.kind}/${right.id}`, "en"))
+}
+
+function catalogExclusionsAtRevision(workspaceRoot, revision) {
+  if (!/^(?:[a-f0-9]{40}|registry-v2-[a-f0-9]{64})$/.test(revision)) {
+    throw new Error(`Invalid Marketplace base revision ${revision}`)
+  }
+  let value
+  try {
+    value = JSON.parse(execFileSync(
+      "git",
+      ["show", `${revision}:catalogs/excluded.json`],
+      { cwd: workspaceRoot, encoding: "utf8", maxBuffer: 256 * 1024 },
+    ))
+  } catch (cause) {
+    throw new Error(
+      `Unable to read catalog exclusions from Marketplace base ${revision}`,
+      { cause },
+    )
+  }
+  return parseCatalogExclusions(
+    value,
+    `${revision}:catalogs/excluded.json`,
+  )
+}
+
 function parseCliArgs(argv) {
   const result = {}
   for (let index = 0; index < argv.length; index += 1) {
@@ -452,6 +520,7 @@ async function main(argv) {
     { catalogPath: args.catalog },
   )
   const current = await packageVersionSnapshot(repositoryRoot)
+  const officialSource = await loadOfficialMarketplaceSource(repositoryRoot)
   const changed = args["cutover-registry"]
     ? createV8CutoverSelections(
         parsePinnedV8CutoverRegistry(
@@ -462,8 +531,17 @@ async function main(argv) {
         ),
         current,
       )
-    : await changedMarketplaceVersions(repositoryRoot, args.base)
-  const officialSource = await loadOfficialMarketplaceSource(repositoryRoot)
+    : includeCatalogReactivations(
+        await changedMarketplaceVersions(repositoryRoot, args.base),
+        current,
+        {
+          excluded: officialSource.excluded,
+          previousExcluded: catalogExclusionsAtRevision(
+            repositoryRoot,
+            args.base,
+          ),
+        },
+      )
   const plan = createReleaseSelectionPlan(changed, current, {
     excluded: officialSource.excluded,
   })

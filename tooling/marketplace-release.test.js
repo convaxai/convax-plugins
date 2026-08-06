@@ -7,6 +7,7 @@ import { changedMarketplaceVersions } from "@convax/marketplace-kit"
 import {
   assertSelectedCandidatesMatchSnapshot,
   createReleaseSelectionPlan,
+  includeCatalogReactivations,
   packageVersionSnapshot,
 } from "./marketplace-release.mjs"
 import { createV8CutoverSelections } from "./marketplace-v8-cutover.mjs"
@@ -245,6 +246,57 @@ describe("Marketplace Kit release selection and publication policy", () => {
       },
     }])
   }, 30_000)
+
+  test("reactivates an unchanged Plugin and its owned Skill when catalog exclusion is removed", () => {
+    const current = new Map([
+      ["plugin\0hello-convax", {
+        kind: "plugin",
+        id: "hello-convax",
+        version: "0.2.1",
+        releaseTag: "plugin-hello-convax-v0.2.1",
+        publication: { status: "ready", blockers: [], blockedBy: [] },
+      }],
+      ["skill\0hello-convax-guide", {
+        kind: "skill",
+        id: "hello-convax-guide",
+        ownerPluginId: "hello-convax",
+        version: "0.3.0",
+        releaseTag: "skill-hello-convax-guide-v0.3.0",
+        publication: { status: "ready", blockers: [], blockedBy: [] },
+      }],
+      ["plugin\0new-plugin", {
+        kind: "plugin",
+        id: "new-plugin",
+        version: "1.0.0",
+        releaseTag: "plugin-new-plugin-v1.0.0",
+        publication: { status: "ready", blockers: [], blockedBy: [] },
+      }],
+    ])
+    const changed = [{
+      kind: "plugin",
+      id: "new-plugin",
+      version: "1.0.0",
+      releaseTag: "plugin-new-plugin-v1.0.0",
+    }]
+    expect(includeCatalogReactivations(changed, current, {
+      excluded: [],
+      previousExcluded: [{ kind: "plugin", id: "hello-convax" }],
+    })).toEqual([
+      {
+        kind: "plugin",
+        id: "hello-convax",
+        version: "0.2.1",
+        releaseTag: "plugin-hello-convax-v0.2.1",
+      },
+      changed[0],
+      {
+        kind: "skill",
+        id: "hello-convax-guide",
+        version: "0.3.0",
+        releaseTag: "skill-hello-convax-guide-v0.3.0",
+      },
+    ])
+  })
 
   test("fails closed when the sole publication policy is missing", async () => {
     const fixture = await temporaryDirectory()
