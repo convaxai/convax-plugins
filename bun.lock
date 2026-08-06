@@ -140,6 +140,13 @@
         "@convax/plugin-sdk": "0.1.1",
       },
     },
+    "packages/plugins/xiaoyunque-generation": {
+      "name": "@microvoid/convax-plugin-xiaoyunque-generation",
+      "version": "0.5.0",
+      "dependencies": {
+        "@microvoid/convax-xiaoyunque-mcp": "workspace:*",
+      },
+    },
     "packages/skills/ad-idea": {
       "name": "@microvoid/convax-skill-ad-idea",
       "version": "0.3.1",
@@ -282,6 +289,17 @@
         "typescript": "5.9.3",
       },
     },
+    "packages/tools/xiaoyunque-mcp": {
+      "name": "@microvoid/convax-xiaoyunque-mcp",
+      "version": "0.3.6",
+      "bin": {
+        "convax-xiaoyunque-mcp": "dist/convax-xiaoyunque-mcp",
+      },
+      "devDependencies": {
+        "@types/bun": "1.3.14",
+        "typescript": "5.9.3",
+      },
+    },
     "vendor/host-packages/bounded-value": {
       "name": "@convax/bounded-value",
       "version": "0.1.0",
@@ -386,6 +404,8 @@
 
     "@microvoid/convax-plugin-video-timeline": ["@microvoid/convax-plugin-video-timeline@workspace:packages/plugins/video-timeline"],
 
+    "@microvoid/convax-plugin-xiaoyunque-generation": ["@microvoid/convax-plugin-xiaoyunque-generation@workspace:packages/plugins/xiaoyunque-generation"],
+
     "@microvoid/convax-skill-ad-idea": ["@microvoid/convax-skill-ad-idea@workspace:packages/skills/ad-idea"],
 
     "@microvoid/convax-skill-audiobook": ["@microvoid/convax-skill-audiobook@workspace:packages/skills/audiobook"],
@@ -423,6 +443,8 @@
     "@microvoid/convax-skill-storyboard-studio": ["@microvoid/convax-skill-storyboard-studio@workspace:packages/skills/storyboard-studio"],
 
     "@microvoid/convax-skill-video-prompting": ["@microvoid/convax-skill-video-prompting@workspace:packages/skills/video-prompting"],
+
+    "@microvoid/convax-xiaoyunque-mcp": ["@microvoid/convax-xiaoyunque-mcp@workspace:packages/tools/xiaoyunque-mcp"],
 
     "@radix-ui/number": ["@radix-ui/number@1.1.2", "", {}, "sha512-ceTwaxc4I5IOi97DgCotl3pqiyRGvffcc0oOsE2dQYaJOFIDsDt4VWG6xEbg1QePv9QWausCEIppud/tJ1wNig=="],
 
