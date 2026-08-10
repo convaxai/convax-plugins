@@ -1,0 +1,219 @@
+import { describe, expect, test } from "bun:test";
+import { XiaoYunqueCredentialConfigurationError } from "../src/configuration-error.ts";
+import { XiaoYunquePromptTooLongError } from "../src/contracts.ts";
+import {
+  XiaoYunqueGenerationInputError,
+  XiaoYunqueObservationRejectedError,
+  XiaoYunqueTerminalGenerationError,
+  XiaoYunqueUnsupportedImageModelError,
+} from "../src/generator.ts";
+import {
+  publicGenerationErrorMessage,
+  safeGenerationDiagnosticCode,
+} from "../src/mcp-server.ts";
+import {
+  XiaoYunqueAuthenticationError,
+  XiaoYunqueQueryTimeoutError,
+  XiaoYunqueReferenceAssetRegistrationError,
+  XiaoYunqueRequestRejectedError,
+} from "../src/xiaoyunque-api.ts";
+
+describe("safe public generation errors", () => {
+  test("gives fixed actionable guidance for known failure categories", () => {
+    expect(
+      publicGenerationErrorMessage(
+        new XiaoYunqueCredentialConfigurationError(),
+      ),
+    ).toContain("Open Convax Services");
+    expect(
+      publicGenerationErrorMessage(
+        new XiaoYunqueGenerationInputError("last-frame-without-first"),
+      ),
+    ).toBe("A video last frame requires exactly one first frame.");
+    expect(
+      publicGenerationErrorMessage(new XiaoYunquePromptTooLongError()),
+    ).toBe(
+      "The XiaoYunque prompt is too long. Shorten the prompt or remove some @ text context and try again.",
+    );
+    expect(
+      publicGenerationErrorMessage(
+        new XiaoYunqueAuthenticationError("private upstream detail"),
+      ),
+    ).toBe(
+      "XiaoYunque sign-in expired. Open Convax Services and reconnect XiaoYunque.",
+    );
+    expect(
+      publicGenerationErrorMessage(
+        new XiaoYunqueQueryTimeoutError("private timeout detail"),
+      ),
+    ).toBe(
+      "XiaoYunque accepted the generation, but repeated status checks timed out. It was not resubmitted; check XiaoYunque before starting another paid generation.",
+    );
+    expect(
+      publicGenerationErrorMessage(
+        new XiaoYunqueObservationRejectedError("upstream-http-rejected"),
+      ),
+    ).toBe(
+      "XiaoYunque accepted the generation, but repeated status checks were rejected. It was not resubmitted; check XiaoYunque before starting another paid generation.",
+    );
+    expect(
+      publicGenerationErrorMessage(new XiaoYunqueUnsupportedImageModelError()),
+    ).toBe(
+      "The selected XiaoYunque image model is no longer available. Choose another image model and try again.",
+    );
+    expect(
+      publicGenerationErrorMessage(
+        new XiaoYunqueReferenceAssetRegistrationError(),
+      ),
+    ).toBe(
+      "XiaoYunque could not prepare the reference image for generation. No generation was submitted; try again.",
+    );
+    expect(
+      publicGenerationErrorMessage(
+        new XiaoYunqueReferenceAssetRegistrationError("video"),
+      ),
+    ).toBe(
+      "XiaoYunque could not prepare the reference video for generation. No generation was submitted; try again.",
+    );
+    expect(
+      publicGenerationErrorMessage(
+        new XiaoYunqueRequestRejectedError("private rejection detail"),
+      ),
+    ).toBe(
+      "XiaoYunque did not accept this generation request. Refresh Services and try a model listed for this capability.",
+    );
+    expect(
+      publicGenerationErrorMessage(
+        new XiaoYunqueTerminalGenerationError("failed"),
+      ),
+    ).toBe(
+      "XiaoYunque accepted the generation, but the service reported that it failed. Check XiaoYunque before starting another paid generation.",
+    );
+    expect(
+      publicGenerationErrorMessage(
+        new XiaoYunqueTerminalGenerationError("cancelled"),
+      ),
+    ).toContain("the service reported that it was cancelled");
+    expect(
+      publicGenerationErrorMessage(
+        new XiaoYunqueTerminalGenerationError("additional-input"),
+      ),
+    ).toContain("requires additional input in XiaoYunque");
+    expect(
+      publicGenerationErrorMessage(
+        new XiaoYunqueTerminalGenerationError("human-input"),
+      ),
+    ).toContain("was interrupted for human input");
+  });
+
+  test("keeps known guidance compatible with the host diagnostic safety filter", () => {
+    const messages = [
+      publicGenerationErrorMessage(
+        new XiaoYunqueCredentialConfigurationError(),
+      ),
+      publicGenerationErrorMessage(new XiaoYunquePromptTooLongError()),
+      publicGenerationErrorMessage(new XiaoYunqueAuthenticationError()),
+      publicGenerationErrorMessage(
+        new XiaoYunqueObservationRejectedError("upstream-envelope-rejected"),
+      ),
+      publicGenerationErrorMessage(new XiaoYunqueQueryTimeoutError()),
+      publicGenerationErrorMessage(
+        new XiaoYunqueReferenceAssetRegistrationError(),
+      ),
+      publicGenerationErrorMessage(
+        new XiaoYunqueReferenceAssetRegistrationError("video"),
+      ),
+      publicGenerationErrorMessage(
+        new XiaoYunqueRequestRejectedError("private rejection detail"),
+      ),
+      publicGenerationErrorMessage(new XiaoYunqueUnsupportedImageModelError()),
+      publicGenerationErrorMessage(
+        new XiaoYunqueTerminalGenerationError("failed"),
+      ),
+      publicGenerationErrorMessage(
+        new XiaoYunqueTerminalGenerationError("cancelled"),
+      ),
+      publicGenerationErrorMessage(
+        new XiaoYunqueTerminalGenerationError("additional-input"),
+      ),
+      publicGenerationErrorMessage(
+        new XiaoYunqueTerminalGenerationError("human-input"),
+      ),
+    ];
+    const forbiddenDiagnostic =
+      /\b(?:authorization|cookie|set-cookie|password|passwd|secret|api[-_ ]?key|access[-_ ]?key|secret[-_ ]?key|token|ak|sk)\b/i;
+    for (const message of messages)
+      expect(message).not.toMatch(forbiddenDiagnostic);
+  });
+
+  test("never forwards an unknown error message", () => {
+    const privateDetail =
+      "Cookie=session-secret /Users/private/input.png https://private.invalid/task";
+    const message = publicGenerationErrorMessage(new Error(privateDetail));
+
+    expect(message).toBe("XiaoYunque generation failed.");
+    expect(message).not.toContain(privateDetail);
+    expect(message).not.toContain("session-secret");
+  });
+
+  test("emits only fixed non-secret diagnostic categories", () => {
+    const privateDetail =
+      "Cookie=session-secret /Users/private/input.png https://private.invalid/task";
+    const categories = [
+      safeGenerationDiagnosticCode(
+        new XiaoYunqueAuthenticationError(privateDetail),
+      ),
+      safeGenerationDiagnosticCode(new XiaoYunquePromptTooLongError()),
+      safeGenerationDiagnosticCode(
+        new XiaoYunqueObservationRejectedError("upstream-http-rejected"),
+      ),
+      safeGenerationDiagnosticCode(
+        new XiaoYunqueQueryTimeoutError(privateDetail),
+      ),
+      safeGenerationDiagnosticCode(
+        new XiaoYunqueReferenceAssetRegistrationError(),
+      ),
+      safeGenerationDiagnosticCode(
+        new XiaoYunqueReferenceAssetRegistrationError("video"),
+      ),
+      safeGenerationDiagnosticCode(new XiaoYunqueUnsupportedImageModelError()),
+      safeGenerationDiagnosticCode(
+        new XiaoYunqueTerminalGenerationError("failed"),
+      ),
+      safeGenerationDiagnosticCode(
+        new XiaoYunqueTerminalGenerationError("cancelled"),
+      ),
+      safeGenerationDiagnosticCode(
+        new XiaoYunqueTerminalGenerationError("additional-input"),
+      ),
+      safeGenerationDiagnosticCode(
+        new XiaoYunqueTerminalGenerationError("human-input"),
+      ),
+      safeGenerationDiagnosticCode(
+        new XiaoYunqueRequestRejectedError(
+          privateDetail,
+          "upstream-envelope-rejected",
+        ),
+      ),
+      safeGenerationDiagnosticCode(new Error(privateDetail)),
+    ];
+
+    expect(categories).toEqual([
+      "sign-in-expired",
+      "prompt-too-long",
+      "status-check-rejected",
+      "status-check-timeout",
+      "reference-image-registration-failed",
+      "reference-video-registration-failed",
+      "unsupported-image-model",
+      "generation-failed",
+      "generation-cancelled",
+      "generation-input-required",
+      "generation-interrupted",
+      "upstream-envelope-rejected",
+      "unclassified-failure",
+    ]);
+    expect(JSON.stringify(categories)).not.toContain(privateDetail);
+    expect(JSON.stringify(categories)).not.toContain("session-secret");
+  });
+});
