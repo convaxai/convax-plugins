@@ -21,71 +21,100 @@ const maximumModelCatalogBytes = 8 * 1024 * 1024;
 const maximumModelCatalogEntries = 2_048;
 const maximumImageCompletionBytes = 48 * 1024 * 1024;
 const maximumImageErrorBytes = 64 * 1024;
+const maximumGatewayErrorMessageLength = 1_000;
 const maximumVideoContentBytes = 256 * 1024 * 1024;
 const maximumVideoJobBytes = 256 * 1024;
 const openRouterModelIdPattern = /^~?[A-Za-z0-9]+(?:[._/:-][A-Za-z0-9]+)*$/;
 const nexusRequestIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
+const gatewayErrorCodePattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const automaticOpenRouterModelIds: ReadonlySet<string> = new Set([
   "openrouter/auto",
   "openrouter/auto-beta",
 ]);
-const nexusGatewayErrorCodes: ReadonlySet<string> = new Set([
-  "access_unavailable",
-  "invalid_gateway_request",
-  "invalid_gateway_route",
-  "invalid_inference_key",
-  "invalid_usage_request",
-  "metering_unsupported",
-  "provider_configuration_error",
-  "provider_connection_not_found",
-  "provider_first_byte_timeout",
-  "provider_overall_timeout",
-  "provider_unavailable",
-  "quota_exceeded",
-  "unsafe_provider_path",
-  "workspace_access_denied",
-]);
 
-export class NexusImageHttpError extends Error {
-  override name = "NexusImageHttpError";
-  readonly code: string | undefined;
-  readonly requestId: string;
+export interface NexusGatewayErrorDetails {
+  readonly code?: number | string;
+  readonly message?: string;
+  readonly requestId?: string;
+}
+
+export class NexusGatewayHttpError extends Error {
+  override name = "NexusGatewayHttpError";
+  readonly code: number | string | undefined;
+  readonly operationId: string | undefined;
+  readonly requestId: string | undefined;
+  readonly serverMessage: string | undefined;
   readonly status: number;
 
-  constructor(status: number, requestId: string, code?: unknown) {
-    super("Nexus image generation request was rejected");
+  constructor(
+    label: string,
+    status: number,
+    details: NexusGatewayErrorDetails = {},
+    operationId?: string,
+  ) {
+    super(`${label} was rejected`);
     if (!Number.isInteger(status) || status < 100 || status > 599) {
-      throw new Error("Nexus image HTTP diagnostic status is invalid");
+      throw new Error("Nexus Gateway HTTP diagnostic status is invalid");
     }
-    const trustedRequestId = validRequestId(requestId);
-    if (trustedRequestId === undefined) {
-      throw new Error("Nexus image HTTP diagnostic request id is invalid");
+    const trustedOperationId =
+      operationId === undefined
+        ? undefined
+        : firstValidRequestId([operationId]);
+    if (operationId !== undefined && trustedOperationId === undefined) {
+      throw new Error("Nexus Gateway HTTP diagnostic operation id is invalid");
     }
     this.status = status;
-    this.code = validErrorCode(code);
-    this.requestId = trustedRequestId;
+    this.code = validErrorCode(details.code);
+    this.operationId = trustedOperationId;
+    this.requestId = firstValidRequestId([details.requestId]);
+    this.serverMessage = validGatewayErrorMessage(details.message);
   }
 }
 
-export class NexusVideoHttpError extends Error {
-  override name = "NexusVideoHttpError";
-  readonly code: string | undefined;
-  readonly requestId: string;
-  readonly status: number;
+export class NexusImageHttpError extends NexusGatewayHttpError {
+  override name = "NexusImageHttpError";
 
-  constructor(status: number, requestId: string, code?: unknown) {
-    super("Nexus video generation request was rejected");
-    if (!Number.isInteger(status) || status < 100 || status > 599) {
-      throw new Error("Nexus video HTTP diagnostic status is invalid");
-    }
-    const trustedRequestId = validRequestId(requestId);
-    if (trustedRequestId === undefined) {
-      throw new Error("Nexus video HTTP diagnostic request id is invalid");
-    }
-    this.status = status;
-    this.code = validErrorCode(code);
-    this.requestId = trustedRequestId;
+  constructor(
+    status: number,
+    operationId: string,
+    details: NexusGatewayErrorDetails = {},
+  ) {
+    super("Nexus image generation request", status, details, operationId);
   }
+}
+
+export class NexusVideoHttpError extends NexusGatewayHttpError {
+  override name = "NexusVideoHttpError";
+
+  constructor(
+    status: number,
+    operationId: string,
+    details: NexusGatewayErrorDetails = {},
+  ) {
+    super("Nexus video generation request", status, details, operationId);
+  }
+}
+
+export function publicNexusErrorMessage(subject: string, error: unknown) {
+  const prefix = `Convax ${subject} failed`;
+  if (error instanceof NexusGatewayHttpError) {
+    const details = [
+      `HTTP ${error.status}`,
+      ...(error.code === undefined ? [] : [`code ${error.code}`]),
+      ...(error.requestId === undefined
+        ? []
+        : [`request id ${error.requestId}`]),
+      ...(error.operationId === undefined
+        ? []
+        : [`operation id ${error.operationId}`]),
+    ].join(", ");
+    return `${prefix} (${details})${error.serverMessage ? `: ${error.serverMessage}` : "."}`;
+  }
+  const message =
+    error instanceof Error
+      ? validGatewayErrorMessage(error.message)
+      : undefined;
+  return `${prefix}${message ? `: ${message}` : "."}`;
 }
 
 export interface NexusClientOptions {
@@ -346,13 +375,10 @@ export class NexusClient {
 
   async generationRoutes(signal?: AbortSignal): Promise<NexusGenerationRoutes> {
     const context = await this.#gatewayContext();
-    const [imageResult, videoResult] = await Promise.allSettled([
+    const [imageModels, videoModels] = await Promise.all([
       this.#providerModels(context, "image", signal),
       this.#providerModels(context, "video", signal),
     ]);
-    if (imageResult.status === "rejected" && videoResult.status === "rejected") {
-      throw imageResult.reason;
-    }
     this.#assertCurrentContext(context);
     const maximumAgeMs = Math.max(
       0,
@@ -375,7 +401,7 @@ export class NexusClient {
             operationId,
             completionSignal,
           ),
-        models: imageResult.status === "fulfilled" ? imageResult.value : [],
+        models: imageModels,
       },
       video: {
         ...shared,
@@ -387,7 +413,7 @@ export class NexusClient {
             operationId,
             completionSignal,
           ),
-        models: videoResult.status === "fulfilled" ? videoResult.value : [],
+        models: videoModels,
       },
     };
   }
@@ -405,10 +431,14 @@ export class NexusClient {
       headers: { authorization: `Bearer ${context.dataToken}` },
       signal: requestSignal,
     });
-    if (!response.ok)
-      throw new Error(
-        `Nexus model catalog failed with HTTP ${response.status}`,
+    if (!response.ok) {
+      const error = await parseGatewayHttpError(response, [context.dataToken]);
+      throw new NexusGatewayHttpError(
+        `OpenRouter ${output} model catalog request`,
+        response.status,
+        error,
       );
+    }
     const declared = Number(response.headers.get("content-length") ?? 0);
     if (Number.isFinite(declared) && declared > maximumModelCatalogBytes) {
       throw new Error("Nexus model catalog response is too large");
@@ -425,9 +455,10 @@ export class NexusClient {
     } catch {
       throw new Error("Nexus model catalog response is invalid");
     }
-    const models = parseModelCatalog(parsed).filter(
-      output === "image" ? isExecutableImageModel : isExecutableVideoModel,
-    );
+    const models =
+      output === "image"
+        ? parseImageModelCatalog(parsed).filter(isExecutableImageModel)
+        : parseVideoModelCatalog(parsed).filter(isExecutableVideoModel);
     this.#assertCurrentContext(context);
     return models;
   }
@@ -482,8 +513,11 @@ export class NexusClient {
       },
     );
     if (!response.ok) {
-      const error = await parseImageHttpError(response);
-      throw new NexusImageHttpError(response.status, operationId, error.code);
+      const error = await parseGatewayHttpError(response, [
+        context.dataToken,
+        prompt,
+      ]);
+      throw new NexusImageHttpError(response.status, operationId, error);
     }
     const declared = Number(response.headers.get("content-length") ?? 0);
     if (Number.isFinite(declared) && declared > maximumImageCompletionBytes) {
@@ -534,8 +568,11 @@ export class NexusClient {
       },
     );
     if (!submit.ok) {
-      const error = await parseGatewayHttpError(submit);
-      throw new NexusVideoHttpError(submit.status, operationId, error.code);
+      const error = await parseGatewayHttpError(submit, [
+        context.dataToken,
+        prompt,
+      ]);
+      throw new NexusVideoHttpError(submit.status, operationId, error);
     }
     const created = parseVideoJob(
       await readJsonResponse(
@@ -543,11 +580,14 @@ export class NexusClient {
         maximumVideoJobBytes,
         "Nexus video submit response",
       ),
+      [context.dataToken, prompt],
     );
-    let status = created.status;
-    while (status !== "completed") {
-      if (status === "failed" || status === "cancelled") {
-        throw new Error("Nexus video generation did not complete");
+    let job = created;
+    while (job.status !== "completed") {
+      if (["failed", "cancelled", "expired"].includes(job.status)) {
+        throw new Error(
+          `OpenRouter video generation ${job.status}${job.error ? `: ${job.error}` : ""}`,
+        );
       }
       await abortableDelay(this.#videoPollIntervalMs, signal);
       this.#assertCurrentContext(context);
@@ -561,16 +601,20 @@ export class NexusClient {
         },
       );
       if (!poll.ok) {
-        const error = await parseGatewayHttpError(poll);
-        throw new NexusVideoHttpError(poll.status, operationId, error.code);
+        const error = await parseGatewayHttpError(poll, [
+          context.dataToken,
+          prompt,
+        ]);
+        throw new NexusVideoHttpError(poll.status, operationId, error);
       }
-      status = parseVideoJob(
+      job = parseVideoJob(
         await readJsonResponse(
           poll,
           maximumVideoJobBytes,
           "Nexus video poll response",
         ),
-      ).status;
+        [context.dataToken, prompt],
+      );
     }
     const content = await this.#fetch(
       new URL(
@@ -582,8 +626,11 @@ export class NexusClient {
       },
     );
     if (!content.ok) {
-      const error = await parseGatewayHttpError(content);
-      throw new NexusVideoHttpError(content.status, operationId, error.code);
+      const error = await parseGatewayHttpError(content, [
+        context.dataToken,
+        prompt,
+      ]);
+      throw new NexusVideoHttpError(content.status, operationId, error);
     }
     const contentType = content.headers
       .get("content-type")
@@ -870,22 +917,38 @@ function hostedWorkspaceAuthApiPath(action: "revoke" | "token"): string {
   return `${hostedWorkspaceApiBasePath}/auth/${action}`;
 }
 
-async function parseImageHttpError(
+async function parseGatewayHttpError(
   response: Response,
-): Promise<{ code?: string }> {
+  sensitiveValues: readonly string[],
+): Promise<NexusGatewayErrorDetails> {
+  const headerRequestId = firstValidRequestId(
+    [
+      response.headers.get("x-request-id"),
+      response.headers.get("x-nexus-request-id"),
+    ],
+    sensitiveValues,
+  );
   const serialized = await readBoundedResponseText(
     response,
     maximumImageErrorBytes,
   ).catch(() => undefined);
-  if (serialized === undefined) return {};
+  if (serialized === undefined) {
+    return headerRequestId === undefined
+      ? {}
+      : { requestId: headerRequestId };
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(serialized) as unknown;
   } catch {
-    return {};
+    return headerRequestId === undefined
+      ? {}
+      : { requestId: headerRequestId };
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return {};
+    return headerRequestId === undefined
+      ? {}
+      : { requestId: headerRequestId };
   }
   const input = parsed as Record<string, unknown>;
   const error =
@@ -894,11 +957,18 @@ async function parseImageHttpError(
     !Array.isArray(input.error)
       ? (input.error as Record<string, unknown>)
       : undefined;
-  const code = validErrorCode(error?.code);
-  return code === undefined ? {} : { code };
+  const code = safeGatewayErrorCode(error?.code, sensitiveValues);
+  const message = safeGatewayErrorMessage(error?.message, sensitiveValues);
+  const requestId = firstValidRequestId(
+    [headerRequestId, input.request_id],
+    sensitiveValues,
+  );
+  return {
+    ...(code === undefined ? {} : { code }),
+    ...(message === undefined ? {} : { message }),
+    ...(requestId === undefined ? {} : { requestId }),
+  };
 }
-
-const parseGatewayHttpError = parseImageHttpError;
 
 async function readJsonResponse(response: Response, maximumBytes: number, label: string): Promise<unknown> {
   const serialized = await readBoundedResponseText(response, maximumBytes);
@@ -946,17 +1016,35 @@ async function readBoundedResponseBytes(
   return bytes;
 }
 
-function parseVideoJob(value: unknown): { id: string; status: string } {
+function parseVideoJob(
+  value: unknown,
+  sensitiveValues: readonly string[],
+): { error?: string; id: string; status: string } {
   const input = record(value, "Nexus video job");
   const id = boundedString(input.id, "Nexus video job id", 191);
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,190}$/u.test(id)) {
     throw new Error("Nexus video job id is invalid");
   }
   const status = boundedString(input.status, "Nexus video job status", 32);
-  if (!["pending", "queued", "processing", "in_progress", "completed", "failed", "cancelled"].includes(status)) {
+  if (
+    ![
+      "pending",
+      "queued",
+      "processing",
+      "in_progress",
+      "completed",
+      "failed",
+      "cancelled",
+      "expired",
+    ].includes(status)
+  ) {
     throw new Error("Nexus video job status is invalid");
   }
-  return { id, status };
+  const error =
+    input.error === undefined
+      ? undefined
+      : safeGatewayErrorMessage(input.error, sensitiveValues);
+  return { ...(error === undefined ? {} : { error }), id, status };
 }
 
 function abortableDelay(milliseconds: number, signal: AbortSignal): Promise<void> {
@@ -1024,8 +1112,15 @@ async function readBoundedResponseText(
   }
 }
 
-function validErrorCode(value: unknown) {
-  return typeof value === "string" && nexusGatewayErrorCodes.has(value)
+function validErrorCode(value: unknown): number | string | undefined {
+  if (
+    Number.isSafeInteger(value) &&
+    (value as number) >= 0 &&
+    (value as number) <= 999_999
+  ) {
+    return value as number;
+  }
+  return typeof value === "string" && gatewayErrorCodePattern.test(value)
     ? value
     : undefined;
 }
@@ -1353,28 +1448,52 @@ function isExecutableVideoModel({
   return outputModalities.includes("video") && !automaticOpenRouterModelIds.has(id);
 }
 
-function parseModelCatalog(value: unknown): readonly NexusProviderModel[] {
-  const input = record(value, "Nexus model catalog");
+function modelCatalogEntries(value: unknown): readonly unknown[] {
+  const input = record(value, "OpenRouter model catalog");
   if (
     !Array.isArray(input.data) ||
-    input.data.length === 0 ||
     input.data.length > maximumModelCatalogEntries
   ) {
-    throw new Error("Nexus model catalog response is invalid");
+    throw new Error("OpenRouter model catalog response is invalid");
   }
-  const models = input.data.map((value, index) => {
-    const model = record(value, `Nexus model catalog entry ${index}`);
-    const id = boundedString(
-      model.id,
-      `Nexus model catalog entry ${index} id`,
-      191,
-    );
-    if (!openRouterModelIdPattern.test(id)) {
-      throw new Error(`Nexus model catalog entry ${index} id is invalid`);
-    }
+  return input.data;
+}
+
+function parseModelIdentity(value: unknown, index: number) {
+  const model = record(value, `OpenRouter model catalog entry ${index}`);
+  const id = boundedString(
+    model.id,
+    `OpenRouter model catalog entry ${index} id`,
+    191,
+  );
+  if (!openRouterModelIdPattern.test(id)) {
+    throw new Error(`OpenRouter model catalog entry ${index} id is invalid`);
+  }
+  return {
+    id,
+    model,
+    name: boundedString(
+      model.name,
+      `OpenRouter model catalog entry ${index} name`,
+      160,
+    ),
+  };
+}
+
+function assertDistinctModelIds(models: readonly NexusProviderModel[]) {
+  if (new Set(models.map(({ id }) => id)).size !== models.length) {
+    throw new Error("OpenRouter model catalog contains duplicate ids");
+  }
+}
+
+function parseImageModelCatalog(
+  value: unknown,
+): readonly NexusProviderModel[] {
+  const models = modelCatalogEntries(value).map((value, index) => {
+    const { id, model, name } = parseModelIdentity(value, index);
     const architecture = record(
       model.architecture,
-      `Nexus model catalog entry ${index} architecture`,
+      `OpenRouter image model catalog entry ${index} architecture`,
     );
     if (
       !Array.isArray(architecture.output_modalities) ||
@@ -1382,36 +1501,107 @@ function parseModelCatalog(value: unknown): readonly NexusProviderModel[] {
       architecture.output_modalities.length > 16
     ) {
       throw new Error(
-        `Nexus model catalog entry ${index} output modalities are invalid`,
+        `OpenRouter image model catalog entry ${index} output modalities are invalid`,
       );
     }
     const outputModalities = architecture.output_modalities.map(
       (value, modalityIndex) =>
         boundedString(
           value,
-          `Nexus model catalog entry ${index} output modality ${modalityIndex}`,
+          `OpenRouter image model catalog entry ${index} output modality ${modalityIndex}`,
           32,
         ),
     );
     if (new Set(outputModalities).size !== outputModalities.length) {
       throw new Error(
-        `Nexus model catalog entry ${index} output modalities contain duplicates`,
+        `OpenRouter image model catalog entry ${index} output modalities contain duplicates`,
       );
     }
-    return {
-      id,
-      name: boundedString(
-        model.name,
-        `Nexus model catalog entry ${index} name`,
-        160,
-      ),
-      outputModalities,
-    };
+    return { id, name, outputModalities };
   });
-  if (new Set(models.map(({ id }) => id)).size !== models.length) {
-    throw new Error("Nexus model catalog contains duplicate ids");
-  }
+  assertDistinctModelIds(models);
   return models;
+}
+
+function parseVideoModelCatalog(
+  value: unknown,
+): readonly NexusProviderModel[] {
+  const models = modelCatalogEntries(value).map((entry, index) => {
+    const { id, name } = parseModelIdentity(entry, index);
+    return { id, name, outputModalities: ["video"] };
+  });
+  assertDistinctModelIds(models);
+  return models;
+}
+
+function firstValidRequestId(
+  values: readonly unknown[],
+  sensitiveValues: readonly string[] = [],
+): string | undefined {
+  for (const value of values) {
+    const requestId = validRequestId(value);
+    if (
+      requestId !== undefined &&
+      !looksLikeCredential(requestId) &&
+      !sensitiveValues.some(
+        (sensitive) => sensitive.length >= 4 && requestId.includes(sensitive),
+      )
+    ) {
+      return requestId;
+    }
+  }
+  return undefined;
+}
+
+function safeGatewayErrorCode(
+  value: unknown,
+  sensitiveValues: readonly string[],
+): number | string | undefined {
+  const code = validErrorCode(value);
+  if (
+    typeof code === "string" &&
+    (looksLikeCredential(code) ||
+      sensitiveValues.some(
+        (sensitive) => sensitive.length >= 4 && code.includes(sensitive),
+      ))
+  ) {
+    return undefined;
+  }
+  return code;
+}
+
+function safeGatewayErrorMessage(
+  value: unknown,
+  sensitiveValues: readonly string[],
+): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const message = value.replace(/\s+/gu, " ").trim();
+  if (
+    message.length === 0 ||
+    message.length > maximumGatewayErrorMessageLength ||
+    /[\u0000-\u001F\u007F]/u.test(message) ||
+    looksLikeCredential(message) ||
+    /(?:^|\s)(?:\/[A-Za-z0-9._-]+){2,}(?:\/|$)/u.test(message) ||
+    /\b[A-Za-z]:\\/u.test(message) ||
+    sensitiveValues.some(
+      (sensitive) => sensitive.length >= 4 && message.includes(sensitive),
+    )
+  ) {
+    return undefined;
+  }
+  return message;
+}
+
+function validGatewayErrorMessage(value: unknown): string | undefined {
+  return safeGatewayErrorMessage(value, []);
+}
+
+function looksLikeCredential(value: string): boolean {
+  return (
+    /\bBearer\s+\S+/iu.test(value) ||
+    /\b(?:sk|nxs)-[A-Za-z0-9_-]{8,}\b/u.test(value) ||
+    /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/u.test(value)
+  );
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {

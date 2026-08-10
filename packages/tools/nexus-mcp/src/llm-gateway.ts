@@ -1,7 +1,10 @@
 import { randomBytes } from "node:crypto";
 
 import { llmGatewaySchema } from "./contracts.ts";
-import type { NexusClient } from "./nexus-client.ts";
+import {
+  publicNexusErrorMessage,
+  type NexusClient,
+} from "./nexus-client.ts";
 
 const maximumRequestBytes = 8 * 1024 * 1024;
 
@@ -133,10 +136,14 @@ export class NexusLlmGateway {
       const requestId = upstream.headers.get("x-request-id");
       if (requestId) headers.set("X-Request-Id", requestId.slice(0, 191));
       return new Response(upstream.body, { headers, status: upstream.status });
-    } catch {
+    } catch (error) {
       if (request.signal.aborted)
         return errorResponse(499, "LLM request was cancelled", "cancelled");
-      return errorResponse(502, "Convax gateway request failed", "api_error");
+      return errorResponse(
+        502,
+        publicNexusErrorMessage("LLM gateway request", error),
+        "api_error",
+      );
     }
   }
 

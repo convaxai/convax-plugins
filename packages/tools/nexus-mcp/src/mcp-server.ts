@@ -3,8 +3,7 @@ import { NexusAuthorization } from "./authorization.ts";
 import { NexusCheckoutStore } from "./checkout-store.ts";
 import {
   NexusClient,
-  NexusImageHttpError,
-  NexusVideoHttpError,
+  publicNexusErrorMessage,
   type NexusClientOptions,
   type NexusGenerationRoutes,
   type NexusImageRoute,
@@ -214,53 +213,11 @@ function isJsonRpcRequest(value: unknown): value is JsonRpcRequest {
 }
 
 export function publicImageGenerationErrorMessage(error: unknown) {
-  if (!(error instanceof NexusImageHttpError)) {
-    return (
-      "Convax image generation failed. Check Convax in Services before " +
-      "retrying because the upstream task result may be unknown."
-    );
-  }
-  const details = [
-    `HTTP ${error.status}`,
-    ...(error.code === undefined ? [] : [`code ${error.code}`]),
-    `request id ${error.requestId}`,
-  ].join(", ");
-  const action =
-    error.status === 401 || error.status === 403
-      ? "Reconnect Convax in Services before trying again."
-      : error.status === 429
-        ? "Check the Convax quota or Plan before trying again."
-        : error.code === "metering_unsupported"
-          ? "The Convax gateway has not enabled the OpenRouter image protocol yet."
-          : error.status >= 500
-            ? "Use the request id to review Convax diagnostics before trying again."
-            : "Review Convax in Services and choose a currently listed image model before trying again.";
-  return `Convax rejected image generation (${details}). ${action}`;
+  return publicNexusErrorMessage("image generation", error);
 }
 
 export function publicVideoGenerationErrorMessage(error: unknown) {
-  if (!(error instanceof NexusVideoHttpError)) {
-    return (
-      "Convax video generation failed. Check Convax in Services before " +
-      "retrying because the upstream task result may be unknown."
-    );
-  }
-  const details = [
-    `HTTP ${error.status}`,
-    ...(error.code === undefined ? [] : [`code ${error.code}`]),
-    `request id ${error.requestId}`,
-  ].join(", ");
-  const action =
-    error.status === 401 || error.status === 403
-      ? "Reconnect Convax in Services before trying again."
-      : error.status === 429
-        ? "Check the Convax quota or Plan before trying again."
-        : error.code === "metering_unsupported"
-          ? "The Convax gateway has not enabled the OpenRouter video protocol yet."
-          : error.status >= 500
-            ? "Use the request id to review Convax diagnostics before trying again."
-            : "Review Convax in Services and choose a currently listed video model before trying again.";
-  return `Convax rejected video generation (${details}). ${action}`;
+  return publicNexusErrorMessage("video generation", error);
 }
 
 export interface NexusMcpServerOptions {
@@ -382,7 +339,7 @@ export class NexusMcpServer {
       this.#sendResult(value.id, {
         capabilities: { tools: {} },
         protocolVersion,
-        serverInfo: { name: "convax-nexus-mcp", version: "0.4.0" },
+        serverInfo: { name: "convax-nexus-mcp", version: "0.4.1" },
       });
       return;
     }
@@ -512,7 +469,8 @@ export class NexusMcpServer {
         dynamic.push(videoGenerationTool(generationModelChoices(routes.video.models)));
       }
       return [...dynamic, ...fixedTools];
-    } catch {
+    } catch (error) {
+      console.error(publicNexusErrorMessage("model catalog", error));
       return tools;
     }
   }

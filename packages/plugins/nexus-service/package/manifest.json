@@ -3,7 +3,7 @@
   "id": "nexus-service",
   "name": "Convax",
   "description": "Connects Convax to OpenRouter models through short-lived Data Tokens without exposing provider credentials.",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "contributes": {
     "generation": {
       "models": [

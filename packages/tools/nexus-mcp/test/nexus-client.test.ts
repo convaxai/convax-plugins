@@ -3,7 +3,11 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { NexusClient, NexusImageHttpError } from "../src/nexus-client.ts";
+import {
+  NexusClient,
+  NexusGatewayHttpError,
+  NexusImageHttpError,
+} from "../src/nexus-client.ts";
 import { NexusSessionStore } from "../src/session-store.ts";
 
 const roots: string[] = [];
@@ -610,6 +614,7 @@ describe("NexusClient", () => {
       pathname: string;
       search: string;
     }> = [];
+    let failVideoCatalog = false;
     const client = new NexusClient(sessions, {
       fetch: async (input, init) => {
         const url = new URL(input instanceof Request ? input.url : input);
@@ -669,10 +674,23 @@ describe("NexusClient", () => {
           });
         }
         if (url.pathname.endsWith("/videos/models")) {
+          if (failVideoCatalog) {
+            return Response.json(
+              {
+                error: {
+                  code: 503,
+                  message: "Video model catalog is temporarily unavailable.",
+                },
+              },
+              {
+                headers: { "x-request-id": "openrouter-request-123" },
+                status: 503,
+              },
+            );
+          }
           return Response.json({
             data: [
               {
-                architecture: { output_modalities: ["video"] },
                 id: "google/veo-3.1",
                 name: "Google: Veo 3.1",
               },
@@ -728,6 +746,21 @@ describe("NexusClient", () => {
     expect(routes.video.models.map(({ id }) => id)).toEqual(["google/veo-3.1"]);
     expect(routes.image).not.toHaveProperty("dataToken");
     expect(routes.video).not.toHaveProperty("provider");
+
+    failVideoCatalog = true;
+    let catalogFailure: unknown;
+    try {
+      await client.generationRoutes();
+    } catch (error) {
+      catalogFailure = error;
+    }
+    expect(catalogFailure).toBeInstanceOf(NexusGatewayHttpError);
+    expect(catalogFailure).toMatchObject({
+      code: 503,
+      requestId: "openrouter-request-123",
+      serverMessage: "Video model catalog is temporarily unavailable.",
+      status: 503,
+    });
   });
 
   test("invalidates a prepared image route when the credential session refreshes", async () => {
@@ -774,7 +807,7 @@ describe("NexusClient", () => {
             },
           ]);
         }
-        if (url.pathname.endsWith("/models")) {
+        if (url.pathname.endsWith("/images/models")) {
           return Response.json({
             data: [
               {
@@ -784,6 +817,9 @@ describe("NexusClient", () => {
               },
             ],
           });
+        }
+        if (url.pathname.endsWith("/videos/models")) {
+          return Response.json({ data: [] });
         }
         if (url.pathname.endsWith("/images")) {
           completionRequests += 1;
@@ -823,6 +859,7 @@ describe("NexusClient", () => {
       workspaceSlug: "convax",
     });
     const mediaRequests: Array<{ body?: unknown; method: string; pathname: string }> = [];
+    let videoSubmissions = 0;
     const client = new NexusClient(sessions, {
       fetch: async (input, init) => {
         const url = new URL(input instanceof Request ? input.url : input);
@@ -848,15 +885,12 @@ describe("NexusClient", () => {
             },
           ]);
         }
-        if (url.pathname.endsWith("/models")) {
+        if (url.pathname.endsWith("/images/models")) {
+          return Response.json({ data: [] });
+        }
+        if (url.pathname.endsWith("/videos/models")) {
           return Response.json({
-            data: [
-              {
-                architecture: { output_modalities: ["video"] },
-                id: "google/veo-3.1",
-                name: "Google: Veo 3.1",
-              },
-            ],
+            data: [{ id: "google/veo-3.1", name: "Google: Veo 3.1" }],
           });
         }
         const method = init?.method ?? "GET";
@@ -866,10 +900,24 @@ describe("NexusClient", () => {
           pathname: url.pathname,
         });
         if (method === "POST" && url.pathname.endsWith("/videos")) {
-          return Response.json({ id: "job-abc123", status: "pending" }, { status: 202 });
+          videoSubmissions += 1;
+          return Response.json(
+            {
+              id: videoSubmissions === 1 ? "job-abc123" : "job-failed",
+              status: "pending",
+            },
+            { status: 202 },
+          );
         }
         if (url.pathname.endsWith("/videos/job-abc123")) {
           return Response.json({ id: "job-abc123", status: "completed" });
+        }
+        if (url.pathname.endsWith("/videos/job-failed")) {
+          return Response.json({
+            error: "The selected video model is temporarily unavailable.",
+            id: "job-failed",
+            status: "failed",
+          });
         }
         if (url.pathname.endsWith("/videos/job-abc123/content")) {
           return new Response(Uint8Array.from([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]), {
@@ -907,6 +955,17 @@ describe("NexusClient", () => {
         pathname: "/providers/26010000-0000-4000-8000-000000000010/videos/job-abc123/content",
       },
     ]);
+
+    await expect(
+      route.complete(
+        route.models[0]!,
+        "A second paper boat.",
+        "video-operation-2",
+        new AbortController().signal,
+      ),
+    ).rejects.toThrow(
+      "OpenRouter video generation failed: The selected video model is temporarily unavailable.",
+    );
   });
 
   test("correlates image requests and exposes only bounded HTTP diagnostics", async () => {
@@ -966,16 +1025,12 @@ describe("NexusClient", () => {
               {
                 error: {
                   code: "metering_unsupported",
-                  message:
-                    "raw upstream detail containing secret-token and secret-prompt",
+                  message: "Image generation is not enabled for this Provider.",
                 },
                 request_id: "sk-or-v1-secret-token",
               },
               {
-                headers: {
-                  "x-nexus-request-id": "secret-prompt",
-                  "x-request-id": "sk-or-v1-secret-token",
-                },
+                headers: { "x-request-id": "openrouter-request-456" },
                 status: 409,
               },
             );
@@ -1023,7 +1078,9 @@ describe("NexusClient", () => {
     expect(rejected).toBeInstanceOf(NexusImageHttpError);
     expect(rejected).toMatchObject({
       code: "metering_unsupported",
-      requestId: "operation-123",
+      operationId: "operation-123",
+      requestId: "openrouter-request-456",
+      serverMessage: "Image generation is not enabled for this Provider.",
       status: 409,
     });
     expect(String(rejected)).not.toContain("secret-token");
@@ -1055,7 +1112,8 @@ describe("NexusClient", () => {
     }
     expect(oversized).toBeInstanceOf(NexusImageHttpError);
     expect(oversized).toMatchObject({
-      requestId: "operation-oversized",
+      operationId: "operation-oversized",
+      requestId: undefined,
       status: 500,
     });
     expect((oversized as NexusImageHttpError).code).toBeUndefined();
@@ -1067,7 +1125,7 @@ describe("NexusClient", () => {
           id: "openai/gpt-image-1",
           outputModalities: ["image", "text"],
         },
-        "third prompt",
+        "secret-prompt",
         "operation-json",
         new AbortController().signal,
       );
@@ -1076,7 +1134,9 @@ describe("NexusClient", () => {
     }
     expect(untrustedDiagnostics).toMatchObject({
       code: undefined,
-      requestId: "operation-json",
+      operationId: "operation-json",
+      requestId: undefined,
+      serverMessage: undefined,
       status: 422,
     });
     expect(JSON.stringify(untrustedDiagnostics)).not.toContain("secret-prompt");
