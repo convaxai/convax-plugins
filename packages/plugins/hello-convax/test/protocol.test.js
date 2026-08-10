@@ -18,9 +18,9 @@ describe("hello-convax v8 Web Host API", () => {
     ])
 
     expect([manifest.version, metadata.version, workspace.version]).toEqual([
-      "0.2.1",
-      "0.2.1",
-      "0.2.1",
+      "0.2.2",
+      "0.2.2",
+      "0.2.2",
     ])
     expect([skillMetadata.version, skillWorkspace.version]).toEqual(["0.3.0", "0.3.0"])
     expect(manifest.hostApi).toEqual({

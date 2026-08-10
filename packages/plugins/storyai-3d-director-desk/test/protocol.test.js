@@ -38,9 +38,9 @@ describe("storyai-3d-director-desk v8 Web Host API", () => {
     ])
 
     expect([manifest.version, metadata.version, workspace.version]).toEqual([
-      "0.3.2",
-      "0.3.2",
-      "0.3.2",
+      "0.3.3",
+      "0.3.3",
+      "0.3.3",
     ])
     expect([skillMetadata.version, skillWorkspace.version]).toEqual(["0.2.0", "0.2.0"])
     expect(manifest.contributes.canvas.renderer.stateSchema).toMatchObject({

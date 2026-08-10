@@ -26,9 +26,9 @@ describe("multi-angle v8 transport", () => {
     ])
 
     expect([manifest.version, metadata.version, workspace.version]).toEqual([
-      "0.2.1",
-      "0.2.1",
-      "0.2.1",
+      "0.2.2",
+      "0.2.2",
+      "0.2.2",
     ])
     expect(metadata).not.toHaveProperty("publication")
     expect(publication.requests.flatMap((request) => request.affected)

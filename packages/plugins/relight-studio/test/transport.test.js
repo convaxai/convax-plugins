@@ -21,7 +21,7 @@ describe("relight-studio v8 transport", () => {
       readFile(path.join(repositoryRoot, "registry/host-capability-policy.json"), "utf8").then(JSON.parse),
     ])
 
-    expect(manifest.version).toBe("0.2.1")
+    expect(manifest.version).toBe("0.2.2")
     expect(metadata).not.toHaveProperty("publication")
     expect(publication.requests.flatMap((request) => request.affected)
       .find((item) => item.id === "relight-studio")).toMatchObject({

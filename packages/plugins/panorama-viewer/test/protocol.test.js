@@ -23,9 +23,9 @@ describe("panorama-viewer v8 Web Host API", () => {
     ])
 
     expect([manifest.version, metadata.version, workspace.version]).toEqual([
-      "0.3.1",
-      "0.3.1",
-      "0.3.1",
+      "0.3.2",
+      "0.3.2",
+      "0.3.2",
     ])
     expect(metadata).not.toHaveProperty("publication")
     expect(publication.requests.flatMap((request) => request.affected)

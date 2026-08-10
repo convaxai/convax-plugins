@@ -21,7 +21,7 @@ describe("JianYing Plugin package", () => {
       },
       id: "jianying-editor",
       schema: "convax.plugin/8",
-      version: "3.0.1",
+      version: "3.0.2",
       runtime: {
         command: "convax-jianying-editor-mcp",
         type: "mcp-stdio",
@@ -92,8 +92,8 @@ describe("JianYing Plugin package", () => {
       "utf8",
     ))
 
-    expect(metadata.version).toBe("3.0.1")
-    expect(workspace.version).toBe("3.0.1")
+    expect(metadata.version).toBe("3.0.2")
+    expect(workspace.version).toBe("3.0.2")
     expect(workspace["convax.hostCapabilityRequests"]).toEqual([
       "web-plugin-generation-input-binding",
     ])
