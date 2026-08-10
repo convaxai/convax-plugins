@@ -10,7 +10,7 @@ describe("video-timeline package", () => {
     expect(manifest).toMatchObject({
       schema: "convax.plugin/8",
       id: "video-timeline",
-      version: "0.2.1",
+      version: "0.2.2",
       contributes: {
         canvas: {
           renderer: { create: true, height: 520, width: 640 },

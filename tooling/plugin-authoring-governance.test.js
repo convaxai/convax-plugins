@@ -371,7 +371,7 @@ describe("Convax Plugin authoring governance", () => {
       affected: [{
         kind: "plugin",
         id: "convax-pet",
-        version: "0.3.2",
+        version: "0.3.3",
         blocker: {
           code: "host-capability-review-required",
           note: expect.stringContaining(requestPath),
@@ -504,7 +504,7 @@ describe("Convax Plugin authoring governance", () => {
       affected: [{
         kind: "plugin",
         id: "convax-pet",
-        version: "0.3.2",
+        version: "0.3.3",
         blocker: {
           code: "host-capability-review-required",
           note: expect.stringContaining(requestPath),

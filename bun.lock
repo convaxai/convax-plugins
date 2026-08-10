@@ -16,7 +16,7 @@
     },
     "packages/plugins/chatcut": {
       "name": "@microvoid/convax-plugin-chatcut",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "dependencies": {
         "@microvoid/convax-chatcut-media-import-mcp": "workspace:*",
         "@microvoid/convax-skill-chatcut": "workspace:*",
@@ -34,7 +34,7 @@
     },
     "packages/plugins/convax-pet": {
       "name": "@microvoid/convax-plugin-convax-pet",
-      "version": "0.3.2",
+      "version": "0.3.3",
       "devDependencies": {
         "@convax/plugin-sdk": "0.2.0",
         "@convax/plugin-ui": "0.1.0",
@@ -57,7 +57,7 @@
     },
     "packages/plugins/hello-convax": {
       "name": "@microvoid/convax-plugin-hello-convax",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@microvoid/convax-skill-hello-convax-guide": "workspace:*",
       },
@@ -67,7 +67,7 @@
     },
     "packages/plugins/jianying-editor": {
       "name": "@microvoid/convax-plugin-jianying-editor",
-      "version": "3.0.1",
+      "version": "3.0.2",
       "dependencies": {
         "@microvoid/convax-jianying-editor-mcp": "workspace:*",
         "@microvoid/convax-skill-jianying-editor": "workspace:*",
@@ -78,7 +78,7 @@
     },
     "packages/plugins/multi-angle": {
       "name": "@microvoid/convax-plugin-multi-angle",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "devDependencies": {
         "@convax/plugin-sdk": "0.2.0",
       },
@@ -92,14 +92,14 @@
     },
     "packages/plugins/panorama-viewer": {
       "name": "@microvoid/convax-plugin-panorama-viewer",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "devDependencies": {
         "@convax/plugin-sdk": "0.2.0",
       },
     },
     "packages/plugins/relight-studio": {
       "name": "@microvoid/convax-plugin-relight-studio",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@microvoid/convax-skill-relight-studio": "workspace:*",
       },
@@ -115,7 +115,7 @@
     },
     "packages/plugins/storyai-3d-director-desk": {
       "name": "@microvoid/convax-plugin-storyai-3d-director-desk",
-      "version": "0.3.2",
+      "version": "0.3.3",
       "dependencies": {
         "@microvoid/convax-skill-storyai-3d-director-desk": "workspace:*",
       },
@@ -125,7 +125,7 @@
     },
     "packages/plugins/storyboard-studio": {
       "name": "@microvoid/convax-plugin-storyboard-studio",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "dependencies": {
         "@microvoid/convax-skill-storyboard-studio": "workspace:*",
       },
@@ -135,7 +135,7 @@
     },
     "packages/plugins/video-timeline": {
       "name": "@microvoid/convax-plugin-video-timeline",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "devDependencies": {
         "@convax/plugin-sdk": "0.2.0",
       },

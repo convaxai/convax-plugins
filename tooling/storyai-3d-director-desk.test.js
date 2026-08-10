@@ -52,7 +52,7 @@ describe("storyai-3d-director-desk package", () => {
       id: "storyai-3d-director-desk",
       name: "3D Director Desk",
       description: manifest.description,
-      version: "0.3.2",
+      version: "0.3.3",
       publication: {
         status: "ready",
         blockers: [],
@@ -197,7 +197,7 @@ describe("storyai-3d-director-desk package", () => {
       "e0429c47c734fd697db9bd55b546e116c8a1c4c36b5f002f3ac39dc9bde4aa60",
     )
     expect(await sha256("assets/plugin-host-client.js")).toBe(
-      "29834e9791a791e6c108770ba72165521164cf8c2baf4b45b2f4bbb23efab295",
+      "90731df13856a5b9cc9612557cfe9253f2d8d956a6630a35c3ea487061de0823",
     )
     expect(await sha256("assets/convax-theme.css")).toBe(
       "a27a031b299856bd4bd6d31b7cbb54e9996e0679e13db14ae3945197b1de41af",

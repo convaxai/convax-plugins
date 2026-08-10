@@ -12,7 +12,7 @@
         {
           "kind": "plugin",
           "id": "chatcut",
-          "version": "0.4.1",
+          "version": "0.4.2",
           "blocker": {
             "code": "unverified-runtime-dependency",
             "note": "The companion resolves ffmpeg and ffprobe from ambient PATH instead of an immutable host-verified dependency. Human review is tracked in docs/host-capability-requests/verified-companion-toolchain.md."
@@ -35,7 +35,7 @@
         {
           "kind": "plugin",
           "id": "jianying-editor",
-          "version": "3.0.1",
+          "version": "3.0.2",
           "blocker": {
             "code": "host-capability-review-required",
             "note": "Publication awaits a generated API 2 contract that binds generation references to opaque direct-input keys. Human review is tracked in docs/host-capability-requests/web-plugin-generation-input-binding.md."
@@ -44,7 +44,7 @@
         {
           "kind": "plugin",
           "id": "multi-angle",
-          "version": "0.2.1",
+          "version": "0.2.2",
           "blocker": {
             "code": "host-capability-review-required",
             "note": "Publication awaits a generated API 2 contract that binds generation references to opaque direct-input keys. Human review is tracked in docs/host-capability-requests/web-plugin-generation-input-binding.md."
@@ -53,7 +53,7 @@
         {
           "kind": "plugin",
           "id": "relight-studio",
-          "version": "0.2.1",
+          "version": "0.2.2",
           "blocker": {
             "code": "host-capability-review-required",
             "note": "Publication awaits a generated API 2 contract that binds generation references to opaque direct-input keys. Human review is tracked in docs/host-capability-requests/web-plugin-generation-input-binding.md."
@@ -80,7 +80,7 @@
         {
           "kind": "plugin",
           "id": "multi-angle",
-          "version": "0.2.1",
+          "version": "0.2.2",
           "blocker": {
             "code": "host-capability-review-required",
             "note": "Publication awaits an external receipt binding canvas.inputs.image.open and canvas.inputs.image.close to their accepted Catalog contract digests. Human review is tracked in docs/host-capability-requests/web-plugin-image-input-read.md."
@@ -89,7 +89,7 @@
         {
           "kind": "plugin",
           "id": "panorama-viewer",
-          "version": "0.3.1",
+          "version": "0.3.2",
           "blocker": {
             "code": "host-capability-review-required",
             "note": "Publication awaits an external receipt binding canvas.inputs.image.open and canvas.inputs.image.close to their accepted Catalog contract digests. Human review is tracked in docs/host-capability-requests/web-plugin-image-input-read.md."
@@ -98,7 +98,7 @@
         {
           "kind": "plugin",
           "id": "relight-studio",
-          "version": "0.2.1",
+          "version": "0.2.2",
           "blocker": {
             "code": "host-capability-review-required",
             "note": "Publication awaits an external receipt binding canvas.inputs.image.open and canvas.inputs.image.close to their accepted Catalog contract digests. Human review is tracked in docs/host-capability-requests/web-plugin-image-input-read.md."
@@ -116,10 +116,10 @@
         {
           "kind": "plugin",
           "id": "convax-pet",
-          "version": "0.3.2",
+          "version": "0.3.3",
           "blocker": {
             "code": "host-capability-review-required",
-            "note": "convax-pet@0.3.2 consumes the reviewed local @convax/plugin-ui@0.1.0 candidate, but publication still requires a protected human receipt plus published package integrity evidence. Human review is tracked in docs/host-capability-requests/public-plugin-ui-foundation.md."
+            "note": "convax-pet@0.3.3 consumes the reviewed local @convax/plugin-ui@0.1.0 candidate, but publication still requires a protected human receipt plus published package integrity evidence. Human review is tracked in docs/host-capability-requests/public-plugin-ui-foundation.md."
           }
         }
       ]
@@ -134,10 +134,10 @@
         {
           "kind": "plugin",
           "id": "convax-pet",
-          "version": "0.3.2",
+          "version": "0.3.3",
           "blocker": {
             "code": "host-capability-review-required",
-            "note": "convax-pet@0.3.2 consumes the reviewed local @convax/plugin-sdk@0.1.1 Pet client candidate and no longer authors the transport, but publication still requires a protected human receipt plus published package integrity and runtime conformance evidence. Human review is tracked in docs/host-capability-requests/sdk-owned-pet-surface-client.md."
+            "note": "convax-pet@0.3.3 consumes the reviewed local @convax/plugin-sdk@0.2.0 Pet client candidate and no longer authors the transport, but publication still requires a protected human receipt plus published package integrity and runtime conformance evidence. Human review is tracked in docs/host-capability-requests/sdk-owned-pet-surface-client.md."
           }
         }
       ]
