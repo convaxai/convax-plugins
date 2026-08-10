@@ -37,10 +37,6 @@ const cosignInstaller =
   "sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6"
 const hostSigstoreVerifierSha256 =
   "28c205f1b5d90895f40a5edc39d19a8f52790eabee5ca169f701f84b53dd37f2"
-const priorVendoredHostPackageVersions = Object.freeze(
-  vendoredHostPackageIdentities.map(({ name, version }) =>
-    name === "@convax/plugin-sdk" ? "0.1.1" : version),
-)
 
 function requireVendoredHostPackageAssertion(shell) {
   const compactShell = shell.replace(/\s+/gu, "")
@@ -51,11 +47,9 @@ function requireVendoredHostPackageAssertion(shell) {
       fail(`publish job vendored Host package ${field} assertion drifted`)
     }
   }
-  const currentVersions = vendoredHostPackageIdentities.map(({ version }) => version)
-  const acceptedVersions = [currentVersions, priorVendoredHostPackageVersions]
-  if (!acceptedVersions.some((versions) => compactShell.includes(
-    `[.packages[].version]==${JSON.stringify(versions)}and`,
-  ))) {
+  const versions = vendoredHostPackageIdentities.map(({ version }) => version)
+  const assertion = `[.packages[].version]==${JSON.stringify(versions)}and`
+  if (!compactShell.includes(assertion)) {
     fail("publish job vendored Host package version assertion drifted")
   }
 }
