@@ -15,7 +15,10 @@ describe("Codex Plugin catalog", () => {
     )) as {
       contributes: {
         generation: { models: Array<{ name: string; tool: string }>; tools: Array<{ id: string }> }
-        llm: { models: Array<{ id: string; name: string }>; provider: { id: string; name: string } }
+        llm: {
+          models: Array<{ id: string; name: string }>
+          provider: { id: string; name: string; protocol: "openai" }
+        }
         service: { actions: string[] }
       }
       schema: string
@@ -23,7 +26,7 @@ describe("Codex Plugin catalog", () => {
     expect(manifest.schema).toBe("convax.plugin/8")
     expect(manifest.contributes.llm).toEqual({
       models: codexLlmModels.map((model) => ({ ...model })),
-      provider: { id: "codex", name: "Codex" },
+      provider: { id: "codex", name: "Codex", protocol: "openai" },
     })
     expect(manifest.contributes.generation.models).toEqual([{ name: "GPT Image 2", tool: codexImageToolId }])
     expect(manifest.contributes.generation.tools.map((tool) => tool.id)).toEqual([codexImageToolId])
