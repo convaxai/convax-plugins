@@ -20,7 +20,6 @@ const fixedToolNames = [
   "service.authorization.cancel",
   "service.sign_out",
   "service.checkout",
-  "llm.models.list",
   "llm.gateway.start",
 ] as const;
 
@@ -60,7 +59,7 @@ async function listedToolNames(
                 "http://localhost:4000/providers/26010000-0000-4000-8000-000000000010",
               id: "26010000-0000-4000-8000-000000000010",
               name: "OpenRouter",
-              protocolProfile: "openai-compatible",
+              protocolProfile: "openrouter",
               status: "ACTIVE",
               workspaceId: "26010000-0000-4000-8000-000000000003",
             },
@@ -182,20 +181,20 @@ test("Nexus image diagnostics expose only typed bounded HTTP fields", () => {
       ),
     ),
   ).toBe(
-    "Nexus rejected image generation (HTTP 409, code metering_unsupported, request id gateway-request-123). This image route is not enabled for Nexus metering; contact Nexus support before trying again.",
+    "Convax rejected image generation (HTTP 409, code metering_unsupported, request id gateway-request-123). The Convax gateway has not enabled the OpenRouter image protocol yet.",
   );
   const generic = publicImageGenerationErrorMessage(
     new Error("raw secret-token secret-prompt /private/output/path"),
   );
   expect(generic).toBe(
-    "Nexus image generation failed. Check Nexus before retrying because the upstream task result may be unknown.",
+    "Convax image generation failed. Check Convax in Services before retrying because the upstream task result may be unknown.",
   );
   expect(generic).not.toContain("secret-token");
   expect(generic).not.toContain("secret-prompt");
   expect(generic).not.toContain("/private/output/path");
 });
 
-test("MCP excludes automatic routers and image-only routes from live generation choices", async () => {
+test("MCP excludes automatic routers and admits every concrete image-output model", async () => {
   const responses: unknown[] = [];
   const sessions = {
     async read() {
@@ -229,7 +228,7 @@ test("MCP excludes automatic routers and image-only routes from live generation 
                 "http://localhost:4000/providers/26010000-0000-4000-8000-000000000010",
               id: "26010000-0000-4000-8000-000000000010",
               name: "OpenRouter",
-              protocolProfile: "openai-compatible",
+              protocolProfile: "openrouter",
               status: "ACTIVE",
               workspaceId: "26010000-0000-4000-8000-000000000003",
             },
@@ -257,6 +256,11 @@ test("MCP excludes automatic routers and image-only routes from live generation 
                 architecture: { output_modalities: ["image"] },
                 id: "black-forest-labs/flux.2-flex",
                 name: "FLUX.2 Flex",
+              },
+              {
+                architecture: { output_modalities: ["video"] },
+                id: "google/veo-3.1",
+                name: "Google: Veo 3.1",
               },
             ],
           });
@@ -299,38 +303,22 @@ test("MCP excludes automatic routers and image-only routes from live generation 
     response.result.tools.find(({ name }) => name === "image.generate")
       ?.inputSchema.properties.model,
   ).toEqual({
-    oneOf: [{ const: "openai/gpt-image-1", title: "GPT Image 1" }],
+    oneOf: [
+      { const: "black-forest-labs/flux.2-flex", title: "FLUX.2 Flex" },
+      { const: "openai/gpt-image-1", title: "GPT Image 1" },
+    ],
     title: "Model",
     type: "string",
     "x-convax-role": "generation-model-id",
   });
-
-  controller.enqueue(
-    new TextEncoder().encode(
-      `${JSON.stringify({
-        id: 2,
-        jsonrpc: "2.0",
-        method: "tools/call",
-        params: { arguments: {}, name: "llm.models.list" },
-      })}\n`,
-    ),
-  );
-  for (let attempt = 0; attempt < 100 && responses.length < 2; attempt += 1) {
-    await Bun.sleep(10);
-  }
-  expect(responses).toHaveLength(2);
-  expect(responses[1]).toMatchObject({
-    id: 2,
-    result: {
-      structuredContent: {
-        models: [
-          { id: "openrouter/auto", name: "Auto Router" },
-          { id: "openrouter/auto-beta", name: "Auto Router Beta" },
-          { id: "openai/gpt-image-1", name: "GPT Image 1" },
-        ],
-        schema: "convax.llm-model-catalog/1",
-      },
-    },
+  expect(
+    response.result.tools.find(({ name }) => name === "video.generate")
+      ?.inputSchema.properties.model,
+  ).toEqual({
+    oneOf: [{ const: "google/veo-3.1", title: "Google: Veo 3.1" }],
+    title: "Model",
+    type: "string",
+    "x-convax-role": "generation-model-id",
   });
 
   await server.shutdown(1_000);
@@ -444,7 +432,7 @@ test("image.generate reuses the route loaded by tools/list", async () => {
                 "http://localhost:4000/providers/26010000-0000-4000-8000-000000000010",
               id: "26010000-0000-4000-8000-000000000010",
               name: "OpenRouter",
-              protocolProfile: "openai-compatible",
+              protocolProfile: "openrouter",
               status: "ACTIVE",
               workspaceId: "26010000-0000-4000-8000-000000000003",
             },
@@ -462,21 +450,13 @@ test("image.generate reuses the route loaded by tools/list", async () => {
             ],
           });
         }
-        if (url.pathname.endsWith("/chat/completions")) {
+        if (url.pathname.endsWith("/images")) {
           requests.completions += 1;
           return Response.json({
-            choices: [
+            data: [
               {
-                message: {
-                  images: [
-                    {
-                      image_url: {
-                        url: `data:image/png;base64,${png.toString("base64")}`,
-                      },
-                      type: "image_url",
-                    },
-                  ],
-                },
+                b64_json: png.toString("base64"),
+                media_type: "image/png",
               },
             ],
           });
@@ -560,7 +540,7 @@ test("image.generate reuses the route loaded by tools/list", async () => {
     ).toEqual(png);
     expect(requests).toEqual({
       completions: 1,
-      models: 1,
+      models: 2,
       providers: 1,
       tokens: 1,
     });
@@ -609,7 +589,7 @@ test("image.generate returns bounded correlated HTTP diagnostics", async () => {
                 "http://localhost:4000/providers/26010000-0000-4000-8000-000000000010",
               id: "26010000-0000-4000-8000-000000000010",
               name: "OpenRouter",
-              protocolProfile: "openai-compatible",
+              protocolProfile: "openrouter",
               status: "ACTIVE",
               workspaceId: "26010000-0000-4000-8000-000000000003",
             },
@@ -626,7 +606,7 @@ test("image.generate returns bounded correlated HTTP diagnostics", async () => {
             ],
           });
         }
-        if (url.pathname.endsWith("/chat/completions")) {
+        if (url.pathname.endsWith("/images")) {
           return Response.json(
             {
               error: {
@@ -693,7 +673,7 @@ test("image.generate returns bounded correlated HTTP diagnostics", async () => {
     result: {
       content: [
         {
-          text: "Nexus rejected image generation (HTTP 409, code metering_unsupported, request id operation-123). This image route is not enabled for Nexus metering; contact Nexus support before trying again.",
+          text: "Convax rejected image generation (HTTP 409, code metering_unsupported, request id operation-123). The Convax gateway has not enabled the OpenRouter image protocol yet.",
           type: "text",
         },
       ],
@@ -755,7 +735,7 @@ test("service.sign_out invalidates a prepared image route before revoke complete
                 "http://localhost:4000/providers/26010000-0000-4000-8000-000000000010",
               id: "26010000-0000-4000-8000-000000000010",
               name: "OpenRouter",
-              protocolProfile: "openai-compatible",
+              protocolProfile: "openrouter",
               status: "ACTIVE",
               workspaceId: "26010000-0000-4000-8000-000000000003",
             },
@@ -776,7 +756,7 @@ test("service.sign_out invalidates a prepared image route before revoke complete
           revokeStarted = true;
           return revokeResponse;
         }
-        if (url.pathname.endsWith("/chat/completions")) {
+        if (url.pathname.endsWith("/images")) {
           completions += 1;
           throw new Error("Image completion must not start after sign-out");
         }
@@ -943,7 +923,7 @@ test("service.sign_out keeps a stale pending image catalog hidden", async () => 
                 "http://localhost:4000/providers/26010000-0000-4000-8000-000000000010",
               id: "26010000-0000-4000-8000-000000000010",
               name: "OpenRouter",
-              protocolProfile: "openai-compatible",
+              protocolProfile: "openrouter",
               status: "ACTIVE",
               workspaceId: "26010000-0000-4000-8000-000000000003",
             },

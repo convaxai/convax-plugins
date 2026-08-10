@@ -87,7 +87,7 @@ describe("vendored Host package publication closure", () => {
         "@convax/marketplace@0.2.1",
         "@convax/marketplace-kit@0.2.2",
         "@convax/plugin-api@3.0.0",
-        "@convax/plugin-sdk@0.1.1",
+        "@convax/plugin-sdk@0.2.0",
         "@convax/plugin-ui@0.1.0",
       ])
     for (const item of closure.packages) {

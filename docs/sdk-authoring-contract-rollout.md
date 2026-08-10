@@ -7,7 +7,7 @@ Status: temporary vendored workspace publication active; npm/immutable Host evid
 - `convax-plugins` admits only `convax.package/2` and `convax.plugin/8`
   authoring input through the Host-owned SDK and Marketplace Kit.
 - The required dependency versions are `@convax/plugin-api@3.0.0`,
-  `@convax/plugin-sdk@0.1.1`, and `@convax/marketplace-kit@0.2.2`.
+  `@convax/plugin-sdk@0.2.0`, and `@convax/marketplace-kit@0.2.2`.
 - The SDK release closure additionally requires
   `@convax/bounded-value@0.1.0`.
 - As of 2026-08-04, npm returns 404 for Plugin API, SDK, and Bounded Value and
@@ -118,7 +118,7 @@ owned Agent tool. The Skill reference generator cannot safely invent these types
 The active `CONVAX_PLUGIN_SDK_SOURCE=workspace` gate refuses every selected
 Plugin release unless the root declarations and frozen lock resolve the six
 exact vendored Host packages (`bounded-value@0.1.0`, `marketplace@0.2.1`,
-`marketplace-kit@0.2.2`, `plugin-api@3.0.0`, `plugin-sdk@0.1.1`, and
+`marketplace-kit@0.2.2`, `plugin-api@3.0.0`, `plugin-sdk@0.2.0`, and
 `plugin-ui@0.1.0`), installed direct
 and transitive paths resolve to those directories, the API Catalog is contract
 v3 at `3.0.0`, the package manifests and dependencies match the admitted closure,

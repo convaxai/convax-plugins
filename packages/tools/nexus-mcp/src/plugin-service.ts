@@ -52,10 +52,8 @@ export class NexusPluginService {
           ? await this.#pending(access.access.id, access.plan.key)
           : undefined;
       const providerReady = providers.some(
-        ({ name, protocolProfile, status }) =>
-          status === "ACTIVE" &&
-          protocolProfile === "openai-compatible" &&
-          name.toLocaleLowerCase("en-US").includes("openrouter"),
+        ({ protocolProfile, status }) =>
+          status === "ACTIVE" && protocolProfile === "openrouter",
       );
       const consumed = quotaMetric(quota.consumedUsd, quota.consumedUnits);
       const remaining = quotaMetric(quota.availableUsd, quota.availableUnits);

@@ -51,18 +51,10 @@ describe("NexusImageGenerator", () => {
         expect(operationId).toBe("operation-123");
         completions += 1;
         return {
-          choices: [
+          data: [
             {
-              message: {
-                images: [
-                  {
-                    image_url: {
-                      url: `data:image/png;base64,${png.toString("base64")}`,
-                    },
-                    type: "image_url",
-                  },
-                ],
-              },
+              b64_json: png.toString("base64"),
+              media_type: "image/png",
             },
           ],
         };

@@ -159,11 +159,11 @@ platform/architecture companion artifacts beside the ZIP. Convax verifies their
 size and SHA-256 into host-owned storage, so users do not install a sidecar through
 `PATH` and executables still never enter a Plugin package.
 
-The v8 manifest may declare an LLM provider as bounded provider/model
-metadata. It may opt into a fixed, bounded runtime model catalog while keeping
-model ids opaque. The verified sidecar supplies that display catalog and a random,
-Main-only loopback gateway at runtime; manifests and service projections never
-contain upstream URLs, Cookies, headers, or credentials.
+The v8 manifest may declare an LLM provider as bounded provider/model metadata and
+must select exactly one base protocol: `openai` or `openrouter`. The verified
+sidecar supplies a random, Main-only loopback gateway; the Host actively requests
+that protocol's `/models` catalog while keeping model ids opaque. Manifests and
+service projections never contain upstream URLs, Cookies, headers, or credentials.
 
 Executable Service contributions use the breaking
 `convax.plugin-service-status/2` projection for account, current Plan, Billing/
@@ -327,7 +327,7 @@ bun run check               # complete fail-closed local CI sequence
 ```
 
 Marketplace publication consumes the public authoring contracts
-`@convax/plugin-api@3.0.0`, `@convax/plugin-sdk@0.1.1`, and
+`@convax/plugin-api@3.0.0`, `@convax/plugin-sdk@0.2.0`, and
 `@convax/marketplace-kit@0.2.2`; the SDK closure additionally requires
 `@convax/bounded-value@0.1.0`. Local source links are validation aids, not valid
 publication dependencies. All four exact packages must be available from the

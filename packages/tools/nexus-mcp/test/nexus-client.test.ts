@@ -296,10 +296,19 @@ describe("NexusClient", () => {
         return Response.json([
           {
             gatewayBaseUrl:
+              "http://localhost:4000/providers/26010000-0000-4000-8000-000000000009",
+            id: "26010000-0000-4000-8000-000000000009",
+            name: "Legacy OpenRouter",
+            protocolProfile: "openai-compatible",
+            status: "ACTIVE",
+            workspaceId: "26010000-0000-4000-8000-000000000003",
+          },
+          {
+            gatewayBaseUrl:
               "http://localhost:4000/providers/26010000-0000-4000-8000-000000000010",
             id: "26010000-0000-4000-8000-000000000010",
             name: "OpenRouter",
-            protocolProfile: "openai-compatible",
+            protocolProfile: "openrouter",
             status: "ACTIVE",
             workspaceId: "26010000-0000-4000-8000-000000000003",
           },
@@ -584,7 +593,7 @@ describe("NexusClient", () => {
     expect(await sessions.read()).toBeNull();
   });
 
-  test("keeps automatic routers in the LLM catalog and exposes only metered image-and-text models for generation", async () => {
+  test("projects concrete image and video models from the OpenRouter catalog without owning the LLM catalog", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "convax-nexus-client-"),
     );
@@ -627,29 +636,15 @@ describe("NexusClient", () => {
                 "http://localhost:4000/providers/26010000-0000-4000-8000-000000000010",
               id: "26010000-0000-4000-8000-000000000010",
               name: "OpenRouter",
-              protocolProfile: "openai-compatible",
+              protocolProfile: "openrouter",
               status: "ACTIVE",
               workspaceId: "26010000-0000-4000-8000-000000000003",
             },
           ]);
         }
-        if (
-          url.pathname.endsWith(
-            "/providers/26010000-0000-4000-8000-000000000010/models",
-          )
-        ) {
+        if (url.pathname.endsWith("/images/models")) {
           return Response.json({
             data: [
-              {
-                architecture: { output_modalities: ["text"] },
-                id: "~openai/gpt-latest",
-                name: "OpenAI GPT Latest",
-              },
-              {
-                architecture: { output_modalities: ["text"] },
-                id: "deepseek/deepseek-v4-flash:free",
-                name: "DeepSeek V4 Flash Free",
-              },
               {
                 architecture: { output_modalities: ["image", "text"] },
                 id: "openrouter/auto",
@@ -673,47 +668,66 @@ describe("NexusClient", () => {
             ],
           });
         }
+        if (url.pathname.endsWith("/videos/models")) {
+          return Response.json({
+            data: [
+              {
+                architecture: { output_modalities: ["video"] },
+                id: "google/veo-3.1",
+                name: "Google: Veo 3.1",
+              },
+            ],
+          });
+        }
         throw new Error(`Unexpected request: ${url.pathname}`);
       },
       now: () => new Date("2026-07-26T08:00:00.000Z"),
     });
 
-    expect(await client.models()).toEqual({
-      models: [
-        { id: "~openai/gpt-latest", name: "OpenAI GPT Latest" },
-        {
-          id: "deepseek/deepseek-v4-flash:free",
-          name: "DeepSeek V4 Flash Free",
-        },
-        { id: "openrouter/auto", name: "Auto Router" },
-        { id: "openrouter/auto-beta", name: "Auto Router Beta" },
-        { id: "openai/gpt-image-1", name: "GPT Image 1" },
-      ],
-      schema: "convax.llm-model-catalog/1",
-    });
-    expect(requests.at(-1)).toEqual({
-      authorization: "Bearer fresh-data-token-with-sufficient-length",
-      pathname: "/providers/26010000-0000-4000-8000-000000000010/models",
-      search: "?output_modalities=all",
-    });
     expect(await client.imageModels()).toEqual([
       {
         id: "openai/gpt-image-1",
         name: "GPT Image 1",
         outputModalities: ["image", "text"],
       },
-    ]);
-    const route = await client.imageRoute();
-    expect(route.maximumAgeMs).toBe(570_000);
-    expect(route.models).toEqual([
       {
-        id: "openai/gpt-image-1",
-        name: "GPT Image 1",
-        outputModalities: ["image", "text"],
+        id: "black-forest-labs/flux.2-flex",
+        name: "FLUX.2 Flex",
+        outputModalities: ["image"],
       },
     ]);
-    expect(route).not.toHaveProperty("dataToken");
-    expect(route).not.toHaveProperty("provider");
+    expect(requests.at(-1)).toEqual({
+      authorization: "Bearer fresh-data-token-with-sufficient-length",
+      pathname:
+        "/providers/26010000-0000-4000-8000-000000000010/images/models",
+      search: "",
+    });
+    expect(await client.videoModels()).toEqual([
+      {
+        id: "google/veo-3.1",
+        name: "Google: Veo 3.1",
+        outputModalities: ["video"],
+      },
+    ]);
+    expect(requests.at(-1)).toEqual({
+      authorization: "Bearer fresh-data-token-with-sufficient-length",
+      pathname:
+        "/providers/26010000-0000-4000-8000-000000000010/videos/models",
+      search: "",
+    });
+    const routes = await client.generationRoutes();
+    expect(requests.slice(-2).map(({ pathname }) => pathname)).toEqual([
+      "/providers/26010000-0000-4000-8000-000000000010/images/models",
+      "/providers/26010000-0000-4000-8000-000000000010/videos/models",
+    ]);
+    expect(routes.image.maximumAgeMs).toBe(570_000);
+    expect(routes.image.models.map(({ id }) => id)).toEqual([
+      "openai/gpt-image-1",
+      "black-forest-labs/flux.2-flex",
+    ]);
+    expect(routes.video.models.map(({ id }) => id)).toEqual(["google/veo-3.1"]);
+    expect(routes.image).not.toHaveProperty("dataToken");
+    expect(routes.video).not.toHaveProperty("provider");
   });
 
   test("invalidates a prepared image route when the credential session refreshes", async () => {
@@ -754,7 +768,7 @@ describe("NexusClient", () => {
                 "http://localhost:4000/providers/26010000-0000-4000-8000-000000000010",
               id: "26010000-0000-4000-8000-000000000010",
               name: "OpenRouter",
-              protocolProfile: "openai-compatible",
+              protocolProfile: "openrouter",
               status: "ACTIVE",
               workspaceId: "26010000-0000-4000-8000-000000000003",
             },
@@ -771,9 +785,9 @@ describe("NexusClient", () => {
             ],
           });
         }
-        if (url.pathname.endsWith("/chat/completions")) {
+        if (url.pathname.endsWith("/images")) {
           completionRequests += 1;
-          return Response.json({ choices: [] });
+          return Response.json({ data: [] });
         }
         throw new Error(`Unexpected request: ${url.pathname}`);
       },
@@ -796,6 +810,103 @@ describe("NexusClient", () => {
       ),
     ).rejects.toThrow("credentials changed");
     expect(completionRequests).toBe(0);
+  });
+
+  test("uses the OpenRouter asynchronous video submit, poll, and content protocol", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "convax-nexus-client-"));
+    roots.push(root);
+    const sessions = new NexusSessionStore({ XDG_CONFIG_HOME: root });
+    await sessions.write({
+      nexusOrigin: "http://localhost:3000",
+      refreshToken: "original-refresh-token-value",
+      schema: "convax.nexus-refresh-grant/1",
+      workspaceSlug: "convax",
+    });
+    const mediaRequests: Array<{ body?: unknown; method: string; pathname: string }> = [];
+    const client = new NexusClient(sessions, {
+      fetch: async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (url.pathname.endsWith("/auth/token")) {
+          return Response.json({
+            access_token: "fresh-access-token-with-sufficient-length",
+            data_token: "fresh-data-token-with-sufficient-length",
+            data_token_expires_at: "2026-07-26T08:10:00.000Z",
+            expires_in: 900,
+            refresh_token: "rotated-refresh-token-with-sufficient-length",
+            token_type: "Bearer",
+          });
+        }
+        if (url.pathname === "/api/v1/user/provider-connections") {
+          return Response.json([
+            {
+              gatewayBaseUrl: "http://localhost:4000/providers/26010000-0000-4000-8000-000000000010",
+              id: "26010000-0000-4000-8000-000000000010",
+              name: "OpenRouter",
+              protocolProfile: "openrouter",
+              status: "ACTIVE",
+              workspaceId: "26010000-0000-4000-8000-000000000003",
+            },
+          ]);
+        }
+        if (url.pathname.endsWith("/models")) {
+          return Response.json({
+            data: [
+              {
+                architecture: { output_modalities: ["video"] },
+                id: "google/veo-3.1",
+                name: "Google: Veo 3.1",
+              },
+            ],
+          });
+        }
+        const method = init?.method ?? "GET";
+        mediaRequests.push({
+          ...(init?.body === undefined ? {} : { body: JSON.parse(String(init.body)) }),
+          method,
+          pathname: url.pathname,
+        });
+        if (method === "POST" && url.pathname.endsWith("/videos")) {
+          return Response.json({ id: "job-abc123", status: "pending" }, { status: 202 });
+        }
+        if (url.pathname.endsWith("/videos/job-abc123")) {
+          return Response.json({ id: "job-abc123", status: "completed" });
+        }
+        if (url.pathname.endsWith("/videos/job-abc123/content")) {
+          return new Response(Uint8Array.from([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]), {
+            headers: { "content-type": "video/mp4" },
+          });
+        }
+        throw new Error(`Unexpected request: ${url.pathname}`);
+      },
+      now: () => new Date("2026-07-26T08:00:00.000Z"),
+      videoPollIntervalMs: 1,
+    });
+
+    const route = await client.videoRoute();
+    const artifact = await route.complete(
+      route.models[0]!,
+      "A paper boat crossing a quiet lake.",
+      "video-operation-1",
+      new AbortController().signal,
+    );
+
+    expect(artifact.mimeType).toBe("video/mp4");
+    expect(artifact.bytes.byteLength).toBe(12);
+    expect(mediaRequests).toEqual([
+      {
+        body: { model: "google/veo-3.1", prompt: "A paper boat crossing a quiet lake." },
+        method: "POST",
+        pathname: "/providers/26010000-0000-4000-8000-000000000010/videos",
+      },
+      {
+        method: "GET",
+        pathname: "/providers/26010000-0000-4000-8000-000000000010/videos/job-abc123",
+      },
+      {
+        method: "GET",
+        pathname: "/providers/26010000-0000-4000-8000-000000000010/videos/job-abc123/content",
+      },
+    ]);
   });
 
   test("correlates image requests and exposes only bounded HTTP diagnostics", async () => {
@@ -836,13 +947,13 @@ describe("NexusClient", () => {
                 "http://localhost:4000/providers/26010000-0000-4000-8000-000000000010",
               id: "26010000-0000-4000-8000-000000000010",
               name: "OpenRouter",
-              protocolProfile: "openai-compatible",
+              protocolProfile: "openrouter",
               status: "ACTIVE",
               workspaceId: "26010000-0000-4000-8000-000000000003",
             },
           ]);
         }
-        if (url.pathname.endsWith("/chat/completions")) {
+        if (url.pathname.endsWith("/images")) {
           const headers = new Headers(init?.headers);
           imageRequests.push({
             authorization: headers.get("authorization"),
@@ -920,25 +1031,12 @@ describe("NexusClient", () => {
     expect(imageRequests[0]).toEqual({
       authorization: "Bearer fresh-data-token-with-sufficient-length",
       body: {
-        messages: [{ content: "secret-prompt", role: "user" }],
-        modalities: ["image", "text"],
         model: "openai/gpt-image-1",
-        stream: false,
+        output_format: "png",
+        prompt: "secret-prompt",
       },
       requestId: "operation-123",
     });
-
-    await expect(
-      client.imageCompletion(
-        {
-          id: "black-forest-labs/flux.2-flex",
-          outputModalities: ["image"],
-        },
-        "unsupported image-only prompt",
-        "operation-image-only",
-        new AbortController().signal,
-      ),
-    ).rejects.toThrow("incompatible with the metered Chat Completions route");
     expect(imageRequests).toHaveLength(1);
 
     let oversized: unknown;
@@ -986,8 +1084,8 @@ describe("NexusClient", () => {
       "sk-or-v1-secret-token",
     );
     expect(imageRequests[1]?.body).toMatchObject({
-      modalities: ["image", "text"],
       model: "openai/gpt-image-1",
+      output_format: "png",
     });
   });
 });

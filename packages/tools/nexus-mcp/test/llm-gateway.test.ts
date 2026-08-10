@@ -72,44 +72,43 @@ describe("NexusLlmGateway", () => {
     ]);
   });
 
-  test("serves the current Nexus OpenRouter model catalog instead of a hard-coded model", async () => {
+  test("passes the OpenRouter model catalog query through without a companion-owned catalog", async () => {
+    const requests: string[] = [];
+    const upstream = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch(request) {
+        requests.push(request.url);
+        return Response.json({
+          data: [
+            {
+              architecture: { output_modalities: ["text"] },
+              id: "anthropic/claude-sonnet-4",
+              name: "Claude Sonnet 4",
+            },
+          ],
+        });
+      },
+    });
+    servers.push(upstream);
     const gateway = new NexusLlmGateway({
-      models: async () => ({
-        models: [
-          { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4" },
-          {
-            id: "deepseek/deepseek-v4-flash:free",
-            name: "DeepSeek V4 Flash Free",
-          },
-        ],
-        schema: "convax.llm-model-catalog/1",
+      gatewayContext: async () => ({
+        dataToken: "nxs-live-short-lived-data-token",
+        provider: { gatewayBaseUrl: `http://127.0.0.1:${upstream.port}/providers/provider-id` },
       }),
     } as never);
     gateways.push(gateway);
     const descriptor = await gateway.start();
-    const response = await fetch(`${descriptor.base_url}/models`, {
+    const response = await fetch(`${descriptor.base_url}/models?output_modalities=text`, {
       headers: { authorization: `Bearer ${descriptor.api_key}` },
     });
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
-      data: [
-        {
-          created: 0,
-          id: "anthropic/claude-sonnet-4",
-          name: "Claude Sonnet 4",
-          object: "model",
-          owned_by: "nexus-openrouter",
-        },
-        {
-          created: 0,
-          id: "deepseek/deepseek-v4-flash:free",
-          name: "DeepSeek V4 Flash Free",
-          object: "model",
-          owned_by: "nexus-openrouter",
-        },
-      ],
-      object: "list",
+      data: [{ architecture: { output_modalities: ["text"] }, id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4" }],
     });
+    expect(requests).toEqual([
+      `http://127.0.0.1:${upstream.port}/providers/provider-id/models?output_modalities=text`,
+    ]);
   });
 });

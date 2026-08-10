@@ -41,7 +41,7 @@ describe("shared Plugin SDK client build", () => {
       readJson(path.join(packageRoot, "package.json")),
     ])
     expect(workspace.devDependencies).toEqual({
-      "@convax/plugin-sdk": "0.1.1",
+      "@convax/plugin-sdk": "0.2.0",
       "@convax/plugin-ui": "0.1.0",
     })
     expect(authorSource).toContain('from "@convax/plugin-sdk/pet-client"')
@@ -157,8 +157,8 @@ describe("shared Plugin SDK client build", () => {
         readJson(path.join(packageRoot, "package.json")),
       ])
       const label = manifest.id
-      if (workspace.devDependencies?.["@convax/plugin-sdk"] !== "0.1.1") {
-        violations.push(`${label}: @convax/plugin-sdk must be exactly 0.1.1`)
+      if (workspace.devDependencies?.["@convax/plugin-sdk"] !== "0.2.0") {
+        violations.push(`${label}: @convax/plugin-sdk must be exactly 0.2.0`)
       }
       if (
         workspace.scripts?.build !== "bun scripts/build.ts" ||

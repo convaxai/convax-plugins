@@ -2521,15 +2521,15 @@ function parsePortablePluginServiceContribution(value) {
 }
 function parsePortablePluginLlmContribution(value) {
   const input = portableRecord(value, "LLM contribution");
-  assertPortableKeys(input, ["modelCatalog", "models", "provider"], "LLM contribution");
+  assertPortableKeys(input, ["models", "provider"], "LLM contribution");
   const provider = portableRecord(input.provider, "LLM provider");
-  assertPortableKeys(provider, ["id", "name"], "LLM provider");
+  assertPortableKeys(provider, ["id", "name", "protocol"], "LLM provider");
   const providerId = portableText(provider.id, "LLM provider id", 80);
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(providerId)) {
     throw new TypeError("LLM provider id must use kebab-case");
   }
-  if (input.modelCatalog !== undefined && input.modelCatalog !== "runtime") {
-    throw new TypeError("LLM model catalog must be runtime");
+  if (provider.protocol !== "openai" && provider.protocol !== "openrouter") {
+    throw new TypeError("LLM provider protocol must be openai or openrouter");
   }
   const models = portableArray(input.models, "LLM models", 32, true).map((value2, index) => {
     const label = `LLM model ${index}`;
@@ -2545,11 +2545,11 @@ function parsePortablePluginLlmContribution(value) {
     throw new TypeError("LLM models contain duplicate ids");
   }
   return {
-    ...input.modelCatalog === undefined ? {} : { modelCatalog: "runtime" },
     models,
     provider: {
       id: providerId,
-      name: portableText(provider.name, "LLM provider name", 120)
+      name: portableText(provider.name, "LLM provider name", 120),
+      protocol: provider.protocol
     }
   };
 }
@@ -2920,5 +2920,5 @@ export {
   assertPluginCapabilityRuntimeTools
 };
 
-//# debugId=8B930C07DFA056BB64756E2164756E21
+//# debugId=8E92971517F76E8A64756E2164756E21
 //# sourceMappingURL=index.js.map

@@ -34,7 +34,7 @@ describe("NexusAuthorization", () => {
     const response = await fetch(callback);
     expect(response.status).toBe(200);
     const page = await response.text();
-    expect(page).toContain("Connected to Nexus");
+    expect(page).toContain("Connected to Convax");
     expect(page).toContain("close this tab and continue in Convax");
     expect(page).not.toContain("convax://");
     expect(page).not.toContain('http-equiv="refresh"');
@@ -108,7 +108,7 @@ describe("NexusAuthorization", () => {
     const response = await fetch(callback);
     expect(response.status).toBe(400);
     const page = await response.text();
-    expect(page).toContain("Nexus connection failed");
+    expect(page).toContain("Convax connection failed");
     expect(page).not.toContain("convax://");
     expect(await completing).toBeInstanceOf(Error);
   });

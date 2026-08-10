@@ -209,7 +209,7 @@ function abortError() {
 }
 
 function callbackPage(succeeded: boolean): Response {
-  const title = succeeded ? "Connected to Nexus" : "Nexus connection failed";
+  const title = succeeded ? "Connected to Convax" : "Convax connection failed";
   const detail = succeeded
     ? "Authorization is complete. You can close this tab and continue in Convax."
     : "Return to Convax and start the connection again.";

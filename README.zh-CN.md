@@ -245,7 +245,7 @@ bun run check               # 执行完整 fail-closed 本地 CI
 ```
 
 Marketplace 发布消费公开 authoring contract：
-`@convax/plugin-api@3.0.0`、`@convax/plugin-sdk@0.1.1` 与
+`@convax/plugin-api@3.0.0`、`@convax/plugin-sdk@0.2.0` 与
 `@convax/marketplace-kit@0.2.2`；SDK 闭包还需要
 `@convax/bounded-value@0.1.0`。本地源码 link 只用于验证，不是有效的发布依赖；
 四个精确版本都必须先在配置的 registry 可用，干净 frozen install 与发布才可成功。
