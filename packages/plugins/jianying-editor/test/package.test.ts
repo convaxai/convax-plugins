@@ -21,7 +21,7 @@ describe("JianYing Plugin package", () => {
       },
       id: "jianying-editor",
       schema: "convax.plugin/8",
-      version: "3.0.2",
+      version: "3.0.3",
       runtime: {
         command: "convax-jianying-editor-mcp",
         type: "mcp-stdio",
@@ -92,15 +92,15 @@ describe("JianYing Plugin package", () => {
       "utf8",
     ))
 
-    expect(metadata.version).toBe("3.0.2")
-    expect(workspace.version).toBe("3.0.2")
+    expect(metadata.version).toBe("3.0.3")
+    expect(workspace.version).toBe("3.0.3")
     expect(workspace["convax.hostCapabilityRequests"]).toEqual([
       "web-plugin-generation-input-binding",
     ])
     expect(metadata.companions).toEqual([
       expect.objectContaining({
         command: "convax-jianying-editor-mcp",
-        version: "1.1.1",
+        version: "1.1.2",
       }),
     ])
   })
@@ -151,5 +151,6 @@ describe("JianYing Plugin package", () => {
     expect(readme).toContain("不会随")
     expect(readme).toContain("主动安装")
     expect(readme).toContain("不包含 Canvas、Project、IPC")
+    expect(readme).toContain("只重试缺失")
   })
 })

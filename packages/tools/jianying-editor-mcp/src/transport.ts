@@ -28,19 +28,44 @@ function aborted(signal?: AbortSignal) {
   }
 }
 
+function abortReason(signal: AbortSignal) {
+  return signal.reason instanceof Error ? signal.reason : new DOMException("Operation cancelled", "AbortError")
+}
+
+export function jianyingOpenFailure(stderr: string, code: number | null) {
+  const detail = stderr.replace(/[\u0000-\u001f\u007f]+/gu, " ").trim().slice(0, 300)
+  if (
+    /unable to find application|application .*not found|cannot find application|LSCopyApplicationURLsForBundleIdentifier.*failed/iu
+      .test(detail)
+  ) {
+    return new Error("JianYing Pro is not installed. Install the macOS JianYing Pro app, launch it once, then retry the export.")
+  }
+  return new Error(
+    `JianYing rejected the import Deep Link (exit code ${code ?? "unknown"}). Quit and reopen JianYing Pro, keep one draft open, then retry.`,
+  )
+}
+
 export async function openJianying(url: string, signal?: AbortSignal) {
   if (!url.startsWith("videocut://")) throw new Error("JianYing Deep Link is invalid")
   aborted(signal)
   await new Promise<void>((resolve, reject) => {
     const child = spawn("/usr/bin/open", ["-b", bundleId, url], { stdio: ["ignore", "ignore", "pipe"] })
+    let stderr = ""
     const cancel = () => child.kill("SIGTERM")
     signal?.addEventListener("abort", cancel, { once: true })
-    child.once("error", reject)
+    child.stderr?.setEncoding("utf8")
+    child.stderr?.on("data", (chunk: string) => {
+      if (stderr.length < 4_096) stderr += chunk.slice(0, 4_096 - stderr.length)
+    })
+    child.once("error", (error) => {
+      signal?.removeEventListener("abort", cancel)
+      reject(new Error("Could not start the JianYing launcher. Confirm /usr/bin/open is available on macOS.", { cause: error }))
+    })
     child.once("close", (code) => {
       signal?.removeEventListener("abort", cancel)
-      if (signal?.aborted) reject(signal.reason)
+      if (signal?.aborted) reject(abortReason(signal))
       else if (code === 0) resolve()
-      else reject(new Error(`Could not open JianYing (exit code ${code ?? "unknown"})`))
+      else reject(jianyingOpenFailure(stderr, code))
     })
   })
 }
@@ -65,9 +90,15 @@ function importUrl(urls: readonly string[]) {
 
 async function prepare(references: readonly StagedReference[]): Promise<PreparedReference[]> {
   return Promise.all(references.map(async (reference) => {
-    const stat = await fs.lstat(reference.path)
+    const stat = await fs.lstat(reference.path).catch(() => {
+      throw new Error(
+        "A staged JianYing input is no longer available. Reconnect the Canvas media and start a new export.",
+      )
+    })
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size < 1) {
-      throw new Error("A staged JianYing input is not a non-empty regular file")
+      throw new Error(
+        "A staged JianYing input is not a safe, non-empty regular file. Reconnect the Canvas media and start a new export.",
+      )
     }
     return {
       ...reference,
@@ -197,7 +228,9 @@ export class JianyingTransport {
       await Promise.race([
         all,
         new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new Error("JianYing did not finish reading all media in time")), this.options.timeoutMs ?? 15_000)
+          timer = setTimeout(() => reject(new Error(
+            "JianYing did not finish reading all media in time. Check the draft for partial imports, keep JianYing open, and retry only missing media.",
+          )), this.options.timeoutMs ?? 15_000)
         }),
         signal
           ? new Promise<never>((_, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }))

@@ -32,6 +32,7 @@ function envelope(referenceLimits: { maximum: number; minimum: number }, explici
             target: { enum: ["auto", "current", "new"], type: "string" },
           }
         : {}),
+      operation_id: { maxLength: 256, minLength: 1, type: "string" },
       output: { const: "text", type: "string" },
       output_directory: { maxLength: 4_096, minLength: 1, type: "string" },
       prompt: { maxLength: 20_000, minLength: 1, type: "string" },
@@ -43,7 +44,7 @@ function envelope(referenceLimits: { maximum: number; minimum: number }, explici
       },
       schema: { const: "convax.generation-call/1", type: "string" },
     },
-    required: ["output", "output_directory", "prompt", "references", "schema"],
+    required: ["operation_id", "output", "output_directory", "prompt", "references", "schema"],
     type: "object",
   }
 }
@@ -168,7 +169,7 @@ export class McpServer {
       return this.result(value.id, {
         capabilities: { tools: {} },
         protocolVersion,
-        serverInfo: { name: "convax-jianying-editor-mcp", version: "1.1.1" },
+        serverInfo: { name: "convax-jianying-editor-mcp", version: "1.1.2" },
       })
     }
     if (value.method === "tools/list") return this.result(value.id, { tools })

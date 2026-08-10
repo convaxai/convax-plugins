@@ -72,8 +72,15 @@ describe("generation-call contract", () => {
     }, "media.import-selected")).toThrow("does not accept target fields")
   })
 
-  test("requires the exact host operation identity and still rejects unknown fields", () => {
-    expect(() => parseGenerationCall({ ...envelope, operation_id: "operation-1" }, "media.import-selected")).toThrow(
+  test("accepts the bounded host operation identity and still rejects malformed input", () => {
+    expect(parseGenerationCall({
+      ...envelope,
+      operation_id: "host-operation-123",
+    }, "media.import-selected")).toMatchObject({ operationId: "host-operation-123" })
+    expect(() => parseGenerationCall({ ...envelope, operation_id: " invalid " }, "media.import-selected")).toThrow(
+      "operation_id",
+    )
+    expect(() => parseGenerationCall({ ...envelope, operation_id: "x".repeat(257) }, "media.import-selected")).toThrow(
       "operation_id",
     )
     expect(() => parseGenerationCall({ ...envelope, result_mode: "return" }, "media.import-selected")).toThrow(

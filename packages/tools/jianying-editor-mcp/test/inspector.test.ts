@@ -13,6 +13,14 @@ afterEach(async () => {
 })
 
 describe("JianYing draft inspection", () => {
+  test("reports the required platform and recovery action", async () => {
+    await expect(new JianyingDraftInspector({ platform: "win32" }).inspect()).resolves.toEqual({
+      processIds: [],
+      reason: "JianYing import is supported only on macOS. Run Convax and JianYing Pro on the same Mac.",
+      status: "unsupported",
+    })
+  })
+
   test("accepts one stable open lock under the configured draft root", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "jianying-inspector-"))
     roots.push(root)
