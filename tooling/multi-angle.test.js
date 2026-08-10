@@ -39,7 +39,7 @@ describe("multi-angle Plugin package", () => {
       schema: "convax.package/2",
       kind: "plugin",
       id: "multi-angle",
-      version: "0.2.1",
+      version: "0.2.2",
       publication: {
         status: "blocked",
         blockers: expect.arrayContaining([
@@ -82,7 +82,7 @@ describe("multi-angle Plugin package", () => {
       },
       id: "multi-angle",
       schema: "convax.plugin/8",
-      version: "0.2.1",
+      version: "0.2.2",
     })
     expect(manifest.contributes.canvas.commands).toEqual([
       {

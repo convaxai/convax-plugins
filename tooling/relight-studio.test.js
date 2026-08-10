@@ -34,7 +34,7 @@ describe("relight-studio package", () => {
       id: "relight-studio",
       name: "重打光",
       description: manifest.description,
-      version: "0.2.1",
+      version: "0.2.2",
       publication: {
         status: "blocked",
         blockers: expect.arrayContaining([

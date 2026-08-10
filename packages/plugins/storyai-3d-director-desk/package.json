@@ -1,6 +1,6 @@
 {
   "name": "@microvoid/convax-plugin-storyai-3d-director-desk",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "type": "module",
   "dependencies": {

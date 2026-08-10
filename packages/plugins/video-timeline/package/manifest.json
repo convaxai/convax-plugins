@@ -3,7 +3,7 @@
   "id": "video-timeline",
   "name": "Video Timeline",
   "description": "Creates a live Composition video card whose connected media can be edited in a dedicated Timeline tool.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "entry": "index.html",
   "capabilities": [
     "canvas.connectedInputs.read",

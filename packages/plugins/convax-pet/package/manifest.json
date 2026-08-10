@@ -3,7 +3,7 @@
   "id": "convax-pet",
   "name": "Convax Pet",
   "description": "A local desktop companion and pet library for Convax activity.",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "capabilities": [
     "pet.activity.read",
     "pet.activity.open",

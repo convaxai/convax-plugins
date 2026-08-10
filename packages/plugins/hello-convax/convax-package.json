@@ -4,6 +4,6 @@
   "id": "hello-convax",
   "name": "Hello Convax",
   "description": "Checks the scoped Convax Plugin host connection and shows its active context.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "yanked": false
 }

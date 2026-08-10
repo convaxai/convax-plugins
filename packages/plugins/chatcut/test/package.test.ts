@@ -149,7 +149,7 @@ describe("ChatCut Plugin package", () => {
       },
       id: "chatcut",
       schema: "convax.plugin/8",
-      version: "0.4.1",
+      version: "0.4.2",
       runtime: {
         command: "convax-chatcut-media-import-mcp",
         type: "mcp-stdio",

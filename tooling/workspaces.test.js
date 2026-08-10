@@ -401,7 +401,7 @@ describe("Bun workspace ownership", () => {
       )
 
       expect(await fs.readFile(siblingFile, "utf8")).toBe("keep")
-      expect(packed.tag).toBe("plugin-hello-convax-v0.2.1")
+      expect(packed.tag).toBe("plugin-hello-convax-v0.2.2")
       expect(catalog).toMatchObject({
         schema: "convax.plugin-api-catalog/3",
         version: "3.0.0",
