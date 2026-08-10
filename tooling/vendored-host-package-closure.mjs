@@ -50,6 +50,14 @@ const PACKAGE_SPECS = [
   },
 ]
 
+export const vendoredHostPackageIdentities = Object.freeze(
+  PACKAGE_SPECS.map(({ directory, name, version }) => Object.freeze({
+    name,
+    version,
+    workspace: `vendor/host-packages/${directory}`,
+  })),
+)
+
 const MAX_PACKAGE_BYTES = 32 * 1024 * 1024
 const MAX_PACKAGE_FILES = 2_048
 
