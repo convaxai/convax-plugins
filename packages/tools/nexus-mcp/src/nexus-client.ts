@@ -1,5 +1,4 @@
 import {
-  llmModelCatalogSchema,
   workspaceSlug,
   type HostedAccess,
   type HostedCheckout,
@@ -9,7 +8,6 @@ import {
   type HostedRefreshGrant,
   type HostedSession,
   type HostedTokenResponse,
-  type LlmModelCatalog,
   type NexusProviderModel,
 } from "./contracts.ts";
 import type { NexusSessionStore } from "./session-store.ts";
@@ -21,8 +19,10 @@ const hostedWorkspaceApiBasePath = `/api/v1/workspace/${workspaceSlug}`;
 const refreshSkewMs = 30_000;
 const maximumModelCatalogBytes = 8 * 1024 * 1024;
 const maximumModelCatalogEntries = 2_048;
-const maximumImageCompletionBytes = 16 * 1024 * 1024;
+const maximumImageCompletionBytes = 48 * 1024 * 1024;
 const maximumImageErrorBytes = 64 * 1024;
+const maximumVideoContentBytes = 256 * 1024 * 1024;
+const maximumVideoJobBytes = 256 * 1024;
 const openRouterModelIdPattern = /^~?[A-Za-z0-9]+(?:[._/:-][A-Za-z0-9]+)*$/;
 const nexusRequestIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const automaticOpenRouterModelIds: ReadonlySet<string> = new Set([
@@ -67,11 +67,34 @@ export class NexusImageHttpError extends Error {
   }
 }
 
+export class NexusVideoHttpError extends Error {
+  override name = "NexusVideoHttpError";
+  readonly code: string | undefined;
+  readonly requestId: string;
+  readonly status: number;
+
+  constructor(status: number, requestId: string, code?: unknown) {
+    super("Nexus video generation request was rejected");
+    if (!Number.isInteger(status) || status < 100 || status > 599) {
+      throw new Error("Nexus video HTTP diagnostic status is invalid");
+    }
+    const trustedRequestId = validRequestId(requestId);
+    if (trustedRequestId === undefined) {
+      throw new Error("Nexus video HTTP diagnostic request id is invalid");
+    }
+    this.status = status;
+    this.code = validErrorCode(code);
+    this.requestId = trustedRequestId;
+  }
+}
+
 export interface NexusClientOptions {
   fetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   localOrigin?: string;
   now?: () => Date;
   productionOrigin?: string;
+  /** Test seam; production uses the OpenRouter-recommended bounded polling interval. */
+  videoPollIntervalMs?: number;
 }
 
 interface NexusGatewayContext {
@@ -93,6 +116,28 @@ export interface NexusImageRoute {
   ): Promise<unknown>;
 }
 
+export interface NexusVideoArtifact {
+  readonly bytes: Uint8Array;
+  readonly mimeType: "video/mp4";
+}
+
+export interface NexusVideoRoute {
+  readonly maximumAgeMs: number;
+  readonly models: readonly NexusProviderModel[];
+  isCurrent(): boolean;
+  complete(
+    model: Pick<NexusProviderModel, "id" | "outputModalities">,
+    prompt: string,
+    operationId: string,
+    signal: AbortSignal,
+  ): Promise<NexusVideoArtifact>;
+}
+
+export interface NexusGenerationRoutes {
+  readonly image: NexusImageRoute;
+  readonly video: NexusVideoRoute;
+}
+
 export class NexusClient {
   readonly #fetch: (
     input: RequestInfo | URL,
@@ -101,6 +146,7 @@ export class NexusClient {
   readonly #localOrigin: string;
   readonly #now: () => Date;
   readonly #productionOrigin: string;
+  readonly #videoPollIntervalMs: number;
   #accessSessionRequest: Promise<HostedSession> | undefined;
   #credentialEpoch = 0;
   #credentialGeneration = 0;
@@ -120,6 +166,14 @@ export class NexusClient {
       options.productionOrigin ?? productionNexusOrigin,
     ).origin;
     this.#now = options.now ?? (() => new Date());
+    this.#videoPollIntervalMs = options.videoPollIntervalMs ?? 2_000;
+    if (
+      !Number.isInteger(this.#videoPollIntervalMs) ||
+      this.#videoPollIntervalMs < 1 ||
+      this.#videoPollIntervalMs > 10_000
+    ) {
+      throw new Error("Nexus video polling interval is invalid");
+    }
   }
 
   resolveOrigin(): Promise<string> {
@@ -258,8 +312,7 @@ export class NexusClient {
     const provider = providers.find(
       (connection) =>
         connection.status === "ACTIVE" &&
-        connection.protocolProfile === "openai-compatible" &&
-        connection.name.toLocaleLowerCase("en-US").includes("openrouter"),
+        connection.protocolProfile === "openrouter",
     );
     if (!provider)
       throw new Error("The Convax Workspace has no active OpenRouter Provider");
@@ -271,32 +324,35 @@ export class NexusClient {
     };
   }
 
-  async models(signal?: AbortSignal): Promise<LlmModelCatalog> {
-    const models = (await this.providerModels(signal))
-      .filter(({ outputModalities }) => outputModalities.includes("text"))
-      .map(({ id, name }) => ({ id, name }));
-    if (models.length === 0)
-      throw new Error("Nexus text model catalog is empty");
-    return { models, schema: llmModelCatalogSchema };
-  }
-
   async imageModels(
     signal?: AbortSignal,
   ): Promise<readonly NexusProviderModel[]> {
-    return (await this.providerModels(signal)).filter(isExecutableImageModel);
+    return this.#providerModels(await this.#gatewayContext(), "image", signal);
   }
 
-  async providerModels(
+  async videoModels(
     signal?: AbortSignal,
   ): Promise<readonly NexusProviderModel[]> {
-    return this.#providerModels(await this.#gatewayContext(), signal);
+    return this.#providerModels(await this.#gatewayContext(), "video", signal);
   }
 
   async imageRoute(signal?: AbortSignal): Promise<NexusImageRoute> {
+    return (await this.generationRoutes(signal)).image;
+  }
+
+  async videoRoute(signal?: AbortSignal): Promise<NexusVideoRoute> {
+    return (await this.generationRoutes(signal)).video;
+  }
+
+  async generationRoutes(signal?: AbortSignal): Promise<NexusGenerationRoutes> {
     const context = await this.#gatewayContext();
-    const models = (await this.#providerModels(context, signal)).filter(
-      isExecutableImageModel,
-    );
+    const [imageResult, videoResult] = await Promise.allSettled([
+      this.#providerModels(context, "image", signal),
+      this.#providerModels(context, "video", signal),
+    ]);
+    if (imageResult.status === "rejected" && videoResult.status === "rejected") {
+      throw imageResult.reason;
+    }
     this.#assertCurrentContext(context);
     const maximumAgeMs = Math.max(
       0,
@@ -304,30 +360,47 @@ export class NexusClient {
         this.#now().getTime() -
         refreshSkewMs,
     );
-    return {
-      complete: (model, prompt, operationId, completionSignal) =>
-        this.#imageCompletion(
-          context,
-          model,
-          prompt,
-          operationId,
-          completionSignal,
-        ),
+    const shared = {
       isCurrent: () => context.credentialEpoch === this.#credentialEpoch,
       maximumAgeMs,
-      models,
+    };
+    return {
+      image: {
+        ...shared,
+        complete: (model, prompt, operationId, completionSignal) =>
+          this.#imageCompletion(
+            context,
+            model,
+            prompt,
+            operationId,
+            completionSignal,
+          ),
+        models: imageResult.status === "fulfilled" ? imageResult.value : [],
+      },
+      video: {
+        ...shared,
+        complete: (model, prompt, operationId, completionSignal) =>
+          this.#videoCompletion(
+            context,
+            model,
+            prompt,
+            operationId,
+            completionSignal,
+          ),
+        models: videoResult.status === "fulfilled" ? videoResult.value : [],
+      },
     };
   }
 
   async #providerModels(
     context: NexusGatewayContext,
+    output: "image" | "video",
     signal?: AbortSignal,
   ): Promise<readonly NexusProviderModel[]> {
     const requestSignal = signal
       ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
       : AbortSignal.timeout(15_000);
-    const url = new URL(`${context.provider.gatewayBaseUrl}/models`);
-    url.searchParams.set("output_modalities", "all");
+    const url = new URL(`${context.provider.gatewayBaseUrl}/${output}s/models`);
     const response = await this.#fetch(url, {
       headers: { authorization: `Bearer ${context.dataToken}` },
       signal: requestSignal,
@@ -352,7 +425,9 @@ export class NexusClient {
     } catch {
       throw new Error("Nexus model catalog response is invalid");
     }
-    const models = parseModelCatalog(parsed);
+    const models = parseModelCatalog(parsed).filter(
+      output === "image" ? isExecutableImageModel : isExecutableVideoModel,
+    );
     this.#assertCurrentContext(context);
     return models;
   }
@@ -386,15 +461,16 @@ export class NexusClient {
     if (!nexusRequestIdPattern.test(operationId)) {
       throw new Error("Nexus image generation operation id is invalid");
     }
-    const modalities = imageCompletionModalities(model.outputModalities);
+    if (!model.outputModalities.includes("image")) {
+      throw new Error("Nexus image model is incompatible with OpenRouter image generation");
+    }
     const response = await this.#fetch(
-      new URL(`${context.provider.gatewayBaseUrl}/chat/completions`),
+      new URL(`${context.provider.gatewayBaseUrl}/images`),
       {
         body: JSON.stringify({
-          messages: [{ content: prompt, role: "user" }],
-          modalities,
           model: model.id,
-          stream: false,
+          output_format: "png",
+          prompt,
         }),
         headers: {
           authorization: `Bearer ${context.dataToken}`,
@@ -425,6 +501,103 @@ export class NexusClient {
     } catch {
       throw new Error("Nexus image generation response is invalid");
     }
+  }
+
+  async #videoCompletion(
+    context: NexusGatewayContext,
+    model: Pick<NexusProviderModel, "id" | "outputModalities">,
+    prompt: string,
+    operationId: string,
+    signal: AbortSignal,
+  ): Promise<NexusVideoArtifact> {
+    this.#assertCurrentContext(context);
+    if (
+      !openRouterModelIdPattern.test(model.id) ||
+      !model.outputModalities.includes("video")
+    ) {
+      throw new Error("Nexus video model is invalid");
+    }
+    if (!nexusRequestIdPattern.test(operationId)) {
+      throw new Error("Nexus video generation operation id is invalid");
+    }
+    const submit = await this.#fetch(
+      new URL(`${context.provider.gatewayBaseUrl}/videos`),
+      {
+        body: JSON.stringify({ model: model.id, prompt }),
+        headers: {
+          authorization: `Bearer ${context.dataToken}`,
+          "content-type": "application/json",
+          "x-nexus-request-id": operationId,
+        },
+        method: "POST",
+        signal,
+      },
+    );
+    if (!submit.ok) {
+      const error = await parseGatewayHttpError(submit);
+      throw new NexusVideoHttpError(submit.status, operationId, error.code);
+    }
+    const created = parseVideoJob(
+      await readJsonResponse(
+        submit,
+        maximumVideoJobBytes,
+        "Nexus video submit response",
+      ),
+    );
+    let status = created.status;
+    while (status !== "completed") {
+      if (status === "failed" || status === "cancelled") {
+        throw new Error("Nexus video generation did not complete");
+      }
+      await abortableDelay(this.#videoPollIntervalMs, signal);
+      this.#assertCurrentContext(context);
+      const poll = await this.#fetch(
+        new URL(
+          `${context.provider.gatewayBaseUrl}/videos/${encodeURIComponent(created.id)}`,
+        ),
+        {
+          headers: { authorization: `Bearer ${context.dataToken}` },
+          signal,
+        },
+      );
+      if (!poll.ok) {
+        const error = await parseGatewayHttpError(poll);
+        throw new NexusVideoHttpError(poll.status, operationId, error.code);
+      }
+      status = parseVideoJob(
+        await readJsonResponse(
+          poll,
+          maximumVideoJobBytes,
+          "Nexus video poll response",
+        ),
+      ).status;
+    }
+    const content = await this.#fetch(
+      new URL(
+        `${context.provider.gatewayBaseUrl}/videos/${encodeURIComponent(created.id)}/content`,
+      ),
+      {
+        headers: { authorization: `Bearer ${context.dataToken}` },
+        signal,
+      },
+    );
+    if (!content.ok) {
+      const error = await parseGatewayHttpError(content);
+      throw new NexusVideoHttpError(content.status, operationId, error.code);
+    }
+    const contentType = content.headers
+      .get("content-type")
+      ?.split(";", 1)[0]
+      ?.trim()
+      .toLowerCase();
+    if (contentType !== "video/mp4") {
+      throw new Error("Nexus video content type is unsupported");
+    }
+    const bytes = await readBoundedResponseBytes(content, maximumVideoContentBytes);
+    if (!bytes || bytes.length < 12 || !matchesMp4Signature(bytes)) {
+      throw new Error("Nexus video content is invalid");
+    }
+    return { bytes, mimeType: "video/mp4" };
   }
 
   async ensureAccessSession(): Promise<HostedSession> {
@@ -689,20 +862,6 @@ export class NexusClient {
   }
 }
 
-function imageCompletionModalities(
-  outputModalities: readonly string[],
-): readonly ["image", "text"] {
-  if (
-    !outputModalities.includes("image") ||
-    !outputModalities.includes("text")
-  ) {
-    throw new Error(
-      "Nexus image model is incompatible with the metered Chat Completions route",
-    );
-  }
-  return ["image", "text"];
-}
-
 function hostedUserApiPath(path: string): string {
   return `${hostedUserApiBasePath}/${path}`;
 }
@@ -737,6 +896,92 @@ async function parseImageHttpError(
       : undefined;
   const code = validErrorCode(error?.code);
   return code === undefined ? {} : { code };
+}
+
+const parseGatewayHttpError = parseImageHttpError;
+
+async function readJsonResponse(response: Response, maximumBytes: number, label: string): Promise<unknown> {
+  const serialized = await readBoundedResponseText(response, maximumBytes);
+  if (serialized === undefined) throw new Error(`${label} is too large`);
+  try {
+    return JSON.parse(serialized) as unknown;
+  } catch {
+    throw new Error(`${label} is invalid`);
+  }
+}
+
+async function readBoundedResponseBytes(
+  response: Response,
+  maximumBytes: number,
+): Promise<Uint8Array | undefined> {
+  const declared = Number(response.headers.get("content-length") ?? 0);
+  if (Number.isFinite(declared) && declared > maximumBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    return undefined;
+  }
+  if (!response.body) return undefined;
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maximumBytes) {
+        await reader.cancel().catch(() => undefined);
+        return undefined;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+function parseVideoJob(value: unknown): { id: string; status: string } {
+  const input = record(value, "Nexus video job");
+  const id = boundedString(input.id, "Nexus video job id", 191);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,190}$/u.test(id)) {
+    throw new Error("Nexus video job id is invalid");
+  }
+  const status = boundedString(input.status, "Nexus video job status", 32);
+  if (!["pending", "queued", "processing", "in_progress", "completed", "failed", "cancelled"].includes(status)) {
+    throw new Error("Nexus video job status is invalid");
+  }
+  return { id, status };
+}
+
+function abortableDelay(milliseconds: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.reject(abortError());
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, milliseconds);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(abortError());
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+function abortError(): Error {
+  const error = new Error("Nexus request was cancelled");
+  error.name = "AbortError";
+  return error;
+}
+
+function matchesMp4Signature(bytes: Uint8Array): boolean {
+  return bytes.length >= 12 && bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
 }
 
 async function readBoundedResponseText(
@@ -1097,9 +1342,15 @@ function isExecutableImageModel({
 }: NexusProviderModel): boolean {
   return (
     outputModalities.includes("image") &&
-    outputModalities.includes("text") &&
     !automaticOpenRouterModelIds.has(id)
   );
+}
+
+function isExecutableVideoModel({
+  id,
+  outputModalities,
+}: NexusProviderModel): boolean {
+  return outputModalities.includes("video") && !automaticOpenRouterModelIds.has(id);
 }
 
 function parseModelCatalog(value: unknown): readonly NexusProviderModel[] {

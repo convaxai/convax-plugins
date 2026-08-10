@@ -102,7 +102,7 @@ describe("Bun workspace ownership", () => {
       marketplace: ["@convax/marketplace", "0.2.1"],
       "marketplace-kit": ["@convax/marketplace-kit", "0.2.2"],
       "plugin-api": ["@convax/plugin-api", "3.0.0"],
-      "plugin-sdk": ["@convax/plugin-sdk", "0.1.1"],
+      "plugin-sdk": ["@convax/plugin-sdk", "0.2.0"],
       "plugin-ui": ["@convax/plugin-ui", "0.1.0"],
     }
     for (const [directory, [packageName, version]] of Object.entries(hostCandidates)) {

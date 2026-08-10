@@ -12,7 +12,7 @@ artifacts rather than importing the Host repository's toolchain.
 Plugin validation binds the generated Host API Catalog by version and digest.
 The admitted closure currently contains six reviewed release packages:
 `bounded-value@0.1.0`, `marketplace@0.2.1`, `marketplace-kit@0.2.2`,
-`plugin-api@3.0.0`, `plugin-sdk@0.1.1`, and `plugin-ui@0.1.0`.
+`plugin-api@3.0.0`, `plugin-sdk@0.2.0`, and `plugin-ui@0.1.0`.
 While the required public npm packages return 404, protected publication emits
 and attests one `convax.vendored-host-package-closure/1` document that binds the
 commit, lockfile, exact installed workspace resolutions, Catalog digest, and all

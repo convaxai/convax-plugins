@@ -19,7 +19,7 @@
     "pack": "bun ../../../tooling/pack.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-../../../node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" --kind plugin --id relight-studio"
   },
   "devDependencies": {
-    "@convax/plugin-sdk": "0.1.1",
+    "@convax/plugin-sdk": "0.2.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "radix-ui": "1.6.2",

@@ -29,10 +29,6 @@ export class NexusLlmGateway {
     return (this.#start ??= this.#listen());
   }
 
-  models(signal?: AbortSignal) {
-    return this.client.models(signal);
-  }
-
   async #listen() {
     const server = Bun.serve({
       fetch: (request) => this.#handle(request),
@@ -65,49 +61,20 @@ export class NexusLlmGateway {
       );
     }
     if (
-      request.method === "GET" &&
-      url.pathname === "/v1/models" &&
-      !url.search &&
-      !url.hash
-    ) {
-      try {
-        const catalog = await this.client.models(request.signal);
-        return Response.json(
-          {
-            data: catalog.models.map(({ id, name }) => ({
-              created: 0,
-              id,
-              name,
-              object: "model",
-              owned_by: "nexus-openrouter",
-            })),
-            object: "list",
-          },
-          { headers: { "Cache-Control": "no-store" } },
-        );
-      } catch {
-        if (request.signal.aborted)
-          return errorResponse(499, "LLM request was cancelled", "cancelled");
-        return errorResponse(
-          502,
-          "Nexus model catalog request failed",
-          "api_error",
-        );
-      }
-    }
-    if (
-      request.method !== "POST" ||
-      url.pathname !== "/v1/chat/completions" ||
-      url.search ||
+      !["GET", "POST", "DELETE"].includes(request.method) ||
+      !url.pathname.startsWith("/v1/") ||
+      url.pathname.length <= "/v1/".length ||
       url.hash
     ) {
       return errorResponse(
         404,
-        "LLM endpoint was not found",
+        "OpenRouter endpoint was not found",
         "invalid_request_error",
       );
     }
+    const hasBody = request.body !== null;
     if (
+      hasBody &&
       !request.headers
         .get("content-type")
         ?.toLowerCase()
@@ -115,12 +82,17 @@ export class NexusLlmGateway {
     ) {
       return errorResponse(
         415,
-        "LLM request must be JSON",
+        "OpenRouter request must be JSON",
         "invalid_request_error",
       );
     }
-    const declared = Number(request.headers.get("content-length") ?? 0);
-    if (declared > maximumRequestBytes) {
+    const contentLength = request.headers.get("content-length");
+    const declared = contentLength === null ? 0 : Number(contentLength);
+    if (
+      !Number.isSafeInteger(declared) ||
+      declared < 0 ||
+      declared > maximumRequestBytes
+    ) {
       return errorResponse(
         413,
         "LLM request is too large",
@@ -129,28 +101,32 @@ export class NexusLlmGateway {
     }
 
     try {
-      const body = new Uint8Array(await request.arrayBuffer());
-      if (body.length < 2 || body.length > maximumRequestBytes) {
+      const body = hasBody
+        ? new Uint8Array(await request.arrayBuffer())
+        : undefined;
+      if (body && body.length > maximumRequestBytes) {
         return errorResponse(
           400,
-          "LLM request body is invalid",
+          "OpenRouter request body is invalid",
           "invalid_request_error",
         );
       }
       const context = await this.client.gatewayContext();
-      const upstream = await fetch(
-        `${context.provider.gatewayBaseUrl}/chat/completions`,
-        {
-          method: "POST",
-          headers: {
-            accept: request.headers.get("accept") ?? "*/*",
-            authorization: `Bearer ${context.dataToken}`,
-            "content-type": "application/json",
-          },
-          body,
-          signal: request.signal,
-        },
+      const upstreamUrl = new URL(
+        `${context.provider.gatewayBaseUrl}${url.pathname.slice("/v1".length)}${url.search}`,
       );
+      const upstream = await fetch(upstreamUrl, {
+        method: request.method,
+        headers: {
+          accept: request.headers.get("accept") ?? "*/*",
+          authorization: `Bearer ${context.dataToken}`,
+          ...(body && body.length > 0
+            ? { "content-type": "application/json" }
+            : {}),
+        },
+        ...(body && body.length > 0 ? { body } : {}),
+        signal: request.signal,
+      });
       const headers = new Headers({ "Cache-Control": "no-store" });
       const contentType = upstream.headers.get("content-type");
       if (contentType) headers.set("Content-Type", contentType);
@@ -160,7 +136,7 @@ export class NexusLlmGateway {
     } catch {
       if (request.signal.aborted)
         return errorResponse(499, "LLM request was cancelled", "cancelled");
-      return errorResponse(502, "Nexus Gateway request failed", "api_error");
+      return errorResponse(502, "Convax gateway request failed", "api_error");
     }
   }
 

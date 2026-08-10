@@ -8,11 +8,11 @@ export interface PortablePluginLlmModelContribution {
     readonly name: string;
 }
 export interface PortablePluginLlmContribution {
-    readonly modelCatalog?: "runtime";
     readonly models: readonly PortablePluginLlmModelContribution[];
     readonly provider: {
         readonly id: string;
         readonly name: string;
+        readonly protocol: "openai" | "openrouter";
     };
 }
 export interface PortablePluginPetContribution {

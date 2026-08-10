@@ -1,24 +1,19 @@
 # Convax Nexus MCP
 
-First-party Convax companion for Nexus Hosted Auth and its OpenAI-compatible Gateway.
+First-party Convax companion for Nexus Hosted Auth and its OpenRouter protocol Gateway.
 
-The companion requests the complete OpenRouter model catalog through Nexus and
-keeps output modalities bounded locally. Text-output models feed the LLM provider;
-concrete image-and-text-output models populate the host-rendered Nexus image-model
-control, while OpenRouter's automatic routers remain available only to the LLM
-provider. Image generation uses the already-metered Chat Completions path, requests
-the selected model's declared image and text outputs, and returns only validated
-embedded image artifacts to the host. Image-only models remain hidden because
-OpenRouter's dedicated Images route is not yet admitted by Nexus metering. Nexus
-video endpoints remain unavailable
-until the service adds a dedicated video Usage Inspector and quota settlement model.
-When the live image catalog is bounded, the companion marks its model field so a
-compatible host can present each image model as a direct choice. If that catalog
-cannot be loaded, has no image models, or exceeds the bounded choice limit, the
-companion omits image generation from `tools/list` instead of exposing a free-text
-model field.
+The Host actively loads text-output models through the declared `openrouter`
+Provider protocol. The companion independently requests OpenRouter's dedicated
+`/images/models` and `/videos/models` catalogs through Convax; it does not derive
+one media catalog from another endpoint. Image generation uses the dedicated
+`/images` API, while video generation uses the asynchronous `/videos` submit,
+poll, and content workflow.
+Only validated generated artifacts cross back to the Host. When either live media
+catalog is bounded, the companion marks its model field so the Host can present
+each model as a direct choice. An unavailable or oversized catalog omits that
+generation family from `tools/list` instead of exposing a free-text model field.
 
-The companion keeps the validated image catalog, Provider route, and short-lived
+The companion keeps the validated media catalogs, Provider route, and short-lived
 Data Token together in one bounded in-memory route. The `tools/call` that follows
 `tools/list` reuses that exact route and never repeats authorization, Provider, or
 model discovery inside the generation call. Route credentials remain private to

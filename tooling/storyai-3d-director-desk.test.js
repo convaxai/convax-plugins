@@ -197,7 +197,7 @@ describe("storyai-3d-director-desk package", () => {
       "e0429c47c734fd697db9bd55b546e116c8a1c4c36b5f002f3ac39dc9bde4aa60",
     )
     expect(await sha256("assets/plugin-host-client.js")).toBe(
-      "829b52c986d459172d84f1299a469a960cd718b768de532be8bb4cd289d5a72f",
+      "29834e9791a791e6c108770ba72165521164cf8c2baf4b45b2f4bbb23efab295",
     )
     expect(await sha256("assets/convax-theme.css")).toBe(
       "a27a031b299856bd4bd6d31b7cbb54e9996e0679e13db14ae3945197b1de41af",

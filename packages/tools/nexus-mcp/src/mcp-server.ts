@@ -4,38 +4,44 @@ import { NexusCheckoutStore } from "./checkout-store.ts";
 import {
   NexusClient,
   NexusImageHttpError,
+  NexusVideoHttpError,
   type NexusClientOptions,
+  type NexusGenerationRoutes,
   type NexusImageRoute,
+  type NexusVideoRoute,
 } from "./nexus-client.ts";
 import { NexusImageGenerator } from "./image-generator.ts";
 import { NexusLlmGateway } from "./llm-gateway.ts";
 import { NexusPluginService } from "./plugin-service.ts";
 import { NexusSessionStore } from "./session-store.ts";
+import { NexusVideoGenerator } from "./video-generator.ts";
 
 const protocolVersion = "2025-03-26";
 const maximumRequestBytes = 4 * 1024 * 1024;
-const imageModelCatalogTtlMs = 60_000;
+const mediaModelCatalogTtlMs = 60_000;
 const emptyInputSchema = {
   additionalProperties: false,
   properties: {},
   type: "object",
 } as const;
 
-const generationCallProperties = {
-  operation_id: {
-    maxLength: 128,
-    minLength: 1,
-    pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
-    type: "string",
-  },
-  output: { const: "image", type: "string" },
-  output_directory: { maxLength: 4_096, minLength: 1, type: "string" },
-  prompt: { maxLength: 20_000, minLength: 1, type: "string" },
-  references: { maxItems: 0, type: "array" },
-  schema: { const: "convax.generation-call/1", type: "string" },
-} as const;
+function generationCallProperties(output: "image" | "video") {
+  return {
+    operation_id: {
+      maxLength: 128,
+      minLength: 1,
+      pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      type: "string",
+    },
+    output: { const: output, type: "string" },
+    output_directory: { maxLength: 4_096, minLength: 1, type: "string" },
+    prompt: { maxLength: 20_000, minLength: 1, type: "string" },
+    references: { maxItems: 0, type: "array" },
+    schema: { const: "convax.generation-call/1", type: "string" },
+  } as const;
+}
 
-function imageModelChoices(models: readonly { id: string; name: string }[]) {
+function generationModelChoices(models: readonly { id: string; name: string }[]) {
   return models
     .map(({ id, name }) => ({ id, name }))
     .sort(
@@ -60,10 +66,10 @@ export function imageGenerationTool(
   } as const;
   return {
     description:
-      "Generate an image through the connected Nexus OpenRouter Provider.",
+      "Generate an image through Convax using the OpenRouter protocol.",
     inputSchema: {
       additionalProperties: false,
-      properties: { ...generationCallProperties, model: modelSchema },
+      properties: { ...generationCallProperties("image"), model: modelSchema },
       required: [
         "schema",
         "operation_id",
@@ -79,28 +85,62 @@ export function imageGenerationTool(
   } as const;
 }
 
+export function videoGenerationTool(
+  models: readonly { id: string; name: string }[],
+) {
+  if (models.length === 0 || models.length > 64) {
+    throw new Error(
+      "Nexus video model catalog is outside the bounded choice limit",
+    );
+  }
+  const modelSchema = {
+    oneOf: models.map(({ id, name }) => ({ const: id, title: name })),
+    title: "Model",
+    type: "string",
+    "x-convax-role": "generation-model-id",
+  } as const;
+  return {
+    description: "Generate a video through Convax using the OpenRouter protocol.",
+    inputSchema: {
+      additionalProperties: false,
+      properties: { ...generationCallProperties("video"), model: modelSchema },
+      required: [
+        "schema",
+        "operation_id",
+        "prompt",
+        "output",
+        "output_directory",
+        "references",
+        "model",
+      ],
+      type: "object",
+    },
+    name: "video.generate",
+  } as const;
+}
+
 const fixedTools = [
   {
     description:
-      "Report the bounded Nexus Workspace, access, quota, and OpenRouter connection status.",
+      "Report the bounded Convax Workspace, access, quota, and OpenRouter connection status.",
     inputSchema: emptyInputSchema,
     name: "service.status",
   },
   {
     description:
-      "Start Nexus Hosted Auth in the user's system browser with PKCE and a loopback callback.",
+      "Start Convax Hosted Auth in the user's system browser with PKCE and a loopback callback.",
     inputSchema: emptyInputSchema,
     name: "service.authorize",
   },
   {
     description:
-      "Restart Nexus Hosted Auth without deleting the current grant until replacement succeeds.",
+      "Restart Convax Hosted Auth without deleting the current grant until replacement succeeds.",
     inputSchema: emptyInputSchema,
     name: "service.reauthorize",
   },
   {
     description:
-      "Complete the active Nexus Hosted Auth request after the loopback callback arrives.",
+      "Complete the active Convax Hosted Auth request after the loopback callback arrives.",
     inputSchema: {
       additionalProperties: false,
       properties: {
@@ -116,19 +156,19 @@ const fixedTools = [
     name: "service.authorization.complete",
   },
   {
-    description: "Cancel the active Nexus Hosted Auth request.",
+    description: "Cancel the active Convax Hosted Auth request.",
     inputSchema: emptyInputSchema,
     name: "service.authorization.cancel",
   },
   {
     description:
-      "Revoke the Nexus refresh grant and remove the local private session.",
+      "Revoke the Convax refresh grant and remove the local private session.",
     inputSchema: emptyInputSchema,
     name: "service.sign_out",
   },
   {
     description:
-      "Create an access-scoped Nexus Hosted Checkout for one server-advertised Plan.",
+      "Create an access-scoped Convax Hosted Checkout for one server-advertised Plan.",
     inputSchema: {
       additionalProperties: false,
       properties: {
@@ -145,13 +185,7 @@ const fixedTools = [
   },
   {
     description:
-      "List the current OpenRouter model catalog through the authorized Nexus Provider.",
-    inputSchema: emptyInputSchema,
-    name: "llm.models.list",
-  },
-  {
-    description:
-      "Start the local OpenAI-compatible gateway backed by Nexus and its OpenRouter Provider.",
+      "Start the local OpenRouter protocol gateway backed by Convax.",
     inputSchema: emptyInputSchema,
     name: "llm.gateway.start",
   },
@@ -159,14 +193,17 @@ const fixedTools = [
 
 export const tools = fixedTools;
 
-const toolNames = new Set(["image.generate", ...tools.map(({ name }) => name)]);
+const toolNames = new Set([
+  "image.generate",
+  "video.generate",
+  ...tools.map(({ name }) => name),
+]);
 const emptyTools = new Set([
   "service.status",
   "service.authorize",
   "service.reauthorize",
   "service.authorization.cancel",
   "service.sign_out",
-  "llm.models.list",
   "llm.gateway.start",
 ]);
 
@@ -178,7 +215,10 @@ function isJsonRpcRequest(value: unknown): value is JsonRpcRequest {
 
 export function publicImageGenerationErrorMessage(error: unknown) {
   if (!(error instanceof NexusImageHttpError)) {
-    return "Nexus image generation failed. Check Nexus before retrying because the upstream task result may be unknown.";
+    return (
+      "Convax image generation failed. Check Convax in Services before " +
+      "retrying because the upstream task result may be unknown."
+    );
   }
   const details = [
     `HTTP ${error.status}`,
@@ -187,15 +227,40 @@ export function publicImageGenerationErrorMessage(error: unknown) {
   ].join(", ");
   const action =
     error.status === 401 || error.status === 403
-      ? "Reconnect Nexus in Services before trying again."
+      ? "Reconnect Convax in Services before trying again."
       : error.status === 429
-        ? "Check the Nexus quota or Plan before trying again."
+        ? "Check the Convax quota or Plan before trying again."
         : error.code === "metering_unsupported"
-          ? "This image route is not enabled for Nexus metering; contact Nexus support before trying again."
+          ? "The Convax gateway has not enabled the OpenRouter image protocol yet."
           : error.status >= 500
-            ? "Use the request id to review Nexus diagnostics before trying again."
-            : "Review Nexus Services and choose a currently listed image model before trying again.";
-  return `Nexus rejected image generation (${details}). ${action}`;
+            ? "Use the request id to review Convax diagnostics before trying again."
+            : "Review Convax in Services and choose a currently listed image model before trying again.";
+  return `Convax rejected image generation (${details}). ${action}`;
+}
+
+export function publicVideoGenerationErrorMessage(error: unknown) {
+  if (!(error instanceof NexusVideoHttpError)) {
+    return (
+      "Convax video generation failed. Check Convax in Services before " +
+      "retrying because the upstream task result may be unknown."
+    );
+  }
+  const details = [
+    `HTTP ${error.status}`,
+    ...(error.code === undefined ? [] : [`code ${error.code}`]),
+    `request id ${error.requestId}`,
+  ].join(", ");
+  const action =
+    error.status === 401 || error.status === 403
+      ? "Reconnect Convax in Services before trying again."
+      : error.status === 429
+        ? "Check the Convax quota or Plan before trying again."
+        : error.code === "metering_unsupported"
+          ? "The Convax gateway has not enabled the OpenRouter video protocol yet."
+          : error.status >= 500
+            ? "Use the request id to review Convax diagnostics before trying again."
+            : "Review Convax in Services and choose a currently listed video model before trying again.";
+  return `Convax rejected video generation (${details}). ${action}`;
 }
 
 export interface NexusMcpServerOptions {
@@ -215,10 +280,11 @@ export class NexusMcpServer {
   readonly #sendValue: (value: unknown) => void;
   readonly #service: NexusPluginService;
   readonly #imageGenerator: NexusImageGenerator;
-  #activeImageRoute: NexusImageRoute | undefined;
-  #imageRouteEpoch = 0;
-  #imageRouteExpiresAt = 0;
-  #imageRouteRequest: Promise<NexusImageRoute> | undefined;
+  readonly #videoGenerator: NexusVideoGenerator;
+  #activeGenerationRoutes: NexusGenerationRoutes | undefined;
+  #generationRouteEpoch = 0;
+  #generationRouteExpiresAt = 0;
+  #generationRouteRequest: Promise<NexusGenerationRoutes> | undefined;
   #closed = false;
   #reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
 
@@ -238,6 +304,7 @@ export class NexusMcpServer {
     );
     this.#gateway = new NexusLlmGateway(client);
     this.#imageGenerator = new NexusImageGenerator();
+    this.#videoGenerator = new NexusVideoGenerator();
     this.#sendValue =
       options.send ??
       ((value) => {
@@ -315,7 +382,7 @@ export class NexusMcpServer {
       this.#sendResult(value.id, {
         capabilities: { tools: {} },
         protocolVersion,
-        serverInfo: { name: "convax-nexus-mcp", version: "0.3.13" },
+        serverInfo: { name: "convax-nexus-mcp", version: "0.4.0" },
       });
       return;
     }
@@ -372,7 +439,7 @@ export class NexusMcpServer {
       } else if (params.name === "service.reauthorize") {
         structuredContent = await this.#service.reauthorize();
       } else if (params.name === "service.authorization.complete") {
-        this.#invalidateImageRoute();
+        this.#invalidateGenerationRoutes();
         structuredContent = await this.#service.complete(
           input,
           controller.signal,
@@ -380,7 +447,7 @@ export class NexusMcpServer {
       } else if (params.name === "service.authorization.cancel") {
         structuredContent = await this.#service.cancel();
       } else if (params.name === "service.sign_out") {
-        this.#invalidateImageRoute();
+        this.#invalidateGenerationRoutes();
         structuredContent = await this.#service.signOut();
       } else if (params.name === "service.checkout") {
         structuredContent = await this.#service.checkout(
@@ -394,13 +461,19 @@ export class NexusMcpServer {
             controller.signal,
           ),
         };
-      } else if (params.name === "llm.models.list") {
-        structuredContent = await this.#gateway.models(controller.signal);
+      } else if (params.name === "video.generate") {
+        structuredContent = {
+          artifacts: await this.#videoGenerator.generate(
+            input,
+            () => this.#currentVideoRoute(),
+            controller.signal,
+          ),
+        };
       } else {
         structuredContent = await this.#gateway.start();
       }
       this.#sendResult(request.id, {
-        content: [{ text: "Nexus service operation completed.", type: "text" }],
+        content: [{ text: "Convax service operation completed.", type: "text" }],
         structuredContent,
       } satisfies ToolResult);
     } catch (error) {
@@ -412,10 +485,12 @@ export class NexusMcpServer {
         content: [
           {
             text: cancelled
-              ? "Nexus request was cancelled."
+              ? "Convax request was cancelled."
               : toolName === "image.generate"
                 ? publicImageGenerationErrorMessage(error)
-                : "Nexus request failed.",
+                : toolName === "video.generate"
+                  ? publicVideoGenerationErrorMessage(error)
+                : "Convax request failed.",
             type: "text",
           },
         ],
@@ -428,76 +503,96 @@ export class NexusMcpServer {
 
   async #listedTools() {
     try {
-      const route = await this.#loadImageRoute();
-      return [
-        imageGenerationTool(imageModelChoices(route.models)),
-        ...fixedTools,
-      ];
+      const routes = await this.#loadGenerationRoutes();
+      const dynamic = [];
+      if (routes.image.models.length > 0) {
+        dynamic.push(imageGenerationTool(generationModelChoices(routes.image.models)));
+      }
+      if (routes.video.models.length > 0) {
+        dynamic.push(videoGenerationTool(generationModelChoices(routes.video.models)));
+      }
+      return [...dynamic, ...fixedTools];
     } catch {
       return tools;
     }
   }
 
-  #loadImageRoute(): Promise<NexusImageRoute> {
+  #loadGenerationRoutes(): Promise<NexusGenerationRoutes> {
     if (
-      this.#imageRouteRequest &&
-      (this.#activeImageRoute === undefined ||
-        (Date.now() < this.#imageRouteExpiresAt &&
-          this.#activeImageRoute.isCurrent()))
+      this.#generationRouteRequest &&
+      (this.#activeGenerationRoutes === undefined ||
+        (Date.now() < this.#generationRouteExpiresAt &&
+          this.#activeGenerationRoutes.image.isCurrent()))
     ) {
-      return this.#imageRouteRequest;
+      return this.#generationRouteRequest;
     }
-    this.#invalidateImageRoute();
-    const epoch = this.#imageRouteEpoch;
-    const request = this.#client.imageRoute().then((route) => {
-      if (epoch !== this.#imageRouteEpoch) {
-        throw new Error("Nexus image route request was invalidated");
+    this.#invalidateGenerationRoutes();
+    const epoch = this.#generationRouteEpoch;
+    const request = this.#client.generationRoutes().then((routes) => {
+      if (epoch !== this.#generationRouteEpoch) {
+        throw new Error("Nexus generation route request was invalidated");
       }
-      imageGenerationTool(imageModelChoices(route.models));
-      if (!Number.isFinite(route.maximumAgeMs) || route.maximumAgeMs <= 0) {
-        throw new Error("Nexus image route expires too soon");
+      if (routes.image.models.length > 0) {
+        imageGenerationTool(generationModelChoices(routes.image.models));
       }
-      return route;
+      if (routes.video.models.length > 0) {
+        videoGenerationTool(generationModelChoices(routes.video.models));
+      }
+      if (!Number.isFinite(routes.image.maximumAgeMs) || routes.image.maximumAgeMs <= 0) {
+        throw new Error("Nexus generation route expires too soon");
+      }
+      return routes;
     });
-    this.#imageRouteRequest = request;
+    this.#generationRouteRequest = request;
     void request.then(
-      (route) => {
+      (routes) => {
         if (
-          epoch !== this.#imageRouteEpoch ||
-          this.#imageRouteRequest !== request
+          epoch !== this.#generationRouteEpoch ||
+          this.#generationRouteRequest !== request
         ) {
           return;
         }
-        this.#activeImageRoute = route;
-        this.#imageRouteExpiresAt =
-          Date.now() + Math.min(imageModelCatalogTtlMs, route.maximumAgeMs);
+        this.#activeGenerationRoutes = routes;
+        this.#generationRouteExpiresAt =
+          Date.now() + Math.min(mediaModelCatalogTtlMs, routes.image.maximumAgeMs);
       },
       () => undefined,
     );
     void request.catch(() => {
-      if (this.#imageRouteRequest === request) this.#invalidateImageRoute();
+      if (this.#generationRouteRequest === request) {
+        this.#invalidateGenerationRoutes();
+      }
     });
     return request;
   }
 
   #currentImageRoute(): NexusImageRoute {
-    const route = this.#activeImageRoute;
+    const route = this.#activeGenerationRoutes?.image;
     if (
       !route ||
-      Date.now() >= this.#imageRouteExpiresAt ||
+      Date.now() >= this.#generationRouteExpiresAt ||
       !route.isCurrent()
     ) {
-      this.#invalidateImageRoute();
+      this.#invalidateGenerationRoutes();
       throw new Error("Nexus image models must be refreshed before generation");
     }
     return route;
   }
 
-  #invalidateImageRoute() {
-    this.#imageRouteEpoch += 1;
-    this.#activeImageRoute = undefined;
-    this.#imageRouteExpiresAt = 0;
-    this.#imageRouteRequest = undefined;
+  #currentVideoRoute(): NexusVideoRoute {
+    const route = this.#activeGenerationRoutes?.video;
+    if (!route || Date.now() >= this.#generationRouteExpiresAt || !route.isCurrent()) {
+      this.#invalidateGenerationRoutes();
+      throw new Error("Nexus video models must be refreshed before generation");
+    }
+    return route;
+  }
+
+  #invalidateGenerationRoutes() {
+    this.#generationRouteEpoch += 1;
+    this.#activeGenerationRoutes = undefined;
+    this.#generationRouteExpiresAt = 0;
+    this.#generationRouteRequest = undefined;
   }
 
   #sendResult(id: number | string, result: unknown) {

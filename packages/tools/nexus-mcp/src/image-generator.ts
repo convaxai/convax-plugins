@@ -195,71 +195,43 @@ async function validateOutputDirectory(value: string) {
 function parseImages(value: unknown): readonly DecodedImage[] {
   const response = asRecord(value, "Nexus image response");
   if (
-    !Array.isArray(response.choices) ||
-    response.choices.length === 0 ||
-    response.choices.length > 16
+    !Array.isArray(response.data) ||
+    response.data.length === 0 ||
+    response.data.length > maximumImages
   ) {
-    throw new Error("Nexus image response choices are invalid");
+    throw new Error("Nexus image response data is invalid");
   }
-  const images: DecodedImage[] = [];
-  for (
-    let choiceIndex = 0;
-    choiceIndex < response.choices.length;
-    choiceIndex += 1
-  ) {
-    const choice = asRecord(
-      response.choices[choiceIndex],
-      `Nexus image response choice ${choiceIndex}`,
-    );
-    const message = asRecord(
-      choice.message,
-      `Nexus image response choice ${choiceIndex} message`,
-    );
-    if (message.images === undefined) continue;
-    if (
-      !Array.isArray(message.images) ||
-      message.images.length > maximumImages
-    ) {
-      throw new Error("Nexus image response image list is invalid");
-    }
-    for (const image of message.images) {
-      if (images.length >= maximumImages)
-        throw new Error("Nexus image response contains too many images");
-      const entry = asRecord(image, "Nexus generated image");
-      const imageUrl = asRecord(entry.image_url, "Nexus generated image URL");
-      images.push(decodeImageDataUrl(imageUrl.url));
-    }
-  }
-  if (images.length === 0)
-    throw new Error("Nexus completed without an image artifact");
+  const images = response.data.map((value, index) => {
+    const image = asRecord(value, `Nexus generated image ${index}`);
+    const mediaType =
+      image.media_type === undefined ? "image/png" : image.media_type;
+    return decodeImageBase64(image.b64_json, mediaType);
+  });
   const total = images.reduce((sum, image) => sum + image.bytes.byteLength, 0);
   if (total > maximumTotalImageBytes)
     throw new Error("Nexus image response is too large");
   return images;
 }
 
-function decodeImageDataUrl(value: unknown): DecodedImage {
-  if (typeof value !== "string" || value.length > maximumImageBytes * 2) {
-    throw new Error("Nexus generated image URL is invalid");
-  }
-  const match =
-    /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/u.exec(
-      value,
-    );
-  if (!match?.[1] || !match[2])
-    throw new Error(
-      "Nexus generated image must be an embedded supported image",
-    );
-  if (match[2].length % 4 !== 0)
+function decodeImageBase64(value: unknown, mediaTypeValue: unknown): DecodedImage {
+  if (
+    typeof value !== "string" ||
+    value.length > maximumImageBytes * 2 ||
+    typeof mediaTypeValue !== "string" ||
+    !["image/jpeg", "image/png", "image/webp"].includes(mediaTypeValue)
+  ) {
     throw new Error("Nexus generated image encoding is invalid");
-  const decoded = Buffer.from(match[2], "base64");
-  if (decoded.toString("base64") !== match[2])
+  }
+  if (value.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/u.test(value))
+    throw new Error("Nexus generated image encoding is invalid");
+  const decoded = Buffer.from(value, "base64");
+  if (decoded.toString("base64") !== value)
     throw new Error("Nexus generated image encoding is invalid");
   const bytes = Uint8Array.from(decoded);
   if (bytes.length === 0 || bytes.length > maximumImageBytes) {
     throw new Error("Nexus generated image is too large");
   }
-  const mimeType = match[1] as DecodedImage["mimeType"];
+  const mimeType = mediaTypeValue as DecodedImage["mimeType"];
   if (!matchesImageSignature(bytes, mimeType)) {
     throw new Error(
       "Nexus generated image bytes do not match their media type",

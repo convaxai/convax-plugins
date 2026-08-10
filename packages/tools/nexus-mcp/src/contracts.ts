@@ -7,15 +7,9 @@ export const externalAuthorizationRequestSchema =
 export const externalAuthorizationCompletionSchema =
   "convax.plugin-service-external-authorization-completion/1" as const;
 export const llmGatewaySchema = "convax.llm-gateway/1" as const;
-export const llmModelCatalogSchema = "convax.llm-model-catalog/1" as const;
 export const generationCallSchema = "convax.generation-call/1" as const;
 
 export const workspaceSlug = "convax";
-
-export interface LlmModelCatalog extends Record<string, unknown> {
-  models: Array<{ id: string; name: string }>;
-  schema: typeof llmModelCatalogSchema;
-}
 
 export interface NexusProviderModel {
   id: string;
@@ -26,7 +20,7 @@ export interface NexusProviderModel {
 export interface GenerationCall extends Record<string, unknown> {
   model: string;
   operation_id: string;
-  output: "image";
+  output: "image" | "video";
   output_directory: string;
   prompt: string;
   references: [];
