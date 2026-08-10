@@ -90,10 +90,7 @@ export function parseGenerationCall(
   if (input.schema !== generationCallSchema || input.output !== "text") {
     throw new InputError("generation call contract is not supported.")
   }
-  const operationId = text(input.operation_id, "operation_id", 71)
-  if (!/^convax-[0-9a-f]{64}$/u.test(operationId)) {
-    throw new InputError("operation_id is invalid.")
-  }
+  const operationId = text(input.operation_id, "operation_id", 256)
   if (!Array.isArray(input.references)) throw new InputError("generation references must be an array.")
   const minimum = operation === "draft.status" ? 0 : 1
   const maximum = operation === "media.export" ? 32 : operation === "media.import-selected" ? 1 : 0

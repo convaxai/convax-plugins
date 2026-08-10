@@ -67,7 +67,7 @@
     },
     "packages/plugins/jianying-editor": {
       "name": "@microvoid/convax-plugin-jianying-editor",
-      "version": "3.0.2",
+      "version": "3.0.3",
       "dependencies": {
         "@microvoid/convax-jianying-editor-mcp": "workspace:*",
         "@microvoid/convax-skill-jianying-editor": "workspace:*",
@@ -269,7 +269,7 @@
     },
     "packages/tools/jianying-editor-mcp": {
       "name": "@microvoid/convax-jianying-editor-mcp",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "bin": {
         "convax-jianying-editor-mcp": "dist/convax-jianying-editor-mcp",
       },

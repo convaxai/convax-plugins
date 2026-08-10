@@ -71,14 +71,14 @@ export class JianyingService {
       ? await this.requireActionable(await this.inspector.inspect(signal))
       : this.consume(call.draftToken!)
     if (call.target === "current" && !expected.draft) {
-      throw new Error("The inspected JianYing draft is no longer active.")
+      throw new Error("The inspected JianYing draft is no longer active. Open that draft and inspect again before exporting.")
     }
     if (call.target === "new" && expected.draft) {
-      throw new Error("Return JianYing to its home screen before creating a new draft.")
+      throw new Error("Return JianYing to its home screen, close every active draft, then inspect again before creating a new draft.")
     }
     const before = await this.requireActionable(await this.inspector.inspect(signal))
     if (!sameObservation(expected, before)) {
-      throw new Error("JianYing draft state changed before import. Inspect it again.")
+      throw new Error("JianYing draft state changed before import. Keep one target draft open, then inspect it again.")
     }
 
     const target = call.target === "auto" ? (before.draft ? "current" : "new") : call.target
@@ -89,15 +89,17 @@ export class JianyingService {
       draft = await this.waitForNewDraft(before, signal)
       createdDraft = true
     }
-    if (!draft) throw new Error("JianYing did not activate a draft before import.")
+    if (!draft) {
+      throw new Error("JianYing did not activate a draft before import. Bring JianYing to the foreground, open one draft, then retry.")
+    }
 
     const stable = await this.requireActionable(await this.inspector.inspect(signal))
     if (stable.status !== "active" || stable.draft?.path !== draft.path || stable.draft.pid !== draft.pid) {
-      throw new Error("JianYing draft changed before media transfer. Inspect it again.")
+      throw new Error("JianYing draft changed before media transfer. Keep one target draft open, then inspect it again.")
     }
     const transfer = await this.transport.import(call.references, signal)
     if (transfer.completed !== call.references.length) {
-      throw new Error("JianYing media transfer could not be verified.")
+      throw new Error("JianYing media transfer could not be verified. Check the draft for partial imports and retry only missing media.")
     }
     return {
       createdDraft,
@@ -112,7 +114,7 @@ export class JianyingService {
     this.prune()
     const record = this.#tokens.get(token)
     this.#tokens.delete(token)
-    if (!record) throw new Error("The JianYing draft observation expired. Inspect it again.")
+    if (!record) throw new Error("The JianYing draft observation expired. Inspect the target draft again before exporting.")
     return record.observation
   }
 
@@ -140,6 +142,8 @@ export class JianyingService {
       }
       await Bun.sleep(150)
     }
-    throw new Error("JianYing did not expose a stable new draft in time.")
+    throw new Error(
+      "JianYing did not expose a stable new draft in time. Bring JianYing to the foreground, finish opening the draft, then inspect again.",
+    )
   }
 }

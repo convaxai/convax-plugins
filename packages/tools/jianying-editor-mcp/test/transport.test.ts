@@ -5,7 +5,7 @@ import path from "node:path"
 import { afterEach, describe, expect, test } from "bun:test"
 
 import type { StagedReference } from "../src/contracts.ts"
-import { JianyingTransport } from "../src/transport.ts"
+import { JianyingTransport, jianyingOpenFailure } from "../src/transport.ts"
 
 const roots: string[] = []
 
@@ -14,6 +14,24 @@ afterEach(async () => {
 })
 
 describe("JianYing loopback transport", () => {
+  test("explains how to recover when the JianYing application is missing", () => {
+    expect(jianyingOpenFailure(
+      "LSCopyApplicationURLsForBundleIdentifier() failed while trying to determine the application with bundle identifier com.lemon.lvpro.",
+      1,
+    ).message).toBe(
+      "JianYing Pro is not installed. Install the macOS JianYing Pro app, launch it once, then retry the export.",
+    )
+  })
+
+  test("does not expose launcher diagnostics that may contain local paths", () => {
+    expect(jianyingOpenFailure(
+      "Could not open /Users/example/private/video.png because the application rejected it",
+      1,
+    ).message).toBe(
+      "JianYing rejected the import Deep Link (exit code 1). Quit and reopen JianYing Pro, keep one draft open, then retry.",
+    )
+  })
+
   test("serves only opaque Deep Link URLs and verifies ranged transfer coverage", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "jianying-transport-"))
     roots.push(root)

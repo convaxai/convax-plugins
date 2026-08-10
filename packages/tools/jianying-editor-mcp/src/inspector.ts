@@ -120,7 +120,11 @@ export class JianyingDraftInspector {
 
   async inspect(signal?: AbortSignal): Promise<DraftObservation> {
     if ((this.options.platform ?? process.platform) !== "darwin") {
-      return { processIds: [], reason: "JianYing import is supported only on macOS.", status: "unsupported" }
+      return {
+        processIds: [],
+        reason: "JianYing import is supported only on macOS. Run Convax and JianYing Pro on the same Mac.",
+        status: "unsupported",
+      }
     }
     const first = await this.sample(signal)
     await (this.options.sleep ?? ((milliseconds) => Bun.sleep(milliseconds)))(100)
@@ -136,7 +140,7 @@ export class JianyingDraftInspector {
     }
     return {
       processIds: second.processIds,
-      reason: "JianYing draft state changed while it was inspected. Try again after it settles.",
+      reason: "JianYing draft state changed while it was inspected. Keep one draft open, wait for it to settle, then inspect again.",
       status: "ambiguous",
     }
   }
@@ -145,7 +149,11 @@ export class JianyingDraftInspector {
     const run = this.options.run ?? runCommand
     const ps = await run("/bin/ps", ["-axo", "pid=,comm="], 3_000, signal)
     if (ps.exitCode !== 0) {
-      return { processIds: [], reason: "Could not inspect the JianYing process safely.", status: "ambiguous" }
+      return {
+        processIds: [],
+        reason: "Could not inspect the JianYing process safely. Confirm JianYing Pro is installed and restart it before retrying.",
+        status: "ambiguous",
+      }
     }
     const ids = processIds(ps.stdout)
     if (ids.length === 0) return { processIds: [], status: "not_running" }
@@ -153,7 +161,11 @@ export class JianyingDraftInspector {
     for (const pid of ids) {
       const opened = await run("/usr/sbin/lsof", ["-F0n", "-p", String(pid)], 3_000, signal)
       if (opened.exitCode !== 0) {
-        return { processIds: ids, reason: "Could not inspect JianYing's open draft safely.", status: "ambiguous" }
+        return {
+          processIds: ids,
+          reason: "Could not inspect JianYing's open draft safely. Keep one draft open and restart JianYing before retrying.",
+          status: "ambiguous",
+        }
       }
       for (const name of lsofNames(opened.stdout)) {
         const draft = await draftFromLock(name, pid, this.options.roots ?? defaultDraftRoots())
@@ -166,7 +178,7 @@ export class JianyingDraftInspector {
     if (unique.length === 1 && draft) return { draft, processIds: ids, status: "active" }
     return {
       processIds: ids,
-      reason: "More than one JianYing draft appears active.",
+      reason: "More than one JianYing draft appears active. Close the extra draft windows and inspect again.",
       status: "ambiguous",
     }
   }

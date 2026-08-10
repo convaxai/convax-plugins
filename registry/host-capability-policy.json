@@ -35,7 +35,7 @@
         {
           "kind": "plugin",
           "id": "jianying-editor",
-          "version": "3.0.2",
+          "version": "3.0.3",
           "blocker": {
             "code": "host-capability-review-required",
             "note": "Publication awaits a generated API 2 contract that binds generation references to opaque direct-input keys. Human review is tracked in docs/host-capability-requests/web-plugin-generation-input-binding.md."
