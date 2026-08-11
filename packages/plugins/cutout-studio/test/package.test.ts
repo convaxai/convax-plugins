@@ -10,7 +10,7 @@ describe("Cutout Studio package", () => {
     expect(manifest).toMatchObject({
       schema: "convax.plugin/8",
       id: "cutout-studio",
-      version: "0.3.1",
+      version: "0.3.2",
       runtime: { type: "mcp-stdio", command: "convax-cutout-mcp" },
       contributes: {
         generation: {

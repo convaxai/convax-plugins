@@ -6,15 +6,18 @@ const binary = path.resolve(process.argv[2] ?? path.join(import.meta.dir, "..", 
 const root = await mkdtemp(path.join(os.tmpdir(), "convax-cutout-smoke-"))
 const retainedOutput = process.env.CONVAX_CUTOUT_SMOKE_OUTPUT_DIRECTORY
 const outputDirectory = retainedOutput ? path.resolve(retainedOutput) : path.join(root, "output")
+const failureOutputDirectory = path.join(root, "failure-output")
 const suppliedInput = process.env.CONVAX_CUTOUT_SMOKE_INPUT
 const inputPath = suppliedInput ? path.resolve(suppliedInput) : path.join(root, "input.png")
+const malformedInputPath = path.join(root, "malformed.png")
 const tinyPNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR42mP8z8Dwn4GBgYGJAQoAHgQCAfPpQ1QAAAAASUVORK5CYII=",
   "base64",
 )
 
-await mkdir(outputDirectory)
+await Promise.all([mkdir(outputDirectory), mkdir(failureOutputDirectory)])
 if (!suppliedInput) await writeFile(inputPath, tinyPNG)
+await writeFile(malformedInputPath, Buffer.concat([tinyPNG.subarray(0, 8), Buffer.from("not-a-png")]))
 
 const processHandle = Bun.spawn([binary], {
   stdin: "pipe",
@@ -22,6 +25,7 @@ const processHandle = Bun.spawn([binary], {
   stderr: "pipe",
 })
 const reader = processHandle.stdout.getReader()
+const standardError = new Response(processHandle.stderr).text()
 const decoder = new TextDecoder()
 let buffer = ""
 
@@ -101,14 +105,57 @@ try {
   if (!output.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
     throw new Error("Cutout companion output is not a PNG")
   }
-  console.log(
-    retainedOutput
-      ? `Cutout companion local inference smoke passed: ${path.join(outputDirectory, "cutout.png")}`
-      : "Cutout companion local inference smoke passed.",
-  )
+  send({
+    id: 4,
+    jsonrpc: "2.0",
+    method: "tools/call",
+    params: {
+      arguments: {
+        operation_id: "smoke-cutout-failure",
+        output: "image",
+        output_directory: failureOutputDirectory,
+        prompt: "Remove the background.",
+        references: [{
+          kind: "file",
+          mime_type: "image/png",
+          name: path.basename(malformedInputPath),
+          node_id: "smoke-malformed-node",
+          path: malformedInputPath,
+          role: "reference_image",
+        }],
+        schema: "convax.generation-call/1",
+      },
+      name: "background.remove",
+    },
+  })
+  const failure = (await responseFor(4)).result as {
+    content?: Array<{ text?: string; type?: string }>
+    isError?: boolean
+  }
+  if (
+    failure.isError !== true ||
+    failure.content?.[0]?.type !== "text" ||
+    failure.content[0]?.text !== "Local Cutout inference failed."
+  ) {
+    throw new Error(`Cutout companion exposed an invalid public failure: ${JSON.stringify(failure)}`)
+  }
 } finally {
   processHandle.stdin.end()
   await processHandle.exited
   await reader.cancel().catch(() => undefined)
   await rm(root, { force: true, recursive: true })
 }
+
+const diagnostic = await standardError
+if (
+  !diagnostic.includes("[cutout] stage=helper-exit retry=1") ||
+  !diagnostic.includes("[cutout] stage=helper-exit detail=") ||
+  !diagnostic.includes("helper=Cutout inference failed: input ")
+) {
+  throw new Error(`Cutout companion omitted its private staged failure diagnostic: ${JSON.stringify(diagnostic)}`)
+}
+console.log(
+  retainedOutput
+    ? `Cutout companion local inference smoke passed: ${path.join(outputDirectory, "cutout.png")}`
+    : "Cutout companion local inference smoke passed.",
+)

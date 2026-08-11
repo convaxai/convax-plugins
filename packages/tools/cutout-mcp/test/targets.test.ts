@@ -23,4 +23,19 @@ describe("Cutout release inputs", () => {
     expect(targets).toContain("BritishWerewolf/U-2-Netp")
     expect(targets).toContain("309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8")
   })
+
+  test("keeps helper failures private while retaining a bounded staged diagnostic", async () => {
+    const executor = await Bun.file(new URL("../native/CutoutExecutor.swift", import.meta.url)).text()
+    const server = await Bun.file(new URL("../native/MCPServer.swift", import.meta.url)).text()
+    const smoke = await Bun.file(new URL("../scripts/smoke-companion.ts", import.meta.url)).text()
+
+    expect(executor).toContain("maximumHelperDiagnosticBytes = 4 * 1024")
+    expect(executor).toContain("process.standardError = standardError")
+    expect(executor).not.toContain("process.standardError = FileHandle.nullDevice")
+    expect(server).toContain("[cutout] stage=")
+    expect(server).toContain('sendToolFailure(id: id, message: "Local Cutout inference failed.")')
+    expect(smoke).toContain("stage=helper-exit")
+    expect(smoke).toContain("retry=1")
+    expect(smoke).toContain("Cutout inference failed: input ")
+  })
 })

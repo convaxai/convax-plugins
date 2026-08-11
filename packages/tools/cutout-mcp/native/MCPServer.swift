@@ -129,7 +129,7 @@ final class MCPServer {
       sendResult(id: id, result: [
         "capabilities": ["tools": [:]],
         "protocolVersion": protocolVersion,
-        "serverInfo": ["name": "convax-cutout-mcp", "version": "0.1.2"],
+        "serverInfo": ["name": "convax-cutout-mcp", "version": "0.1.3"],
       ])
     } catch {
       sendError(id: id, code: -32602, message: "Invalid initialize params")
@@ -182,8 +182,12 @@ final class MCPServer {
         sendToolFailure(id: id, message: error.message)
       } catch is CancellationError {
         sendToolFailure(id: id, message: "Local Cutout inference was cancelled.")
+      } catch let error as ExecutionError {
+        let detail = error.diagnostic.map { " detail=\($0)" } ?? ""
+        FileHandle.standardError.write(Data("[cutout] stage=\(error.stage.rawValue)\(detail)\n".utf8))
+        sendToolFailure(id: id, message: "Local Cutout inference failed.")
       } catch {
-        FileHandle.standardError.write(Data("[cutout] local inference failed\n".utf8))
+        FileHandle.standardError.write(Data("[cutout] stage=unexpected\n".utf8))
         sendToolFailure(id: id, message: "Local Cutout inference failed.")
       }
     }
