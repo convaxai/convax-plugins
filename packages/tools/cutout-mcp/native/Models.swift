@@ -10,7 +10,28 @@ struct PublicInputError: Error {
   let message: String
 }
 
-struct ExecutionError: Error {}
+enum ExecutionStage: String {
+  case helperExit = "helper-exit"
+  case helperLaunch = "helper-launch"
+  case inputMonitor = "input-monitor"
+  case internalBoundary = "internal-boundary"
+  case outputMonitor = "output-monitor"
+  case outputPreparation = "output-preparation"
+  case outputValidation = "output-validation"
+  case preflight = "preflight"
+  case referenceValidation = "reference-validation"
+  case runtimePreparation = "runtime-preparation"
+}
+
+struct ExecutionError: Error {
+  let stage: ExecutionStage
+  let diagnostic: String?
+
+  init(stage: ExecutionStage = .internalBoundary, diagnostic: String? = nil) {
+    self.stage = stage
+    self.diagnostic = diagnostic
+  }
+}
 struct CancellationError: Error {}
 
 struct GenerationReference {

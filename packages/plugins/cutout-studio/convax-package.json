@@ -4,11 +4,11 @@
   "id": "cutout-studio",
   "name": "智能抠图",
   "description": "使用 U²-Netp 在本机快速移除图片背景，保留柔和边缘；图片不会上传到远程服务。",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "companions": [
     {
       "command": "convax-cutout-mcp",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "source": "packages/tools/cutout-mcp",
       "targets": [
         {
