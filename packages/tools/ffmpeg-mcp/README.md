@@ -12,6 +12,13 @@ constructs the reviewed argv internally. Native paths and URL operands are never
 part of either public tool input. The sidecar returns only relative artifact
 declarations; Convax validates and admits those files into managed Project assets.
 
+The reviewed trim, video-only, and audio-only operations first remux compatible
+streams without re-encoding. If the fixed MP4/M4A output container rejects an input
+codec, the same pinned invocation removes only its declared partial output and
+retries the reviewed hardware-video/AAC transcoding plan. Pixel cropping still
+requires video re-encoding. This keeps common H.264/AAC edits fast without turning
+container incompatibility into a regression or weakening the staged-file boundary.
+
 ## Development
 
 ```sh

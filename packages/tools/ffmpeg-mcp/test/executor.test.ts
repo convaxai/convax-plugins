@@ -53,6 +53,15 @@ function call(outputDirectory: string, inputPath: string): GenerationCall {
   }
 }
 
+async function waitForFile(filePath: string) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const contents = await readFile(filePath, "utf8").catch(() => undefined)
+    if (contents !== undefined) return contents
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+  throw new Error(`Timed out waiting for ${path.basename(filePath)}`)
+}
+
 describe("FFmpeg engine", () => {
   test("spawns argv without a shell and returns one relative artifact", async () => {
     const { directory, engine, inputPath, outputDirectory } = await fixture(`
@@ -71,11 +80,23 @@ printf '\\211PNG\\r\\n\\032\\nDATA' > "$output"
   })
 
   test("cancels the active child and does not report an artifact", async () => {
-    const { engine, inputPath, outputDirectory } = await fixture("sleep 10")
+    const { directory, engine, inputPath, outputDirectory } = await fixture(`
+output=""
+for argument in "$@"; do output="$argument"; done
+printf 'attempt\n' >> "$(dirname "$(dirname "$output")")/attempts.txt"
+sleep 10
+`)
     const controller = new AbortController()
-    const operation = engine.generate(call(outputDirectory, inputPath), controller.signal)
-    setTimeout(() => controller.abort(), 25)
+    const request: GenerationCall = {
+      ...call(outputDirectory, inputPath),
+      fallback_arguments_json: '["-ss","1.25","-i","{{input:0}}","-frames:v","1","{{output}}"]',
+    }
+    const operation = engine.generate(request, controller.signal)
+    const attemptsPath = path.join(directory, "attempts.txt")
+    await waitForFile(attemptsPath)
+    controller.abort()
     await expect(operation).rejects.toMatchObject({ name: "AbortError" })
+    expect(await readFile(attemptsPath, "utf8")).toBe("attempt\n")
   })
 
   test("rejects disguised playlist inputs before starting FFmpeg", async () => {
@@ -87,14 +108,50 @@ printf '\\211PNG\\r\\n\\032\\nDATA' > "$output"
   })
 
   test("rejects undeclared output files", async () => {
-    const { engine, inputPath, outputDirectory } = await fixture(`
+    const { directory, engine, inputPath, outputDirectory } = await fixture(`
 output=""
 for argument in "$@"; do output="$argument"; done
+printf 'attempt\n' >> "$(dirname "$(dirname "$output")")/attempts.txt"
 printf '\\211PNG\\r\\n\\032\\nDATA' > "$output"
 printf 'extra' > "$(dirname "$output")/extra.bin"
 `)
-    await expect(engine.generate(call(outputDirectory, inputPath), new AbortController().signal)).rejects.toThrow(
+    const request: GenerationCall = {
+      ...call(outputDirectory, inputPath),
+      fallback_arguments_json: '["-ss","1.25","-i","{{input:0}}","-frames:v","1","{{output}}"]',
+    }
+    await expect(engine.generate(request, new AbortController().signal)).rejects.toThrow(
       "FFmpeg transform failed",
     )
+    expect(await readFile(path.join(directory, "attempts.txt"), "utf8")).toBe("attempt\n")
+  })
+
+  test("retries one reviewed transcoding fallback after an incompatible remux", async () => {
+    const { directory, engine, inputPath, outputDirectory } = await fixture(`
+output=""
+fast="0"
+for argument in "$@"; do output="$argument"; done
+for argument in "$@"; do
+  if [ "$argument" = "copy" ]; then fast="1"; fi
+  printf '%s\\n' "$argument" >> "$(dirname "$(dirname "$output")")/attempts.txt"
+done
+if [ "$fast" = "1" ]; then
+  printf 'partial' > "$output"
+  exit 65
+fi
+printf '\\000\\000\\000\\030ftypisomDATA' > "$output"
+`)
+    const request: GenerationCall = {
+      ...call(outputDirectory, inputPath),
+      arguments_json: '["-i","{{input:0}}","-c:v","copy","{{output}}"]',
+      fallback_arguments_json: '["-i","{{input:0}}","-c:v","h264_videotoolbox","{{output}}"]',
+      output: "video",
+      output_name: "video-only.mp4",
+    }
+    await expect(engine.generate(request, new AbortController().signal)).resolves.toEqual([
+      { mimeType: "video/mp4", name: "video-only.mp4", path: "video-only.mp4" },
+    ])
+    const attempts = await readFile(path.join(directory, "attempts.txt"), "utf8")
+    expect(attempts).toContain("copy")
+    expect(attempts).toContain("h264_videotoolbox")
   })
 })

@@ -4,11 +4,11 @@
   "id": "ffmpeg-tools",
   "name": "FFmpeg Tools",
   "description": "Runs reviewed local FFmpeg transforms against host-staged Canvas media without exposing native paths or a shell.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "companions": [
     {
       "command": "convax-ffmpeg-mcp",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "source": "packages/tools/ffmpeg-mcp",
       "targets": [
         {

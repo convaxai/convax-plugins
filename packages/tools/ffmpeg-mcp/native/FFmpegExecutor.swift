@@ -1,6 +1,8 @@
 import Darwin
 import Foundation
 
+private struct ProcessExitError: Error {}
+
 final class TransformControl {
   private let lock = NSLock()
   private var cancelled = false
@@ -65,25 +67,65 @@ final class FFmpegEngine {
         _ = scope.outputPath.withCString { Darwin.unlink($0) }
       }
     }
-    let resolved = try resolveFFmpegArguments(
-      call.argumentsJSON,
-      references: references,
-      outputPath: scope.outputPath
-    )
-    guard resolved.last == scope.outputPath else { throw ExecutionError() }
+    // Validate the complete reviewed retry plan before starting FFmpeg. A broken
+    // fallback must never be discovered after the fast path has produced bytes.
+    let argumentPlans = [call.argumentsJSON] + (call.fallbackArgumentsJSON.map { [$0] } ?? [])
+    let resolvedPlans = try argumentPlans.map {
+      try resolveFFmpegArguments($0, references: references, outputPath: scope.outputPath)
+    }
+    guard resolvedPlans.allSatisfy({ $0.last == scope.outputPath }) else { throw ExecutionError() }
     let expectedMimeType = try mimeType(forOutputName: call.outputName, output: call.output)
     let lease = try EmbeddedFFmpegLease(outputDirectory: scope.directoryPath)
     defer { lease.dispose() }
 
+    var succeeded = false
+    for (index, resolved) in resolvedPlans.enumerated() {
+      do {
+        try runFFmpeg(
+          arguments: resolved,
+          executablePath: lease.path,
+          references: references,
+          scope: scope,
+          control: control
+        )
+        succeeded = true
+        break
+      } catch is ProcessExitError {
+        guard index + 1 < resolvedPlans.count else { throw ExecutionError() }
+        // A remux can be rejected when its source codec cannot be represented by
+        // the fixed output container. Remove only the declared partial output and
+        // continue with the reviewed transcoding fallback in the same pinned scope.
+        let removal = scope.outputPath.withCString { Darwin.unlink($0) }
+        guard removal == 0 || errno == ENOENT else { throw ExecutionError() }
+        try references.forEach { try $0.assertStable() }
+        try scope.inspect(requireCompleteOutput: false)
+        if control.isCancelled { throw CancellationError() }
+      }
+    }
+    guard succeeded else { throw ExecutionError() }
+
+    try references.forEach { try $0.assertStable() }
+    try scope.inspect(requireCompleteOutput: true)
+    try validateOutputMedia(path: scope.outputPath, expectedMimeType: expectedMimeType)
+    completed = true
+    return [GenerationArtifact(mimeType: expectedMimeType, name: call.outputName, path: call.outputName)]
+  }
+
+  private func runFFmpeg(
+    arguments: [String],
+    executablePath: String,
+    references: [VerifiedReference],
+    scope: OutputScope,
+    control: TransformControl
+  ) throws {
     try references.forEach { try $0.assertStable() }
     try scope.inspect(requireCompleteOutput: false)
     if control.isCancelled { throw CancellationError() }
-
     let process = Process()
-    process.executableURL = URL(fileURLWithPath: lease.path)
+    process.executableURL = URL(fileURLWithPath: executablePath)
     process.arguments = [
       "-nostdin", "-hide_banner", "-y", "-protocol_whitelist", "file",
-    ] + Array(resolved.dropLast()) + ["-fs", String(maximumArtifactBytes), scope.outputPath]
+    ] + Array(arguments.dropLast()) + ["-fs", String(maximumArtifactBytes), scope.outputPath]
     process.currentDirectoryURL = URL(fileURLWithPath: scope.directoryPath, isDirectory: true)
     process.environment = ["LANG": "C", "LC_ALL": "C"]
     process.standardInput = FileHandle.nullDevice
@@ -114,13 +156,6 @@ final class FFmpegEngine {
     process.waitUntilExit()
     if let monitorFailure { throw monitorFailure }
     if control.isCancelled { throw CancellationError() }
-    guard process.terminationReason == .exit, process.terminationStatus == 0 else {
-      throw ExecutionError()
-    }
-    try references.forEach { try $0.assertStable() }
-    try scope.inspect(requireCompleteOutput: true)
-    try validateOutputMedia(path: scope.outputPath, expectedMimeType: expectedMimeType)
-    completed = true
-    return [GenerationArtifact(mimeType: expectedMimeType, name: call.outputName, path: call.outputName)]
+    guard process.terminationReason == .exit, process.terminationStatus == 0 else { throw ProcessExitError() }
   }
 }

@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process"
-import { lstat, open, readdir } from "node:fs/promises"
+import { lstat, open, readdir, rm } from "node:fs/promises"
 import path from "node:path"
 
 import { resolveFfmpegArguments } from "./argument-policy.ts"
@@ -28,6 +28,8 @@ export class FfmpegExecutionError extends Error {
     this.name = "FfmpegExecutionError"
   }
 }
+
+class FfmpegProcessExitError extends FfmpegExecutionError {}
 
 function abortError() {
   return new DOMException("FFmpeg transform was cancelled", "AbortError")
@@ -168,7 +170,7 @@ async function runProcess(
     }
     if (monitorFailure) throw new FfmpegExecutionError()
     if (signal.aborted) throw abortError()
-    if (result.code !== 0) throw new FfmpegExecutionError()
+    if (result.code !== 0) throw new FfmpegProcessExitError()
   } finally {
     clearInterval(monitorTimer)
     signal.removeEventListener("abort", terminate)
@@ -190,14 +192,26 @@ export class FfmpegEngine {
     const outputPath = path.join(call.output_directory, call.output_name)
     await Promise.all(call.references.map(validateReference))
     await requireEmptyOutputDirectory(call.output_directory)
-    const resolved = resolveFfmpegArguments(
-      call.arguments_json,
-      call.references,
-      outputPath,
-    )
+    // Resolve every reviewed plan before starting FFmpeg so an invalid fallback
+    // can never turn a completed fast-path side effect into a later policy error.
+    const resolvedPlans = [call.arguments_json, call.fallback_arguments_json]
+      .filter((value): value is string => value !== undefined)
+      .map((argumentsJson) => resolveFfmpegArguments(argumentsJson, call.references, outputPath))
     const lease = await this.resolveExecutable()
     try {
-      await runProcess(lease.path, resolved.argv, call.output_directory, call.output_name, signal)
+      for (const [index, resolved] of resolvedPlans.entries()) {
+        try {
+          await runProcess(lease.path, resolved.argv, call.output_directory, call.output_name, signal)
+          break
+        } catch (error) {
+          if (!(error instanceof FfmpegProcessExitError) || index === resolvedPlans.length - 1) throw error
+          // A remux can fail when its source codec cannot be represented by the
+          // fixed output container. Remove only the declared partial output, then
+          // retry the reviewed transcoding plan in the same pinned scope.
+          await rm(outputPath, { force: true })
+          await requireEmptyOutputDirectory(call.output_directory)
+        }
+      }
       const output = await lstat(outputPath)
       if (!output.isFile() || output.isSymbolicLink() || output.size <= 0 || output.size >= maximumArtifactBytes) {
         throw new FfmpegExecutionError()

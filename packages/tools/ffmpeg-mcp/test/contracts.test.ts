@@ -67,8 +67,43 @@ describe("generation call contract", () => {
 
     expect(parsed.output_name).toBe("trimmed.mp4")
     expect(JSON.parse(parsed.arguments_json)).toEqual(expect.arrayContaining([
+      "-ss", "3", "-t", "2", "copy", "{{output}}",
+    ]))
+    expect(JSON.parse(parsed.fallback_arguments_json!)).toEqual(expect.arrayContaining([
       "-ss", "3", "-t", "2", "h264_videotoolbox", "{{output}}",
     ]))
+  })
+
+  test("uses reviewed remux fast paths with transcoding fallbacks for media separation", () => {
+    for (const name of ["video.without-audio", "audio.extract"] as const) {
+      const specification = highLevelToolSpecifications.find((tool) => tool.name === name)!
+      const parsed = parseHighLevelGenerationCall({
+        operation_id: `${name}-1`,
+        output: specification.output,
+        output_directory: "/private/host-output",
+        prompt: "Separate the selected video",
+        references: call().references,
+        schema: "convax.generation-call/1",
+      }, specification)
+      expect(JSON.parse(parsed.arguments_json)).toContain("copy")
+      expect(JSON.parse(parsed.fallback_arguments_json!)).not.toContain("copy")
+    }
+
+    const crop = highLevelToolSpecifications.find((tool) => tool.name === "video.crop")!
+    const cropped = parseHighLevelGenerationCall({
+      operation_id: "crop-1",
+      output: "video",
+      output_directory: "/private/host-output",
+      prompt: "Crop the selected video",
+      references: call().references,
+      schema: "convax.generation-call/1",
+      x: 0,
+      y: 0,
+      width: 1280,
+      height: 720,
+    }, crop)
+    expect(cropped.fallback_arguments_json).toBeUndefined()
+    expect(JSON.parse(cropped.arguments_json)).toContain("h264_videotoolbox")
   })
 
   test("requires one video reference and bounded editor values for high-level operations", () => {
