@@ -10,8 +10,11 @@ one media catalog from another endpoint. Image generation uses the dedicated
 poll, and content workflow.
 Only validated generated artifacts cross back to the Host. When either live media
 catalog is bounded, the companion marks its model field so the Host can present
-each model as a direct choice. An unavailable or oversized catalog omits that
-generation family from `tools/list` instead of exposing a free-text model field.
+each model as a direct choice. A valid empty `data` array means that the dedicated
+catalog currently has no models. A failed, malformed, or oversized image or video
+catalog fails the shared media route instead of silently turning that failure into
+an empty model family; `tools/list` remains fail-closed and records the bounded
+diagnostic instead of exposing a free-text model field.
 
 The companion keeps the validated media catalogs, Provider route, and short-lived
 Data Token together in one bounded in-memory route. The `tools/call` that follows
@@ -20,10 +23,12 @@ model discovery inside the generation call. Route credentials remain private to
 the companion and are invalidated before their token refresh window.
 
 Each image request sends the host operation id as `x-nexus-request-id` for safe
-diagnostic correlation. A rejected request exposes only its HTTP status, an
-allow-listed Gateway error code, and that locally generated operation id to the MCP
-caller. Response-provided identifiers, raw upstream messages, response bodies,
-prompts, and tokens never cross that diagnostic boundary.
+diagnostic correlation. Rejected catalog and generation requests preserve the
+standard HTTP status, bounded numeric or string error code, safe upstream request
+id, safe upstream message, and the locally generated operation id when present.
+The raw response body and metadata never cross that diagnostic boundary, and any
+message or identifier containing the current prompt, Data Token, an apparent
+credential, or a native path is omitted.
 
 The companion owns PKCE and the loopback callback, stores the rotating Nexus refresh
 grant in a private user file, and exposes only a random loopback Gateway credential to

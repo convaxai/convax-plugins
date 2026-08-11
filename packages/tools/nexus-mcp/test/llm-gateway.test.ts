@@ -111,4 +111,47 @@ describe("NexusLlmGateway", () => {
       `http://127.0.0.1:${upstream.port}/providers/provider-id/models?output_modalities=text`,
     ]);
   });
+
+  test("reports a safe gateway-context failure instead of hiding it", async () => {
+    const gateway = new NexusLlmGateway({
+      gatewayContext: async () => {
+        throw new Error("The Convax Workspace has no active OpenRouter Provider");
+      },
+    } as never);
+    gateways.push(gateway);
+    const descriptor = await gateway.start();
+    const response = await fetch(`${descriptor.base_url}/models`, {
+      headers: { authorization: `Bearer ${descriptor.api_key}` },
+    });
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({
+      error: {
+        message:
+          "Convax LLM gateway request failed: The Convax Workspace has no active OpenRouter Provider",
+        type: "api_error",
+      },
+    });
+  });
+
+  test("redacts unsafe gateway-context details", async () => {
+    const gateway = new NexusLlmGateway({
+      gatewayContext: async () => {
+        throw new Error(
+          "Bearer nxs-secret-token failed at /private/provider/config",
+        );
+      },
+    } as never);
+    gateways.push(gateway);
+    const descriptor = await gateway.start();
+    const response = await fetch(`${descriptor.base_url}/models`, {
+      headers: { authorization: `Bearer ${descriptor.api_key}` },
+    });
+    const serialized = JSON.stringify(await response.json());
+
+    expect(response.status).toBe(502);
+    expect(serialized).toContain("Convax LLM gateway request failed.");
+    expect(serialized).not.toContain("nxs-secret-token");
+    expect(serialized).not.toContain("/private/provider/config");
+  });
 });

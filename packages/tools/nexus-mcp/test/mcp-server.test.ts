@@ -24,7 +24,9 @@ const fixedToolNames = [
 ] as const;
 
 async function listedToolNames(
-  modelCatalogResponse: () => Response,
+  imageModelCatalogResponse: () => Response,
+  videoModelCatalogResponse: () => Response = () =>
+    Response.json({ data: [] }),
 ): Promise<readonly string[]> {
   const responses: unknown[] = [];
   const sessions = {
@@ -65,7 +67,12 @@ async function listedToolNames(
             },
           ]);
         }
-        if (url.pathname.endsWith("/models")) return modelCatalogResponse();
+        if (url.pathname.endsWith("/images/models")) {
+          return imageModelCatalogResponse();
+        }
+        if (url.pathname.endsWith("/videos/models")) {
+          return videoModelCatalogResponse();
+        }
         throw new Error(`Unexpected request: ${url.pathname}`);
       },
       now: () => new Date("2026-07-27T08:00:00.000Z"),
@@ -176,18 +183,22 @@ test("Nexus image diagnostics expose only typed bounded HTTP fields", () => {
     publicImageGenerationErrorMessage(
       new NexusImageHttpError(
         409,
-        "gateway-request-123",
-        "metering_unsupported",
+        "operation-123",
+        {
+          code: "metering_unsupported",
+          message: "Image generation is not enabled for this Provider.",
+          requestId: "gateway-request-123",
+        },
       ),
     ),
   ).toBe(
-    "Convax rejected image generation (HTTP 409, code metering_unsupported, request id gateway-request-123). The Convax gateway has not enabled the OpenRouter image protocol yet.",
+    "Convax image generation failed (HTTP 409, code metering_unsupported, request id gateway-request-123, operation id operation-123): Image generation is not enabled for this Provider.",
   );
   const generic = publicImageGenerationErrorMessage(
     new Error("raw secret-token secret-prompt /private/output/path"),
   );
   expect(generic).toBe(
-    "Convax image generation failed. Check Convax in Services before retrying because the upstream task result may be unknown.",
+    "Convax image generation failed.",
   );
   expect(generic).not.toContain("secret-token");
   expect(generic).not.toContain("secret-prompt");
@@ -234,7 +245,7 @@ test("MCP excludes automatic routers and admits every concrete image-output mode
             },
           ]);
         }
-        if (url.pathname.endsWith("/models")) {
+        if (url.pathname.endsWith("/images/models")) {
           return Response.json({
             data: [
               {
@@ -257,12 +268,12 @@ test("MCP excludes automatic routers and admits every concrete image-output mode
                 id: "black-forest-labs/flux.2-flex",
                 name: "FLUX.2 Flex",
               },
-              {
-                architecture: { output_modalities: ["video"] },
-                id: "google/veo-3.1",
-                name: "Google: Veo 3.1",
-              },
             ],
+          });
+        }
+        if (url.pathname.endsWith("/videos/models")) {
+          return Response.json({
+            data: [{ id: "google/veo-3.1", name: "Google: Veo 3.1" }],
           });
         }
         throw new Error(`Unexpected request: ${url.pathname}`);
@@ -438,7 +449,7 @@ test("image.generate reuses the route loaded by tools/list", async () => {
             },
           ]);
         }
-        if (url.pathname.endsWith("/models")) {
+        if (url.pathname.endsWith("/images/models")) {
           requests.models += 1;
           return Response.json({
             data: [
@@ -449,6 +460,10 @@ test("image.generate reuses the route loaded by tools/list", async () => {
               },
             ],
           });
+        }
+        if (url.pathname.endsWith("/videos/models")) {
+          requests.models += 1;
+          return Response.json({ data: [] });
         }
         if (url.pathname.endsWith("/images")) {
           requests.completions += 1;
@@ -595,7 +610,7 @@ test("image.generate returns bounded correlated HTTP diagnostics", async () => {
             },
           ]);
         }
-        if (url.pathname.endsWith("/models")) {
+        if (url.pathname.endsWith("/images/models")) {
           return Response.json({
             data: [
               {
@@ -605,6 +620,9 @@ test("image.generate returns bounded correlated HTTP diagnostics", async () => {
               },
             ],
           });
+        }
+        if (url.pathname.endsWith("/videos/models")) {
+          return Response.json({ data: [] });
         }
         if (url.pathname.endsWith("/images")) {
           return Response.json(
@@ -673,7 +691,7 @@ test("image.generate returns bounded correlated HTTP diagnostics", async () => {
     result: {
       content: [
         {
-          text: "Convax rejected image generation (HTTP 409, code metering_unsupported, request id operation-123). The Convax gateway has not enabled the OpenRouter image protocol yet.",
+          text: "Convax image generation failed (HTTP 409, code metering_unsupported, operation id operation-123).",
           type: "text",
         },
       ],
@@ -741,7 +759,7 @@ test("service.sign_out invalidates a prepared image route before revoke complete
             },
           ]);
         }
-        if (url.pathname.endsWith("/models")) {
+        if (url.pathname.endsWith("/images/models")) {
           return Response.json({
             data: [
               {
@@ -751,6 +769,9 @@ test("service.sign_out invalidates a prepared image route before revoke complete
               },
             ],
           });
+        }
+        if (url.pathname.endsWith("/videos/models")) {
+          return Response.json({ data: [] });
         }
         if (url.pathname.endsWith("/auth/revoke")) {
           revokeStarted = true;
@@ -929,9 +950,12 @@ test("service.sign_out keeps a stale pending image catalog hidden", async () => 
             },
           ]);
         }
-        if (url.pathname.endsWith("/models")) {
+        if (url.pathname.endsWith("/images/models")) {
           modelsStarted = true;
           return modelsResponse;
+        }
+        if (url.pathname.endsWith("/videos/models")) {
+          return Response.json({ data: [] });
         }
         if (url.pathname.endsWith("/auth/revoke")) {
           return new Response(null, { status: 204 });
