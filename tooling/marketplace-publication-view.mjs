@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { effectiveCatalogExclusionIdentities } from "./catalog-exclusions.mjs"
-import { effectivePackagePublications } from "./publication-eligibility.mjs"
+import { partitionPackagePublications } from "./publication-eligibility.mjs"
 
 function containedRelativePath(workspaceRoot, source) {
   const relative = path.relative(workspaceRoot, source)
@@ -70,7 +70,7 @@ export async function createMarketplacePublicationView({
   packages,
   workspaceRoot,
 }) {
-  const effective = effectivePackagePublications(packages)
+  const publication = partitionPackagePublications(packages)
   const admittedByIdentity = new Map(
     packages.map((pkg) => [
       `${pkg.metadata.kind}/${pkg.metadata.id}`,
@@ -81,19 +81,6 @@ export async function createMarketplacePublicationView({
     packages.map(({ metadata }) => metadata),
     excluded,
   )
-  const omissions = packages.flatMap((pkg) => {
-    const publication = effective.get(
-      `${pkg.metadata.kind}/${pkg.metadata.id}`,
-    )
-    return publication.status === "blocked"
-      ? [{
-          kind: pkg.metadata.kind,
-          id: pkg.metadata.id,
-          version: pkg.metadata.version,
-          publication,
-        }]
-      : []
-  })
   const viewRoot = await fs.mkdtemp(
     path.join(os.tmpdir(), "convax-marketplace-publication-"),
   )
@@ -128,7 +115,7 @@ export async function createMarketplacePublicationView({
       const identity = `${candidate.kind}/${candidate.id}`
       if (excludedIdentities.has(identity)) continue
       const pkg = admittedByIdentity.get(identity)
-      if (pkg && effective.get(identity).status === "blocked") continue
+      if (pkg && publication.effective.get(identity).status === "blocked") continue
       await copyWorkspacePath(
         workspaceRoot,
         viewRoot,
@@ -165,7 +152,7 @@ export async function createMarketplacePublicationView({
         }),
       omissions: {
         schema: "convax.marketplace-build-omissions/1",
-        omitted: omissions,
+        omitted: publication.omitted,
       },
       root: viewRoot,
     }

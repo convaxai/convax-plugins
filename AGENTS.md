@@ -150,6 +150,9 @@ published; never commit an absolute `file:` override. The explicit package and
 companion build phases finish before validation and packing. Validation and packing
 themselves remain inert and never execute contributor-provided scripts. Tooling
 treats package contents as inert bytes.
+Repository-wide `bun run pack` omits and reports policy-consistent blocked
+owner/owned-Skill closures while packing unrelated ready packages. Explicit
+`--kind`/`--id` or `--tag` packing stays exact and must reject a blocked target.
 
 ## Git discipline
 
