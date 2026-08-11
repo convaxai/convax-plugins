@@ -66,9 +66,10 @@ list of accepted Plugin API ids plus exact Catalog contract digests. Each
 affected workspace independently declares the request id in
 `package.json#convax.hostCapabilityRequests`, so rewriting business code cannot
 silently erase the obligation. Normal source validation admits and reports these
-blocked packages. Exact package packing rejects them; release selection and
+blocked packages. Repository-wide `bun run pack`, release selection, and
 Marketplace composition omit them and their owner/owned-Skill closure while
-continuing with unrelated ready packages.
+continuing with unrelated ready packages. Explicit `--kind`/`--id` or `--tag`
+packing remains exact and rejects a blocked target.
 
 Current Official catalog omissions are declared separately in
 `catalogs/excluded.json`. They keep reviewed source and immutable historical
@@ -344,9 +345,10 @@ than hand-edited; no Registry v1 authoring or publication path remains.
 `bun run check` admits policy-consistent blocked source and reports it explicitly.
 It still fails closed when source uses an obsolete package or Plugin schema, a
 request declaration/policy/document binding is missing, an owned Skill reference
-is stale, or a declared Host API or Agent tool is unknown. Exact packing rejects a
-blocked target. Marketplace and release outputs contain only ready closures and
-emit machine-readable omission diagnostics for blocked versions.
+is stale, or a declared Host API or Agent tool is unknown. Repository-wide packing
+omits blocked owner/owned-Skill closures and reports them; exact targeted packing
+rejects a blocked target. Marketplace and release outputs contain only ready
+closures and emit machine-readable omission diagnostics for blocked versions.
 
 ## Troubleshooting installation
 

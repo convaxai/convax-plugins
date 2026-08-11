@@ -75,19 +75,28 @@ export function effectivePackagePublications(packages) {
   )
 }
 
-export function effectivePublicationOmissions(packages) {
+export function partitionPackagePublications(packages) {
   const effective = effectivePackagePublications(packages)
-  return packages.flatMap((pkg) => {
+  const ready = []
+  const omitted = []
+  for (const pkg of packages) {
     const publication = effective.get(
       packageIdentity(pkg.metadata.kind, pkg.metadata.id),
     )
-    return publication.status === "blocked"
-      ? [{
-          kind: pkg.metadata.kind,
-          id: pkg.metadata.id,
-          version: pkg.metadata.version,
-          publication,
-        }]
-      : []
-  })
+    if (publication.status === "ready") {
+      ready.push(pkg)
+    } else {
+      omitted.push({
+        kind: pkg.metadata.kind,
+        id: pkg.metadata.id,
+        version: pkg.metadata.version,
+        publication,
+      })
+    }
+  }
+  return { effective, omitted, ready }
+}
+
+export function effectivePublicationOmissions(packages) {
+  return partitionPackagePublications(packages).omitted
 }

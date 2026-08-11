@@ -12,7 +12,11 @@ import {
   readStoredZip,
   root,
 } from "./lib.mjs"
-import { packFromArgs, packPackages } from "./pack.mjs"
+import {
+  createPackSelection,
+  packFromArgs,
+  packPackages,
+} from "./pack.mjs"
 import { runWorkspaceScript } from "./run-workspace-script.mjs"
 
 const collections = ["plugins", "skills", "tools"]
@@ -429,5 +433,65 @@ describe("Bun workspace ownership", () => {
     } finally {
       await fs.rm(outputDirectory, { force: true, recursive: true })
     }
+  })
+
+  test("repository packing omits blocked ownership closures while exact packing fails closed", () => {
+    const blocker = {
+      code: "host-capability-review-required",
+      note: "[example-request] Pending exact Host capability review.",
+    }
+    const blockedPlugin = {
+      metadata: {
+        kind: "plugin",
+        id: "blocked-plugin",
+        version: "1.0.0",
+        publication: { status: "blocked", blockers: [blocker] },
+      },
+      manifest: {
+        contributes: { skills: [{ name: "owned-skill" }] },
+      },
+    }
+    const ownedSkill = {
+      metadata: {
+        kind: "skill",
+        id: "owned-skill",
+        ownerPluginId: "blocked-plugin",
+        version: "1.0.0",
+        publication: { status: "ready", blockers: [] },
+      },
+    }
+    const readySkill = {
+      metadata: {
+        kind: "skill",
+        id: "ready-skill",
+        version: "1.0.0",
+        publication: { status: "ready", blockers: [] },
+      },
+    }
+
+    const repositorySelection = createPackSelection([
+      blockedPlugin,
+      ownedSkill,
+      readySkill,
+    ])
+    expect(repositorySelection.packages).toEqual([readySkill])
+    expect(repositorySelection.omitted.map((entry) =>
+      `${entry.kind}/${entry.id}`)).toEqual([
+      "plugin/blocked-plugin",
+      "skill/owned-skill",
+    ])
+    expect(repositorySelection.omitted[1].publication).toEqual({
+      status: "blocked",
+      blockedBy: ["plugin/blocked-plugin"],
+      blockers: [blocker],
+    })
+    expect(() => createPackSelection([{
+      metadata: {
+        kind: "skill",
+        id: "blocked-skill",
+        version: "1.0.0",
+        publication: { status: "blocked", blockers: [blocker] },
+      },
+    }], { exact: true })).toThrow("blocked packages cannot be published")
   })
 })

@@ -35,9 +35,10 @@ package versions plus its sorted accepted Plugin API ids and exact Catalog
 contract digests. Every affected workspace independently lists the request id in
 `package.json#convax.hostCapabilityRequests`; tooling requires an exact two-way
 match before deriving blocked state in memory. Normal source admission reports
-blocked packages without publishing them. Exact packing rejects a blocked target;
-Marketplace and release selection omit the blocked owner/owned-Skill closure and
-continue with unrelated ready packages. New Plugin manifests use only
+blocked packages without publishing them. Repository-wide packing, Marketplace,
+and release selection omit the blocked owner/owned-Skill closure and continue with
+unrelated ready packages; an explicitly selected exact package rejects a blocked
+target. New Plugin manifests use only
 `convax.plugin/8`; older manifests are explicit rejection-test fixtures only.
 
 The reverse binding is a bounded set: one exact package version may list at most
@@ -214,11 +215,18 @@ bun run skill-api:check
 bun run pack
 ```
 
+Repository-wide `bun run pack` writes only the effective ready package closure,
+removes stale output for omitted packages, and prints one `OMITTED` diagnostic per
+blocked package. Effective status includes owner/owned-Skill propagation, so a
+blocked owner cannot leave its otherwise-ready owned Skill in the output.
+
 `bun run pack -- --kind plugin --id video-timeline` writes only the selected
 deterministic package artifacts below `dist/packages/`. Generated owned-Skill
 references are injected from the exact external Catalog and SDK renderers before
-the ZIP digest is computed. A package with `companions` additionally emits the
-declared target assets. It does not generate a second Registry or Showcase parser.
+the ZIP digest is computed. `--kind`/`--id` and `--tag` are exact operations and
+reject a blocked target or ownership closure. A package with `companions`
+additionally emits the declared target assets. It does not generate a second
+Registry or Showcase parser.
 
 `bun run marketplace:check` runs Catalog-bound preflight and Marketplace Kit
 validation. `bun run marketplace:build` is the sole official v2 composition path:

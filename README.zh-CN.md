@@ -56,8 +56,9 @@ manifest 必须使用 `convax.plugin/8`。`convax.package/2` 不再提供兼容�
 `docs/host-capability-requests/*.md` 反向绑定到精确包版本。每个受影响 workspace
 还必须在 `package.json#convax.hostCapabilityRequests` 中独立声明 request id，
 因此改写业务实现不能静默消除治理义务。常规源码校验会接纳并明确报告 blocked
-包；精确包打包会拒绝它们，Release selection 和 Marketplace composition 则省略
-它们及其 owner/owned-Skill 闭包，同时继续处理无关的 ready 包。
+包；Release selection、Marketplace composition 与仓库级 `bun run pack` 都会省略
+它们及其 owner/owned-Skill 闭包，同时继续处理无关的 ready 包并报告省略项。显式
+使用 `--kind`/`--id` 或 `--tag` 定向打包仍是精确操作，会拒绝 blocked 目标。
 
 不可变 Registry 历史中仍可能存在切换前的包与 Plugin Schema，客户端可以继续读取
 这些历史条目；但模板、源码校验、打包、Marketplace 构建和 Release 规划都不会把旧
@@ -260,8 +261,9 @@ authoring 或发布路径。
 
 `bun run check` 会接纳 policy 一致的 blocked 源码并明确报告；旧包或旧 Plugin
 Schema、request 声明/policy/文档绑定缺失、插件拥有的 Skill 生成说明过期、未知
-Host API 或 Agent tool 仍会 fail closed。精确打包会拒绝 blocked 目标；
-Marketplace 和 Release 输出只包含 ready 闭包，并为省略版本生成机器可读诊断。
+Host API 或 Agent tool 仍会 fail closed。仓库级打包会省略并报告 blocked 的
+owner/owned-Skill 闭包，精确定向打包仍会拒绝 blocked 目标；Marketplace 和 Release
+输出只包含 ready 闭包，并为省略版本生成机器可读诊断。
 
 ## 安装问题排查
 

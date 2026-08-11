@@ -13,6 +13,7 @@ import {
   tagFor,
 } from "./lib.mjs"
 import { generateSkillApiReferences } from "./generate-skill-api-references.mjs"
+import { partitionPackagePublications } from "./publication-eligibility.mjs"
 
 function filesWithGeneratedReferences(pkg, referencePlan) {
   const generated = []
@@ -135,6 +136,18 @@ function selectionForTag(tag) {
   return match ? { kind: match[1], id: match[2] } : undefined
 }
 
+export function createPackSelection(packages, { exact = false } = {}) {
+  if (exact) {
+    assertPackagesPublishable(packages, "pack")
+    return { omitted: [], packages }
+  }
+  const publication = partitionPackagePublications(packages)
+  return {
+    omitted: publication.omitted,
+    packages: publication.ready,
+  }
+}
+
 export async function packFromArgs(argv, options = {}) {
   const normalizedArgv = argv.filter((argument) => argument !== "--")
   const catalogArgumentCount = normalizedArgv.filter(
@@ -167,7 +180,10 @@ export async function packFromArgs(argv, options = {}) {
   const selection = args.kind ? { kind: args.kind, id: args.id } : selectionForTag(args.tag)
   if (args.tag && !selection) throw new Error("arguments: tag must identify one versioned Plugin or Skill")
   let packages = await discoverPackages({ ...selection, workspaceRoot })
-  assertPackagesPublishable(packages, "pack")
+  const packSelection = createPackSelection(packages, {
+    exact: Boolean(args.kind || args.tag),
+  })
+  packages = packSelection.packages
   if (args.tag) packages = packages.filter((pkg) => tagFor(pkg.metadata) === args.tag)
   if (args.kind) packages = packages.filter((pkg) => pkg.metadata.kind === args.kind && pkg.metadata.id === args.id)
   if (packages.length === 0) throw new Error("No package matches the requested identity/tag")
@@ -175,14 +191,26 @@ export async function packFromArgs(argv, options = {}) {
     preserveOtherPackages: Boolean(args.kind || args.tag),
     referencePlan,
   })
+  options.onOmissions?.(packSelection.omitted)
   return results
 }
 
 if (import.meta.main) {
-  const results = await packFromArgs(process.argv.slice(2))
+  const omissions = []
+  const results = await packFromArgs(process.argv.slice(2), {
+    onOmissions(entries) {
+      omissions.push(...entries)
+    },
+  })
   for (const result of results) {
     const showcase = result.showcaseAssets.length > 0 ? `, ${result.showcaseAssets.length} showcase assets` : ""
     const companions = result.companionAssets.length > 0 ? `, ${result.companionAssets.length} companion assets` : ""
     console.log(`${result.tag}: ${path.relative(root, result.zipPath)} (${result.zip.length} bytes${showcase}${companions})`)
+  }
+  for (const omission of omissions) {
+    const blockedBy = omission.publication.blockedBy.join(", ")
+    console.log(
+      `OMITTED ${omission.kind}/${omission.id}@${omission.version}: publication-blocked by ${blockedBy}`,
+    )
   }
 }
