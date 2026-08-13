@@ -224,6 +224,14 @@ function verifyJwt(
     throw new Error("AuthX JWT claims are invalid");
   }
   if (
+    tokenUse === "access" &&
+    (payload.application_id !== profile.projectId ||
+      typeof payload.scope !== "string" ||
+      !payload.scope.split(/\s+/u).includes("nexus:access"))
+  ) {
+    throw new Error("AuthX Application Access claims are invalid");
+  }
+  if (
     tokenUse === "id" &&
     payload.nonce !== undefined &&
     (typeof payload.nonce !== "string" ||

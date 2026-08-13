@@ -62,9 +62,8 @@ describe("Nexus credential stores", () => {
       })),
     );
     expect(serializedMetadata).not.toContain(credentials.refreshToken);
-    expect(serializedMetadata).not.toContain(credentials.inferenceKey);
     expect(calls[0]?.value).toContain(credentials.refreshToken);
-    expect(calls[0]?.value).toContain(credentials.inferenceKey);
+    expect(calls[0]?.value).not.toContain("inferenceKey");
 
     await store.clear();
     expect(await store.read()).toBeNull();
@@ -115,6 +114,38 @@ describe("Nexus credential stores", () => {
     expect(calls).toHaveLength(1);
   });
 
+  test("deletes a retired Nexus Inference Key credential without migrating it", async () => {
+    const retired = JSON.stringify({
+      accountBinding: "a".repeat(64),
+      authxIssuer: "http://localhost:3100",
+      bindingId: "application-binding-fixed",
+      gatewayBaseUrl:
+        "http://localhost:4000/api/v1/gateway/providers/provider-fixed",
+      inferenceKey: "nxs_retired_secret_that_must_not_be_migrated",
+      nexusOrigin: "http://localhost:3000",
+      providerConnectionId: "provider-fixed",
+      refreshToken: "authx_retired_refresh_that_must_not_be_migrated",
+      schema: "convax.nexus-application-credentials/1",
+    });
+    let cleared = 0;
+    const store = new MacOsKeychainCredentialStore(
+      {},
+      {
+        async clear() {
+          cleared += 1;
+        },
+        async read() {
+          return retired;
+        },
+        async write() {},
+      },
+      "darwin",
+    );
+
+    expect(await store.read()).toBeNull();
+    expect(cleared).toBe(1);
+  });
+
   test.skipIf(process.platform !== "darwin")(
     "round-trips a large isolated credential through the real macOS Keychain",
     async () => {
@@ -126,7 +157,6 @@ describe("Nexus credential stores", () => {
       const store = new MacOsKeychainCredentialStore(environment);
       const credentials = {
         ...fixtureCredentials(),
-        inferenceKey: `nxs_test_${"i".repeat(4_096)}`,
         refreshToken: `authx_test_${"r".repeat(4_096)}`,
       };
       await store.clear();
@@ -155,13 +185,8 @@ function fixtureCredentials(): NexusApplicationCredentials {
   return {
     accountBinding: "a".repeat(64),
     authxIssuer: "http://localhost:3100",
-    bindingId: "application-binding-fixed",
-    gatewayBaseUrl:
-      "http://localhost:4000/api/v1/gateway/providers/provider-fixed",
-    inferenceKey: "nxs_test_inference_key_with_sufficient_length",
     nexusOrigin: "http://localhost:3000",
-    providerConnectionId: "provider-fixed",
     refreshToken: "authx_rotating_refresh_with_sufficient_length",
-    schema: "convax.nexus-application-credentials/1",
+    schema: "convax.nexus-authx-refresh-credential/2",
   };
 }

@@ -43,8 +43,7 @@ export class NexusPluginService {
       configured = (await this.credentials.read()) !== null;
       if (!configured) return disconnected();
       const access = await this.client.current();
-      const providerReady =
-        access.state === "ACTIVE" && access.inferenceKey?.enabled === true;
+      const providerReady = access.state === "ACTIVE";
       return {
         account: unavailable,
         billing: {
@@ -92,11 +91,11 @@ export class NexusPluginService {
   }
 
   authorize() {
-    return this.authorization.begin(false);
+    return this.authorization.begin();
   }
 
   reauthorize() {
-    return this.authorization.begin(true);
+    return this.authorization.begin();
   }
 
   async complete(input: unknown, signal?: AbortSignal) {
@@ -125,7 +124,7 @@ export class NexusPluginService {
     ) {
       throw new Error("The selected Nexus Plan is not available");
     }
-    const attempt = await this.checkouts.begin(access.bindingId, planKey);
+    const attempt = await this.checkouts.begin(access.applicationId, planKey);
     const checkout = await this.client.createCheckout(
       planKey,
       attempt.idempotencyKey,

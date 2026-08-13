@@ -46,7 +46,12 @@ export class MacOsKeychainCredentialStore implements NexusCredentialStore {
       keychainAccount,
       this.#keychainService,
     );
-    return serialized === null ? null : parseCredentials(serialized);
+    if (serialized === null) return null;
+    if (isRetiredApplicationCredential(serialized)) {
+      await this.keychain.clear(keychainAccount, this.#keychainService);
+      return null;
+    }
+    return parseCredentials(serialized);
   }
 
   async write(credentials: NexusApplicationCredentials): Promise<void> {
@@ -299,6 +304,25 @@ function parseCredentials(serialized: string): NexusApplicationCredentials {
   return validateCredentials(parsed);
 }
 
+function isRetiredApplicationCredential(serialized: string): boolean {
+  if (Buffer.byteLength(serialized, "utf8") > maximumCredentialBytes) {
+    throw new Error("Nexus Keychain item is too large");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(serialized);
+  } catch {
+    throw new Error("Nexus Keychain item is invalid");
+  }
+  return (
+    parsed !== null &&
+    typeof parsed === "object" &&
+    !Array.isArray(parsed) &&
+    (parsed as Record<string, unknown>).schema ===
+      "convax.nexus-application-credentials/1"
+  );
+}
+
 function validateCredentials(value: unknown): NexusApplicationCredentials {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Nexus credentials are invalid");
@@ -307,11 +331,7 @@ function validateCredentials(value: unknown): NexusApplicationCredentials {
   const keys = [
     "accountBinding",
     "authxIssuer",
-    "bindingId",
-    "gatewayBaseUrl",
-    "inferenceKey",
     "nexusOrigin",
-    "providerConnectionId",
     "refreshToken",
     "schema",
   ];
@@ -325,17 +345,7 @@ function validateCredentials(value: unknown): NexusApplicationCredentials {
   return {
     accountBinding: digest(input.accountBinding, "Nexus account binding"),
     authxIssuer: exactOrigin(input.authxIssuer, "AuthX issuer"),
-    bindingId: boundedId(input.bindingId, "Nexus Application binding id"),
-    gatewayBaseUrl: gatewayBaseUrl(
-      input.gatewayBaseUrl,
-      input.providerConnectionId,
-    ),
-    inferenceKey: credential(input.inferenceKey, "Nexus Inference Key"),
     nexusOrigin: exactOrigin(input.nexusOrigin, "Nexus origin"),
-    providerConnectionId: boundedId(
-      input.providerConnectionId,
-      "Nexus Provider Connection id",
-    ),
     refreshToken: credential(input.refreshToken, "AuthX refresh credential"),
     schema: applicationCredentialsSchema,
   };
@@ -384,18 +394,6 @@ async function clearLegacyRefreshGrant(
   await fs.rm(legacyPath, { force: true });
 }
 
-function boundedId(value: unknown, label: string) {
-  if (
-    typeof value !== "string" ||
-    value.length < 8 ||
-    value.length > 191 ||
-    !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u.test(value)
-  ) {
-    throw new Error(`${label} is invalid`);
-  }
-  return value;
-}
-
 function credential(value: unknown, label: string) {
   if (
     typeof value !== "string" ||
@@ -432,29 +430,6 @@ function exactOrigin(value: unknown, label: string) {
     throw new Error(`${label} is invalid`);
   }
   return url.origin;
-}
-
-function gatewayBaseUrl(value: unknown, providerConnectionId: unknown) {
-  if (typeof value !== "string" || typeof providerConnectionId !== "string") {
-    throw new Error("Nexus Gateway Base URL is invalid");
-  }
-  const url = new URL(value);
-  if (
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash ||
-    !(
-      url.protocol === "https:" ||
-      (url.protocol === "http:" &&
-        ["127.0.0.1", "localhost"].includes(url.hostname))
-    ) ||
-    url.pathname !==
-      `/api/v1/gateway/providers/${encodeURIComponent(providerConnectionId)}`
-  ) {
-    throw new Error("Nexus Gateway Base URL is invalid");
-  }
-  return url.href.replace(/\/$/u, "");
 }
 
 export function createProductionCredentialStore(

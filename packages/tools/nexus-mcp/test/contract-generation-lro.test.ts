@@ -103,14 +103,9 @@ describe("Convax Host exact generation LRO", () => {
     await credentials.write({
       accountBinding: "a".repeat(64),
       authxIssuer: "http://127.0.0.1:8101",
-      bindingId: "binding-fixed",
-      gatewayBaseUrl:
-        "http://127.0.0.1:4100/api/v1/gateway/providers/provider-fixed",
-      inferenceKey: "nxs_test_inference_key_with_sufficient_length",
       nexusOrigin: "http://127.0.0.1:3000",
-      providerConnectionId: "provider-fixed",
       refreshToken: "authx_rotating_refresh_with_sufficient_length",
-      schema: "convax.nexus-application-credentials/1",
+      schema: "convax.nexus-authx-refresh-credential/2",
     });
     let cancels = 0;
     const route = completedRoute({

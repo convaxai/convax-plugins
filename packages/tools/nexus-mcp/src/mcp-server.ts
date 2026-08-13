@@ -590,7 +590,7 @@ export class NexusMcpServer {
           tools: {},
         },
         protocolVersion,
-        serverInfo: { name: "convax-nexus-mcp", version: "0.5.3" },
+        serverInfo: { name: "convax-nexus-mcp", version: "1.0.0" },
       });
       return;
     }
@@ -1107,10 +1107,8 @@ async function recoveryBinding(
       JSON.stringify({
         accountBinding: stored.accountBinding,
         authxIssuer: stored.authxIssuer,
-        bindingId: stored.bindingId,
         journalAuthority: authority,
         nexusOrigin: stored.nexusOrigin,
-        providerConnectionId: stored.providerConnectionId,
       }),
     )
     .digest("hex")}`;

@@ -4,9 +4,7 @@ import {
   applicationCredentialsSchema,
   type AuthXTokenResponse,
   type NexusApplicationAccess,
-  type NexusApplicationBootstrap,
   type NexusApplicationCheckout,
-  type NexusApplicationCredentials,
   type GenerationProviderParameters,
   type NexusProviderModel,
 } from "./contracts.ts";
@@ -16,7 +14,6 @@ import {
   type AuthXPublicClientProfile,
 } from "./authx-profile.ts";
 import { AuthXTokenVerifier } from "./authx-token-verifier.ts";
-import { ApplicationOperationStore } from "./application-operation-store.ts";
 import type { NexusCredentialStore } from "./credential-store.ts";
 
 const productionNexusOrigin = "https://nexus.microvoid.io";
@@ -39,7 +36,6 @@ const terminalVideoStatuses = new Set([
 ]);
 
 export interface NexusClientOptions {
-  applicationOperations?: ApplicationOperationStore;
   authxProfile?: AuthXPublicClientProfile;
   environment?: Readonly<Record<string, string | undefined>>;
   fetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -58,8 +54,8 @@ interface IdentitySession {
 
 interface GatewayContext {
   access: NexusApplicationAccess;
-  credentials: NexusApplicationCredentials;
   epoch: number;
+  identity: IdentitySession;
 }
 
 export interface NexusGatewayErrorDetails {
@@ -216,7 +212,6 @@ export interface NexusGenerationRoutes {
 }
 
 export class NexusClient {
-  readonly #applicationOperations: ApplicationOperationStore;
   readonly #authxProfile: Promise<AuthXPublicClientProfile>;
   readonly #fetch: (
     input: RequestInfo | URL,
@@ -256,9 +251,6 @@ export class NexusClient {
         ),
       ),
     );
-    this.#applicationOperations =
-      options.applicationOperations ??
-      new ApplicationOperationStore(options.environment);
     this.#fetch = options.fetch ?? fetch;
     this.#now = options.now ?? (() => new Date());
   }
@@ -295,7 +287,6 @@ export class NexusClient {
     codeVerifier: string;
     nonce: string;
     redirectUri: string;
-    rotateInferenceKey?: boolean;
   }): Promise<void> {
     const profile = await this.#authxProfile;
     const token = await this.#tokenRequest({
@@ -310,90 +301,14 @@ export class NexusClient {
       redirect_uri: exactLoopbackRedirect(input.redirectUri, profile),
     });
     const identity = await this.#identityFromToken(token, input.nonce);
-    const bootstrapAuthority = [
-      profile.clientId,
-      identity.subject,
-      boundedId(input.authorizationId, "Convax authorization id"),
-    ].join(":");
-    const bootstrapKey = await this.#applicationOperations.getOrCreate(
-      "bootstrap",
-      bootstrapAuthority,
-    );
-    let bootstrap = await this.#bootstrap(identity.accessToken, bootstrapKey);
-    const stored = await this.credentials.read();
-    let inferenceKey = input.rotateInferenceKey
-      ? undefined
-      : bootstrap.inferenceKeyPlaintext;
-    if (!inferenceKey && !input.rotateInferenceKey) {
-      if (
-        stored &&
-        stored.authxIssuer === profile.issuer &&
-        stored.nexusOrigin === this.#nexusOrigin &&
-        stored.bindingId === bootstrap.bindingId &&
-        stored.providerConnectionId === bootstrap.providerConnectionId &&
-        stored.gatewayBaseUrl ===
-          parseGatewayBaseUrl(
-            bootstrap.gatewayBaseUrl,
-            bootstrap.providerConnectionId,
-            this.#gatewayOrigins,
-          )
-      ) {
-        inferenceKey = stored.inferenceKey;
-      }
-    }
-    if (!inferenceKey) {
-      const rotateAuthority = `${bootstrap.bindingId}:${identity.subject}`;
-      const rotateKey = input.rotateInferenceKey
-        ? await this.#applicationOperations.replace("rotate", rotateAuthority)
-        : await this.#applicationOperations.getOrCreate(
-            "rotate",
-            rotateAuthority,
-          );
-      bootstrap = await this.#rotateInferenceKey(
-        identity.accessToken,
-        rotateKey,
-      );
-      inferenceKey = bootstrap.inferenceKeyPlaintext;
-      if (!inferenceKey) {
-        const replacementRotateKey = await this.#applicationOperations.replace(
-          "rotate",
-          rotateAuthority,
-        );
-        bootstrap = await this.#rotateInferenceKey(
-          identity.accessToken,
-          replacementRotateKey,
-        );
-        inferenceKey = bootstrap.inferenceKeyPlaintext;
-      }
-    }
-    if (!inferenceKey) {
-      throw new Error(
-        "Nexus did not return the one-time Inference Key plaintext",
-      );
-    }
-    const gatewayBaseUrl = parseGatewayBaseUrl(
-      bootstrap.gatewayBaseUrl,
-      bootstrap.providerConnectionId,
-      this.#gatewayOrigins,
-    );
-    if (input.rotateInferenceKey && stored) {
-      await this.#verifyGatewayKey(gatewayBaseUrl, inferenceKey, true);
-      await this.#verifyGatewayKey(
-        stored.gatewayBaseUrl,
-        stored.inferenceKey,
-        false,
-      );
-    }
+    boundedId(input.authorizationId, "Convax authorization id");
+    await this.#currentWithIdentity(identity);
     await this.credentials.write({
       accountBinding: createHash("sha256")
         .update(`${profile.issuer}\0${profile.clientId}\0${identity.subject}`)
         .digest("hex"),
       authxIssuer: profile.issuer,
-      bindingId: bootstrap.bindingId,
-      gatewayBaseUrl,
-      inferenceKey: credential(inferenceKey, "Nexus Inference Key"),
       nexusOrigin: this.#nexusOrigin,
-      providerConnectionId: bootstrap.providerConnectionId,
       refreshToken: identity.refreshToken,
       schema: applicationCredentialsSchema,
     });
@@ -403,6 +318,12 @@ export class NexusClient {
 
   async current(): Promise<NexusApplicationAccess> {
     const identity = await this.#ensureIdentity();
+    return this.#currentWithIdentity(identity);
+  }
+
+  async #currentWithIdentity(
+    identity: IdentitySession,
+  ): Promise<NexusApplicationAccess> {
     return this.#authorizedApplicationJson(
       new URL(`${applicationApiBasePath}/status`, this.#nexusOrigin),
       identity.accessToken,
@@ -451,31 +372,6 @@ export class NexusClient {
       } catch (error) {
         failure = error;
       }
-      if (identity) {
-        try {
-          const revokeKey = await this.#applicationOperations.getOrCreate(
-            "revoke",
-            `${stored?.bindingId ?? "unknown"}:${identity.subject}`,
-          );
-          await this.#authorizedApplicationJson(
-            new URL(`${applicationApiBasePath}/revoke`, this.#nexusOrigin),
-            identity.accessToken,
-            {
-              headers: { "idempotency-key": revokeKey },
-              method: "POST",
-            },
-          );
-          if (stored) {
-            await this.#verifyGatewayKey(
-              stored.gatewayBaseUrl,
-              stored.inferenceKey,
-              false,
-            );
-          }
-        } catch (error) {
-          failure ??= error;
-        }
-      }
       if (stored) {
         try {
           const profile = await this.#authxProfile;
@@ -514,10 +410,9 @@ export class NexusClient {
   async gatewayContext() {
     const context = await this.#gatewayContext();
     return {
-      inferenceKey: context.credentials.inferenceKey,
+      accessToken: context.identity.accessToken,
       provider: {
-        gatewayBaseUrl: context.credentials.gatewayBaseUrl,
-        id: context.credentials.providerConnectionId,
+        gatewayBaseUrl: context.access.gatewayBaseUrl,
       },
     };
   }
@@ -667,72 +562,19 @@ export class NexusClient {
     };
   }
 
-  async #bootstrap(accessToken: string, idempotencyKey: string) {
-    return parseApplicationBootstrap(
-      await this.#authorizedApplicationJson(
-        new URL(`${applicationApiBasePath}/bootstrap`, this.#nexusOrigin),
-        accessToken,
-        {
-          headers: { "idempotency-key": idempotencyKey },
-          method: "POST",
-        },
-      ),
-      this.#gatewayOrigins,
-    );
-  }
-
-  async #rotateInferenceKey(accessToken: string, idempotencyKey: string) {
-    return parseApplicationBootstrap(
-      await this.#authorizedApplicationJson(
-        new URL(
-          `${applicationApiBasePath}/inference-key/rotate`,
-          this.#nexusOrigin,
-        ),
-        accessToken,
-        {
-          headers: { "idempotency-key": idempotencyKey },
-          method: "POST",
-        },
-      ),
-      this.#gatewayOrigins,
-    );
-  }
-
   async #gatewayContext(): Promise<GatewayContext> {
-    const [stored, access] = await Promise.all([
-      this.credentials.read(),
-      this.current(),
-    ]);
+    const stored = await this.credentials.read();
     if (!stored) throw new Error("Convax is not connected to Nexus");
     const profile = await this.#authxProfile;
     if (
       stored.authxIssuer !== profile.issuer ||
-      stored.nexusOrigin !== this.#nexusOrigin ||
-      stored.bindingId !== access.bindingId ||
-      stored.providerConnectionId !== access.providerConnectionId ||
-      stored.gatewayBaseUrl !== access.gatewayBaseUrl ||
-      access.state !== "ACTIVE" ||
-      access.inferenceKey?.enabled !== true
+      stored.nexusOrigin !== this.#nexusOrigin
     ) {
-      throw new Error("Nexus Application Access binding changed");
+      throw new Error("Nexus credential authority does not match configuration");
     }
-    return { access, credentials: stored, epoch: this.#credentialEpoch };
-  }
-
-  async #verifyGatewayKey(
-    gatewayBaseUrl: string,
-    inferenceKey: string,
-    accepted: boolean,
-  ) {
-    const response = await this.#fetch(new URL(`${gatewayBaseUrl}/models`), {
-      headers: { authorization: `Bearer ${inferenceKey}` },
-      redirect: "error",
-      signal: AbortSignal.timeout(15_000),
-    });
-    if ((accepted && !response.ok) || (!accepted && response.status !== 401)) {
-      throw new Error("Nexus Gateway key lifecycle verification failed");
-    }
-    await response.body?.cancel();
+    const identity = await this.#ensureIdentity();
+    const access = await this.#currentWithIdentity(identity);
+    return { access, epoch: this.#credentialEpoch, identity };
   }
 
   async #ensureIdentity(): Promise<IdentitySession> {
@@ -850,7 +692,7 @@ export class NexusClient {
       throw new NexusGatewayHttpError(
         `OpenRouter ${output} model catalog request`,
         response.status,
-        await parseGatewayError(response, [context.credentials.inferenceKey]),
+        await parseGatewayError(response, [context.identity.accessToken]),
       );
     }
     const parsed = await readJson(
@@ -895,7 +737,7 @@ export class NexusClient {
         response.status,
         operationId,
         await parseGatewayError(response, [
-          context.credentials.inferenceKey,
+          context.identity.accessToken,
           prompt,
         ]),
       );
@@ -944,7 +786,7 @@ export class NexusClient {
         response.status,
         operationId,
         await parseGatewayError(response, [
-          context.credentials.inferenceKey,
+          context.identity.accessToken,
           prompt,
         ]),
       );
@@ -982,7 +824,7 @@ export class NexusClient {
     return this.#parseVideoResponse(
       response,
       operationId,
-      context.credentials.inferenceKey,
+      context.identity.accessToken,
       prompt,
     );
   }
@@ -1007,14 +849,14 @@ export class NexusClient {
     return this.#parseVideoResponse(
       response,
       operationId,
-      context.credentials.inferenceKey,
+      context.identity.accessToken,
     );
   }
 
   async #parseVideoResponse(
     response: Response,
     operationId: string,
-    inferenceKey: string,
+    accessToken: string,
     prompt?: string,
   ) {
     if (!response.ok) {
@@ -1022,14 +864,14 @@ export class NexusClient {
         response.status,
         operationId,
         await parseGatewayError(response, [
-          inferenceKey,
+          accessToken,
           ...(prompt === undefined ? [] : [prompt]),
         ]),
       );
     }
     return parseVideoTask(
       await readJson(response, maximumJsonBytes, "Nexus video task"),
-      [inferenceKey, ...(prompt === undefined ? [] : [prompt])],
+      [accessToken, ...(prompt === undefined ? [] : [prompt])],
     );
   }
 
@@ -1054,7 +896,7 @@ export class NexusClient {
       throw new NexusVideoHttpError(
         response.status,
         operationId,
-        await parseGatewayError(response, [context.credentials.inferenceKey]),
+        await parseGatewayError(response, [context.identity.accessToken]),
       );
     }
     const contentType = response.headers
@@ -1074,13 +916,13 @@ export class NexusClient {
 
   #gatewayFetch(context: GatewayContext, suffix: string, init: RequestInit) {
     this.#assertCurrent(context);
-    const url = new URL(`${context.credentials.gatewayBaseUrl}${suffix}`);
-    assertProviderScopedGatewayUrl(url, context.credentials.gatewayBaseUrl);
+    const url = new URL(`${context.access.gatewayBaseUrl}${suffix}`);
+    assertProviderScopedGatewayUrl(url, context.access.gatewayBaseUrl);
     return this.#fetch(url, {
       ...init,
       headers: {
         ...headerRecord(init.headers),
-        authorization: `Bearer ${context.credentials.inferenceKey}`,
+        authorization: `Bearer ${context.identity.accessToken}`,
       },
       redirect: "error",
       signal:
@@ -1128,93 +970,35 @@ function parseApplicationAccess(
 ): NexusApplicationAccess {
   const input = record(value, "Nexus Application Access");
   const allowed = [
-    "bindingId",
+    "applicationId",
+    "applicationVersion",
     "checkoutAvailable",
     "gatewayBaseUrl",
-    "inferenceKey",
     "planKey",
-    "providerConnectionId",
     "state",
-    "workspaceAccessId",
   ];
   if (
+    Object.keys(input).length !== allowed.length ||
     Object.keys(input).some((key) => !allowed.includes(key)) ||
-    !["UNBOOTSTRAPPED", "ACTIVE", "REVOKED"].includes(String(input.state))
+    input.state !== "ACTIVE" ||
+    !Number.isSafeInteger(input.applicationVersion) ||
+    Number(input.applicationVersion) < 1
   ) {
     throw new Error("Nexus Application Access response is invalid");
   }
-  const providerConnectionId = boundedId(
-    input.providerConnectionId,
-    "Nexus Provider Connection id",
-  );
   return {
-    bindingId: boundedId(input.bindingId, "Nexus Application binding id"),
+    applicationId: boundedId(input.applicationId, "Nexus Application id"),
+    applicationVersion: Number(input.applicationVersion),
     checkoutAvailable: boolean(
       input.checkoutAvailable,
       "Nexus Checkout availability",
     ),
     gatewayBaseUrl: parseGatewayBaseUrl(
       input.gatewayBaseUrl,
-      providerConnectionId,
       trustedGatewayOrigins,
     ),
-    ...(input.inferenceKey === undefined
-      ? {}
-      : {
-          inferenceKey: parseInferenceKeyMetadata(input.inferenceKey),
-        }),
     planKey: boundedString(input.planKey, "Nexus Plan key", 80),
-    providerConnectionId,
-    state: input.state as NexusApplicationAccess["state"],
-    ...(input.workspaceAccessId === undefined
-      ? {}
-      : {
-          workspaceAccessId: boundedId(
-            input.workspaceAccessId,
-            "Nexus Workspace Access id",
-          ),
-        }),
-  };
-}
-
-function parseApplicationBootstrap(
-  value: unknown,
-  trustedGatewayOrigins: ReadonlySet<string>,
-): NexusApplicationBootstrap {
-  const input = record(value, "Nexus Application Access bootstrap");
-  const access = parseApplicationAccess(
-    Object.fromEntries(
-      Object.entries(input).filter(([key]) => key !== "inferenceKeyPlaintext"),
-    ),
-    trustedGatewayOrigins,
-  );
-  return {
-    ...access,
-    ...(input.inferenceKeyPlaintext === undefined
-      ? {}
-      : {
-          inferenceKeyPlaintext: credential(
-            input.inferenceKeyPlaintext,
-            "Nexus Inference Key",
-          ),
-        }),
-  };
-}
-
-function parseInferenceKeyMetadata(value: unknown) {
-  const input = record(value, "Nexus Inference Key metadata");
-  if (
-    Object.keys(input).some(
-      (key) => !["enabled", "expiresAt", "id", "prefix"].includes(key),
-    )
-  ) {
-    throw new Error("Nexus Inference Key metadata is invalid");
-  }
-  return {
-    enabled: boolean(input.enabled, "Nexus Inference Key enabled state"),
-    expiresAt: isoDate(input.expiresAt, "Nexus Inference Key expiry"),
-    id: boundedId(input.id, "Nexus Inference Key id"),
-    prefix: boundedString(input.prefix, "Nexus Inference Key prefix", 64),
+    state: "ACTIVE",
   };
 }
 
@@ -1562,7 +1346,6 @@ function assertApplicationUrl(url: URL, nexusOrigin: string) {
 
 function parseGatewayBaseUrl(
   value: unknown,
-  providerConnectionId: string,
   trustedOrigins: ReadonlySet<string>,
 ) {
   if (typeof value !== "string") {
@@ -1575,8 +1358,9 @@ function parseGatewayBaseUrl(
     url.search ||
     url.hash ||
     !trustedOrigins.has(url.origin) ||
-    url.pathname !==
-      `/api/v1/gateway/providers/${encodeURIComponent(providerConnectionId)}`
+    !/^\/api\/v1\/gateway\/providers\/[A-Za-z0-9][A-Za-z0-9._:-]{7,190}$/u.test(
+      url.pathname,
+    )
   ) {
     throw new Error("Nexus Gateway Base URL is invalid");
   }

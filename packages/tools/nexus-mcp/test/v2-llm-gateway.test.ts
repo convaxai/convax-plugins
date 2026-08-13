@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 describe("Nexus LLM loopback Gateway", () => {
-  test("proxies only OpenRouter models and text calls with the fixed Inference Key", async () => {
+  test("proxies only OpenRouter models and text calls with the current AuthX token", async () => {
     const requests: Array<{
       authorization: string | null;
       body: unknown;
@@ -50,14 +50,13 @@ describe("Nexus LLM loopback Gateway", () => {
       },
     });
     servers.push(upstream);
-    const inferenceKey = "nxs_test_inference_key_with_sufficient_length";
+    const accessToken = "authx.application.access.token.with.sufficient.length";
     const gateway = new NexusLlmGateway({
       async gatewayContext() {
         return {
-          inferenceKey,
+          accessToken,
           provider: {
             gatewayBaseUrl: `http://127.0.0.1:${upstream.port}/providers/provider-fixed`,
-            id: "provider-fixed",
           },
         };
       },
@@ -87,13 +86,13 @@ describe("Nexus LLM loopback Gateway", () => {
     expect(await chat.json()).toMatchObject({ model: "fake/text-v1" });
     expect(requests).toEqual([
       {
-        authorization: `Bearer ${inferenceKey}`,
+        authorization: `Bearer ${accessToken}`,
         body: undefined,
         method: "GET",
         path: "/providers/provider-fixed/models?output_modalities=text",
       },
       {
-        authorization: `Bearer ${inferenceKey}`,
+        authorization: `Bearer ${accessToken}`,
         body: {
           messages: [{ content: "Say deterministic", role: "user" }],
           model: "fake/text-v1",

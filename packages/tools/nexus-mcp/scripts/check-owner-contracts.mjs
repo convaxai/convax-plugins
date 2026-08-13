@@ -62,7 +62,7 @@ assertEqual(
 );
 assertEqual(
   authxFixture.scopes,
-  ["openid", "profile", "email", "offline_access"],
+  ["openid", "profile", "email", "offline_access", "nexus:access"],
   "AuthX exact scopes",
 );
 assert(
@@ -114,9 +114,6 @@ const gatewayOpenApi = json(
 );
 const expectedOperations = new Map([
   ["/api/v1/application-access/status", ["get"]],
-  ["/api/v1/application-access/bootstrap", ["post"]],
-  ["/api/v1/application-access/inference-key/rotate", ["post"]],
-  ["/api/v1/application-access/revoke", ["post"]],
   ["/api/v1/application-access/checkout", ["post"]],
 ]);
 const actualApplicationPaths = Object.keys(applicationOpenApi.paths).filter(
@@ -145,8 +142,8 @@ assertEqual(
   accessSchema.required,
   [
     "state",
-    "bindingId",
-    "providerConnectionId",
+    "applicationId",
+    "applicationVersion",
     "gatewayBaseUrl",
     "planKey",
     "checkoutAvailable",
@@ -154,12 +151,8 @@ assertEqual(
   "Nexus Application Access required fields",
 );
 assert(
-  applicationOpenApi.components.schemas.ApplicationAccessBootstrapDto.properties
-    .inferenceKeyPlaintext !== undefined,
-  "Nexus bootstrap plaintext field is missing",
-);
-assert(
-  applicationController.includes("@Post('inference-key/rotate')") &&
+  !applicationController.includes("@Post('bootstrap')") &&
+    !applicationController.includes("@Post('inference-key/rotate')") &&
     applicationController.includes("@Post('checkout')"),
   "Nexus controller does not implement generated OpenAPI",
 );

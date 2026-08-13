@@ -4,7 +4,13 @@ import path from "node:path";
 
 const desktopProfileSchema =
   "https://schemas.authx.dev/fixtures/desktop-public-client-profile.v1.schema.json";
-const exactScopes = ["openid", "profile", "email", "offline_access"] as const;
+const exactScopes = [
+  "openid",
+  "profile",
+  "email",
+  "offline_access",
+  "nexus:access",
+] as const;
 const exactRedirectUri = "http://127.0.0.1:65051/oauth/callback";
 const generatedProfileSchema = "convax.nexus-public-profile/1";
 const authXHandoffSchema = "authx.convax-public-client/1";

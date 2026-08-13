@@ -30,7 +30,6 @@ interface PendingAuthorization {
   server: Bun.Server<unknown>;
   state: string;
   timer: ReturnType<typeof setTimeout>;
-  rotateInferenceKey: boolean;
 }
 
 export class NexusAuthorization {
@@ -38,9 +37,7 @@ export class NexusAuthorization {
 
   constructor(private readonly client: NexusClient) {}
 
-  async begin(
-    rotateInferenceKey = false,
-  ): Promise<ExternalAuthorizationRequest> {
+  async begin(): Promise<ExternalAuthorizationRequest> {
     this.cancel();
     await this.client.resolveAuthXIssuer();
     const authorizationId = randomBytes(24).toString("base64url");
@@ -114,7 +111,6 @@ export class NexusAuthorization {
       server,
       state,
       timer,
-      rotateInferenceKey,
     };
     return {
       authorization_id: authorizationId,
@@ -146,7 +142,6 @@ export class NexusAuthorization {
         codeVerifier: pending.codeVerifier,
         nonce: pending.nonce,
         redirectUri: pending.redirectUri,
-        rotateInferenceKey: pending.rotateInferenceKey,
       });
       pending.resolveCompletionPage(true);
     } catch (error) {

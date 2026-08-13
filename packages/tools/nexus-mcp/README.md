@@ -1,138 +1,80 @@
 # Convax Nexus MCP
 
 First-party Convax companion for AuthX identity and Nexus Application Access.
-It does not use Nexus Hosted Auth, Product Sessions, Data Tokens, or the User API.
+It uses one AuthX Convax Application Access Token end to end. It does not use
+Nexus Hosted Auth, Product Sessions, Data Tokens, Token Exchange, or Nexus
+Inference Keys.
 
 ## Identity and service boundary
 
-- The companion is the OAuth public client. It uses AuthX Authorization Code with
-  PKCE S256, high-entropy state and nonce, the exact
+- The companion is an OAuth public client. It uses the system browser,
+  Authorization Code with PKCE S256, high-entropy state and nonce, the exact
   `http://127.0.0.1:65051/oauth/callback` listener, and rotating refresh
-  credentials. The scope is exactly `openid profile email offline_access`.
-  It validates both access and ID tokens through configured discovery/JWKS:
-  ES256, `typ=JWT`, known `kid`, signature, exact issuer/audience/Project/
-  Environment/client, non-empty `sub`/`sid`/`jti`, bounded `iat`/`exp`, exact
-  `token_use`, and the authorization nonce.
-- Nexus owns the Application binding. The client uses only `status`, `bootstrap`,
-  `inference-key/rotate`, `revoke`, and `checkout`. Mutation bodies are empty;
-  durable `Idempotency-Key` values are persisted before dispatch. No request can
-  name or override a Workspace, Plan, provider host, Provider Connection, schema,
-  or credential.
-- `bootstrap` and `rotate` may return `inferenceKeyPlaintext` once. If bootstrap
-  replay has no plaintext and Keychain has no matching key, the companion issues
-  an explicit rotate with a newly persisted key; it never recreates or replays an
-  old secret. Keychain stores the refresh credential, exact provider-scoped
-  Gateway Base URL, binding IDs, and current Inference Key. Production has no
-  plaintext-file fallback.
-- A legacy `convax.nexus-refresh-grant/1` or `convax.nexus-session/1` file is
-  deleted when detected. Its credential is never migrated to, or sent to, a new
-  endpoint.
-- Renderer, Canvas, Project state, tool results, URLs, and logs never receive
-  AuthX or Nexus credentials.
+  credentials.
+- The requested scope is exactly
+  `openid profile email offline_access nexus:access`.
+- Access and ID Tokens are verified against exact AuthX discovery and JWKS
+  metadata. Access Tokens additionally require the exact Convax Application,
+  client, Project, Environment, audience, `token_use=access`, and
+  `nexus:access` scope.
+- The short-lived Access Token stays in companion memory. Only the rotating
+  AuthX Refresh Credential and non-secret authority digests are stored in the
+  macOS Keychain.
+- Nexus Application Access is preconfigured by an administrator in AuthX.
+  The companion calls only `status` and `checkout`; it never creates a Nexus
+  Application, chooses a Workspace, Plan, or Provider, or receives a Nexus
+  credential.
+- A retired `convax.nexus-application-credentials/1`,
+  `convax.nexus-refresh-grant/1`, or `convax.nexus-session/1` credential is
+  deleted rather than migrated or used as a fallback.
 
-## Gateway protocols
+## Runtime contract
 
-The local `llm.gateway.start` endpoint accepts a random Main-only loopback
-credential. It forwards only OpenRouter `GET /models` and
-`POST /chat/completions` to the provider-scoped Base URL returned by Nexus,
-using the stored Inference Key. Client provider-routing fields and arbitrary
-Gateway paths are rejected.
+The companion uses:
 
-Image generation reads `/images/models` and calls `/images`. Audio generation
-discovers `GET /models?output_modalities=speech` and calls `/audio/speech` for
-raw audio bytes. Both keep the bounded
-`x-convax-role: generation-model-id` selection, validates image signatures and
-sizes, writes portable relative artifact paths with no-clobber semantics, and
-redacts credentials, prompts, and native paths from diagnostics.
+- AuthX: `GET /oauth/authorize`, `POST /oauth/token`, `POST /oauth/revoke`;
+- Nexus: `GET /api/v1/application-access/status` and
+  `POST /api/v1/application-access/checkout`;
+- Nexus Gateway: the provider-scoped Base URL returned by `status`.
 
-The current image tool schema exposes `aspect_ratio`, `background`, `n`,
-`output_compression`, `output_format`, `quality`, `resolution`, `seed`, and
-`size`. The video schema exposes `aspect_ratio`, `duration`, `generate_audio`,
-`resolution`, `seed`, and `size`. Audio exposes `instructions`,
-`response_format`, `speed`, and `voice`. These are optional top-level provider controls:
-the companion removes only the fixed Convax envelope (`schema`, operation/output
-identity, prompt, model, references, and output directory) and forwards every
-other JSON value unchanged in the Nexus Gateway body, including nested objects,
-arrays, and `null`. Dynamic generation schemas intentionally allow additional
-properties, so provider-native controls do not require a companion release.
+Every Nexus and Gateway request carries the same current AuthX Access Token as
+`Authorization: Bearer ...`. The closed status response contains only
+`state`, `applicationId`, `applicationVersion`, `gatewayBaseUrl`, `planKey`,
+and `checkoutAvailable`. Bootstrap, inference-key rotation, Nexus revoke, and
+multi-credential Gateway paths are rejected by contract tests.
 
-Video generation reads `/videos/models` and uses `/videos`, task `GET`, task
-`DELETE`, and `/content`. `video.generate` declares
-`recovery={schema:"convax.generation-lro/1",mode:"long-running-operation"}`.
-Only a process with both a matching Keychain account and the Host-provided
-`CONVAX_GENERATION_LRO_DIRECTORY` advertises:
+The loopback LLM Gateway exposes only OpenRouter `GET /models` and
+`POST /chat/completions` behind a random Main-only bearer. Image generation
+uses `/images/models` and `/images`; audio generation uses speech model
+discovery and `/audio/speech`; video generation uses `/videos`, task status,
+cancellation, and content routes. All upstream calls are authenticated with
+the in-memory AuthX Token.
 
-- `capabilities.experimental["convax/generation-lro"]` with a stable,
-  non-secret account+journal binding;
-- `convax/generation/operations/get`;
-- `convax/generation/operations/wait`;
-- `convax/generation/operations/cancel`;
-- `convax/generation/operations/result`;
-- `convax/generation/operations/acknowledge`.
-
-Every method consumes exact `convax.generation-lro-request/1`. The initial
-`tools/call` trusts only Host `_meta.convaxGeneration.operationId` and
-`requestDigest`; business arguments do not define recovery identity. The journal
-persists the private provider task ID, provider controls, and result bytes, while
-Host `taskId` is a stable random handle. Provider submit sends a stable
-`Idempotency-Key` derived
-from the Host operation ID and request digest; an ambiguous retry must retrieve
-the same provider task before the receipt is persisted. `wait` has no companion
-overall timeout, and aborting a wait never cancels an accepted task. Only
-`operations/cancel` performs remote cancellation.
-
-`result` validates operation/task/result digests and materializes idempotently
-into that request's fresh `outputDirectory`; it never depends on the original
-`tools/call` directory. Its digest matches the Host canonical normalized MCP
-content plus artifact-byte digest. `acknowledge` returns the exact acknowledgement
-schema and removes the bounded journal/result files.
-
-## Application Access wire contract
-
-The companion currently validates this v1 contract:
-
-- AuthX: `GET /oauth/authorize`, `POST /oauth/token`, `POST /oauth/revoke`
-- Nexus: `GET /api/v1/application-access/status`,
-  `POST /api/v1/application-access/bootstrap`,
-  `POST /api/v1/application-access/inference-key/rotate`,
-  `POST /api/v1/application-access/revoke`, and
-  `POST /api/v1/application-access/checkout`
-- Gateway: one returned Base URL whose path is exactly
-  `/api/v1/gateway/providers/<providerConnectionId>`
-
-Application Access consumes the generated camelCase DTO without a schema
-discriminator: `state`, `bindingId`, optional `workspaceAccessId`,
-`providerConnectionId`, `gatewayBaseUrl`, `planKey`, `checkoutAvailable`, and
-optional safe `inferenceKey` metadata. Bootstrap/rotate add only optional
-`inferenceKeyPlaintext`; Checkout uses `id`, `provider`, `status`, optional
-`action`, and `expiresAt`.
-
-`bun run contract:check` reads the current AuthX fixture/schema/export/runtime,
-Nexus generated Application Access and Gateway OpenAPI plus controller, and
-Convax Host LRO source. Override repository locations with
-`CONVAX_AUTHX_REPOSITORY`, `CONVAX_NEXUS_REPOSITORY`, and
-`CONVAX_HOST_REPOSITORY`.
+Video generation implements the current `convax.generation-lro/1` recovery
+contract. Its private journal may persist provider task receipts and request
+digests, but never AuthX Access or Refresh Tokens.
 
 ## Local development
 
-Production AuthX client/issuer, Nexus origin, and Gateway origin are fixed in the
-binary. Local injection is loopback-only and requires the exported AuthX fixture:
+Production AuthX, Nexus, and Gateway origins are fixed in the binary. Local
+injection is loopback-only and requires a private AuthX handoff generated by
+the AuthX local fixture:
 
 ```sh
 CONVAX_NEXUS_LOCAL_DEVELOPMENT=1 \
-CONVAX_AUTHX_PUBLIC_CLIENT_PROFILE=/absolute/path/to/authx/packages/contracts/fixtures/convax-local-public-client.json \
-CONVAX_NEXUS_ORIGIN=http://127.0.0.1:3000 \
-CONVAX_NEXUS_GATEWAY_ORIGIN=http://127.0.0.1:4000 \
-CONVAX_GENERATION_LRO_DIRECTORY=/absolute/private/host-provided-directory \
+CONVAX_AUTHX_PUBLIC_CLIENT_PROFILE=/absolute/path/to/convax.nexus-public-profile.json \
+CONVAX_NEXUS_ORIGIN=http://127.0.0.1:18401 \
+CONVAX_NEXUS_GATEWAY_ORIGIN=http://127.0.0.1:18402 \
+CONVAX_GENERATION_LRO_DIRECTORY=/absolute/private/host-directory \
 bun run build
 ```
 
-The profile supplies the exact local client ID, issuer, JWKS URI, Project,
-Environment, scopes, and registered callback. Local Nexus/Gateway origins must be
-plain loopback HTTP. Use Nexus `tests/fake-provider` behind the provider-scoped
-Gateway; do not configure a paid provider.
+Create the projected profile with `bun run local-profile`, and write the
+digest-bound local configuration with `bun run local-configure`. Local
+end-to-end tests must use `nexus/tests/fake-provider`; they must not call a
+paid provider.
 
-Run the companion checks with:
+Run the focused checks with:
 
 ```sh
 bun run typecheck

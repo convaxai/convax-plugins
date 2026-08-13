@@ -18,7 +18,7 @@ export const generationLroResultSchema =
 export const generationLroAcknowledgementSchema =
   "convax.generation-lro-acknowledgement/1" as const;
 export const applicationCredentialsSchema =
-  "convax.nexus-application-credentials/1" as const;
+  "convax.nexus-authx-refresh-credential/2" as const;
 
 export interface NexusProviderModel {
   id: string;
@@ -184,11 +184,7 @@ export interface ExternalAuthorizationRequest extends Record<string, unknown> {
 export interface NexusApplicationCredentials {
   accountBinding: string;
   authxIssuer: string;
-  bindingId: string;
-  gatewayBaseUrl: string;
-  inferenceKey: string;
   nexusOrigin: string;
-  providerConnectionId: string;
   refreshToken: string;
   schema: typeof applicationCredentialsSchema;
 }
@@ -203,23 +199,12 @@ export interface AuthXTokenResponse {
 }
 
 export interface NexusApplicationAccess {
-  bindingId: string;
+  applicationId: string;
+  applicationVersion: number;
   checkoutAvailable: boolean;
   gatewayBaseUrl: string;
-  inferenceKey?: {
-    enabled: boolean;
-    expiresAt: string;
-    id: string;
-    prefix: string;
-  };
   planKey: string;
-  providerConnectionId: string;
-  state: "UNBOOTSTRAPPED" | "ACTIVE" | "REVOKED";
-  workspaceAccessId?: string;
-}
-
-export interface NexusApplicationBootstrap extends NexusApplicationAccess {
-  inferenceKeyPlaintext?: string;
+  state: "ACTIVE";
 }
 
 export interface NexusApplicationCheckout {

@@ -43,7 +43,7 @@ describe("AuthX OAuth and Nexus Application Access owner contracts", () => {
     });
   });
 
-  test("verifies AuthX ES256 tokens and consumes only generated Application Access operations", async () => {
+  test("verifies AuthX Application tokens and sends the same token directly to Nexus Gateway", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "convax-nexus-application-contract-"),
     );
@@ -55,8 +55,6 @@ describe("AuthX OAuth and Nexus Application Access owner contracts", () => {
       method: string;
       path: string;
     }> = [];
-    let rotationCount = 0;
-    let revoked = false;
     let nexus!: Bun.Server<unknown>;
     nexus = Bun.serve({
       hostname: "127.0.0.1",
@@ -72,32 +70,8 @@ describe("AuthX OAuth and Nexus Application Access owner contracts", () => {
           path: url.pathname,
         });
         const gatewayBaseUrl = `http://127.0.0.1:${nexus.port}/api/v1/gateway/providers/provider-fixed`;
-        if (url.pathname === "/api/v1/application-access/bootstrap") {
-          return Response.json(accessResponse(gatewayBaseUrl));
-        }
-        if (
-          url.pathname === "/api/v1/application-access/inference-key/rotate"
-        ) {
-          rotationCount += 1;
-          return Response.json({
-            ...accessResponse(gatewayBaseUrl),
-            ...(rotationCount === 1
-              ? {}
-              : {
-                  inferenceKeyPlaintext:
-                    "nxs_test_inference_key_with_sufficient_length",
-                }),
-          });
-        }
         if (url.pathname === "/api/v1/application-access/status") {
           return Response.json(accessResponse(gatewayBaseUrl));
-        }
-        if (url.pathname === "/api/v1/application-access/revoke") {
-          revoked = true;
-          return Response.json({
-            ...accessResponse(gatewayBaseUrl),
-            state: "REVOKED",
-          });
         }
         if (
           url.pathname === "/api/v1/gateway/providers/provider-fixed/models"
@@ -113,9 +87,7 @@ describe("AuthX OAuth and Nexus Application Access owner contracts", () => {
               ],
             });
           }
-          return revoked
-            ? Response.json({ error: "revoked" }, { status: 401 })
-            : Response.json({ data: [] });
+          return Response.json({ data: [] });
         }
         if (url.pathname === "/api/v1/application-access/checkout") {
           return Response.json({
@@ -225,7 +197,13 @@ describe("AuthX OAuth and Nexus Application Access owner contracts", () => {
       jwksUri: `${authx.url.origin}/oauth/jwks.json`,
       projectId,
       redirectUri,
-      scopes: ["openid", "profile", "email", "offline_access"],
+      scopes: [
+        "openid",
+        "profile",
+        "email",
+        "offline_access",
+        "nexus:access",
+      ],
     };
     const credentials = new MemoryCredentialStore();
     const client = new NexusClient(credentials, {
@@ -251,7 +229,7 @@ describe("AuthX OAuth and Nexus Application Access owner contracts", () => {
     expect(authorizationUrl.searchParams.get("audience")).toBeNull();
     expect(authorizationUrl.searchParams.get("client_id")).toBe(clientId);
     expect(authorizationUrl.searchParams.get("scope")).toBe(
-      "openid profile email offline_access",
+      "openid profile email offline_access nexus:access",
     );
     expect(authorizationUrl.searchParams.get("nonce")).toBe("n".repeat(32));
     expect(authorizationUrl.searchParams.get("redirect_uri")).toBe(redirectUri);
@@ -264,31 +242,34 @@ describe("AuthX OAuth and Nexus Application Access owner contracts", () => {
       redirectUri,
     });
 
-    expect(rotationCount).toBe(2);
-    const mutationRequests = requests.filter(({ method }) => method === "POST");
-    expect(mutationRequests.map(({ path }) => path)).toEqual([
-      "/api/v1/application-access/bootstrap",
-      "/api/v1/application-access/inference-key/rotate",
-      "/api/v1/application-access/inference-key/rotate",
-    ]);
-    for (const request of mutationRequests) {
-      expect(request.body).toBe("");
-      expect(request.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/u);
-      expect(request.authorization).toMatch(
-        /^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u,
-      );
-    }
-    expect(mutationRequests[1]?.idempotencyKey).not.toBe(
-      mutationRequests[2]?.idempotencyKey,
+    expect(
+      requests.filter(({ path }) =>
+        ["/bootstrap", "/inference-key/rotate", "/revoke"].some((suffix) =>
+          path.endsWith(suffix),
+        ),
+      ),
+    ).toEqual([]);
+
+    const applicationStatus = requests.find(
+      ({ path }) => path === "/api/v1/application-access/status",
+    );
+    expect(applicationStatus?.authorization).toMatch(
+      /^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u,
     );
 
-    expect(await credentials.read()).toMatchObject({
+    const storedCredential = await credentials.read();
+    expect(storedCredential).toMatchObject({
       authxIssuer: authx.url.origin,
-      bindingId: "binding-fixed",
-      gatewayBaseUrl: `${nexus.url.origin}/api/v1/gateway/providers/provider-fixed`,
-      inferenceKey: "nxs_test_inference_key_with_sufficient_length",
-      providerConnectionId: "provider-fixed",
+      nexusOrigin: nexus.url.origin,
+      schema: "convax.nexus-authx-refresh-credential/2",
     });
+    expect(Object.keys(storedCredential ?? {}).sort()).toEqual([
+      "accountBinding",
+      "authxIssuer",
+      "nexusOrigin",
+      "refreshToken",
+      "schema",
+    ]);
     expect(
       await client.createCheckout(
         "pro",
@@ -394,9 +375,7 @@ describe("AuthX OAuth and Nexus Application Access owner contracts", () => {
     expect(submit?.path).toBe(
       "/api/v1/gateway/providers/provider-fixed/videos",
     );
-    expect(submit?.authorization).toBe(
-      "Bearer nxs_test_inference_key_with_sufficient_length",
-    );
+    expect(submit?.authorization).toBe(applicationStatus?.authorization);
     expect(submit?.idempotencyKey).toMatch(/^convax-video-[a-f0-9]{64}$/u);
     expect(JSON.parse(submit?.body ?? "{}")).toMatchObject({
       aspect_ratio: "16:9",
@@ -408,46 +387,27 @@ describe("AuthX OAuth and Nexus Application Access owner contracts", () => {
 
     await client.signOut();
     expect(await credentials.read()).toBeNull();
-    const nexusRevoke = requests.find(
-      ({ path }) => path === "/api/v1/application-access/revoke",
-    );
-    expect(nexusRevoke).toMatchObject({ body: "", method: "POST" });
-    expect(nexusRevoke?.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/u);
+    expect(
+      requests.find(
+        ({ path }) => path === "/api/v1/application-access/revoke",
+      ),
+    ).toBeUndefined();
     const oauthRevoke = authxRequests.at(-1);
     expect(oauthRevoke?.path).toBe("/oauth/revoke");
     const revokeForm = new URLSearchParams(oauthRevoke?.body);
     expect(revokeForm.get("client_id")).toBe(clientId);
     expect(revokeForm.get("token")).toContain("refresh");
-    expect(
-      JSON.stringify(
-        requests
-          .filter(({ path }) => path.startsWith("/api/v1/application-access/"))
-          .map(({ body, idempotencyKey, method, path }) => ({
-            body,
-            idempotencyKey,
-            method,
-            path,
-          })),
-      ),
-    ).not.toContain("nxs_test_inference_key_with_sufficient_length");
   });
 });
 
 function accessResponse(gatewayBaseUrl: string) {
   return {
-    bindingId: "binding-fixed",
+    applicationId: "application-fixed",
+    applicationVersion: 1,
     checkoutAvailable: true,
     gatewayBaseUrl,
-    inferenceKey: {
-      enabled: true,
-      expiresAt: "2026-09-13T00:00:00.000Z",
-      id: "inference-key-fixed",
-      prefix: "nxs_test",
-    },
     planKey: "pro",
-    providerConnectionId: "provider-fixed",
     state: "ACTIVE",
-    workspaceAccessId: "workspace-access-fixed",
   };
 }
 
@@ -472,6 +432,7 @@ function tokenSet(
 ) {
   const iat = Math.floor(now.getTime() / 1_000);
   const common = {
+    application_id: projectId,
     aud: clientId,
     client_id: clientId,
     environment: "development",
@@ -485,7 +446,11 @@ function tokenSet(
     sub: "pairwise-subject-fixed",
   };
   return {
-    access_token: jwt(privateKey, { ...common, token_use: "access" }),
+    access_token: jwt(privateKey, {
+      ...common,
+      scope: "openid profile email offline_access nexus:access",
+      token_use: "access",
+    }),
     expires_in: 900,
     id_token: jwt(privateKey, {
       ...common,
@@ -493,7 +458,7 @@ function tokenSet(
       token_use: "id",
     }),
     refresh_token: `authx.rotating.refresh.${refreshes}.with.sufficient.length`,
-    scope: "openid profile email offline_access",
+    scope: "openid profile email offline_access nexus:access",
     token_type: "Bearer",
   };
 }

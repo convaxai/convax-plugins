@@ -5,7 +5,13 @@ import path from "node:path";
 const sourceSchema = "authx.convax-public-client/1";
 const outputSchema = "convax.nexus-public-profile/1";
 const exactRedirectUri = "http://127.0.0.1:65051/oauth/callback";
-const exactScopes = ["openid", "profile", "email", "offline_access"];
+const exactScopes = [
+  "openid",
+  "profile",
+  "email",
+  "offline_access",
+  "nexus:access",
+];
 
 const [sourceArgument, outputArgument] = process.argv.slice(2);
 if (!sourceArgument || !outputArgument) {

@@ -163,7 +163,7 @@ export class NexusLlmGateway {
         method: request.method,
         headers: {
           accept: request.headers.get("accept") ?? "*/*",
-          authorization: `Bearer ${context.inferenceKey}`,
+          authorization: `Bearer ${context.accessToken}`,
           ...(body && body.length > 0
             ? { "content-type": "application/json" }
             : {}),
