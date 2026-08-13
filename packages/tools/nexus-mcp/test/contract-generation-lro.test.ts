@@ -163,6 +163,7 @@ describe("Convax Host exact generation LRO", () => {
     ).toMatchObject({
       additionalProperties: true,
       properties: {
+        instructions: { maxLength: 4_096, type: "string" },
         response_format: { enum: ["mp3", "opus", "aac", "flac", "wav", "pcm"] },
         speed: { maximum: 4, minimum: 0.25, type: "number" },
         voice: { type: "string" },

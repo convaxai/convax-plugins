@@ -174,7 +174,7 @@ const videoGenerationProperties = {
 const audioGenerationProperties = {
   instructions: {
     description: "Provider-native voice rendering instructions.",
-    maxLength: 20_000,
+    maxLength: 4_096,
     minLength: 1,
     title: "Instructions",
     type: "string",
