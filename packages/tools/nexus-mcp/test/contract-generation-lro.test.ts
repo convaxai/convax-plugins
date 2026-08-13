@@ -8,6 +8,7 @@ import type {
   NexusVideoRoute,
 } from "../src/application-client.ts";
 import { MemoryCredentialStore } from "../src/credential-store.ts";
+import type { GenerationProviderParameters } from "../src/contracts.ts";
 import { NexusGenerationLro } from "../src/generation-lro.ts";
 import { NexusMcpServer } from "../src/mcp-server.ts";
 import {
@@ -30,6 +31,42 @@ afterEach(async () => {
 });
 
 describe("Convax Host exact generation LRO", () => {
+  test("defaults prompt-only video requests to one second without filtering provider parameters", async () => {
+    const fixture = await createFixture();
+    const engine = new NexusGenerationLro(fixture.journal);
+    let submittedParameters: GenerationProviderParameters | undefined;
+    const call = generationCall(fixture.firstOutput);
+    delete (call as Partial<typeof call>).duration;
+
+    await engine.start(
+      call,
+      request("operation-default-duration", "d".repeat(64)),
+      () =>
+        completedRoute({
+          async submit(_model, _prompt, providerParameters) {
+            submittedParameters = providerParameters;
+            return {
+              status: "completed",
+              taskId: "provider-task-default-duration",
+            };
+          },
+        }),
+      new AbortController().signal,
+    );
+
+    expect(submittedParameters).toEqual({
+      aspect_ratio: "16:9",
+      duration: 1,
+      generate_audio: true,
+      seed: 123,
+    });
+    expect(
+      (await fixture.journal.read("operation-default-duration"))
+        ?.providerParameters,
+    ).toEqual(submittedParameters);
+    engine.close();
+  });
+
   test("serves initialize plus all five exact JSON-RPC methods across restart", async () => {
     const fixture = await createFixture();
     const engine = new NexusGenerationLro(fixture.journal);

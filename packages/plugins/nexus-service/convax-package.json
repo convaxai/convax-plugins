@@ -4,11 +4,11 @@
   "id": "nexus-service",
   "name": "Convax",
   "description": "Connects Convax to AuthX identity and Nexus Application Access without exposing credentials or provider configuration.",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "companions": [
     {
       "command": "convax-nexus-mcp",
-      "version": "0.5.2",
+      "version": "0.5.3",
       "source": "packages/tools/nexus-mcp",
       "targets": [
         {

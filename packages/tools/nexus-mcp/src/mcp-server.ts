@@ -590,7 +590,7 @@ export class NexusMcpServer {
           tools: {},
         },
         protocolVersion,
-        serverInfo: { name: "convax-nexus-mcp", version: "0.5.2" },
+        serverInfo: { name: "convax-nexus-mcp", version: "0.5.3" },
       });
       return;
     }

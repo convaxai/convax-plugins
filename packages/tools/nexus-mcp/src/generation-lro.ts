@@ -52,12 +52,13 @@ export class NexusGenerationLro {
     }
     if (!record) {
       const now = new Date().toISOString();
+      const providerParameters = videoProviderParameters(call);
       record = await this.journal.create({
         createdAt: now,
         model: call.model,
         operationId: request.operationId,
         prompt: call.prompt,
-        providerParameters: generationProviderParameters(call),
+        providerParameters,
         requestDigest: request.requestDigest,
         schema: videoJournalSchema,
         status: "prepared",
@@ -68,7 +69,7 @@ export class NexusGenerationLro {
       record.model !== call.model ||
       record.prompt !== call.prompt ||
       JSON.stringify(record.providerParameters ?? {}) !==
-        JSON.stringify(generationProviderParameters(call))
+        JSON.stringify(videoProviderParameters(call))
     ) {
       throw new Error("Nexus video operation input conflicts");
     }
@@ -415,6 +416,20 @@ function parseGenerationCall(
     references: [],
     schema: generationCallSchema,
   };
+}
+
+function videoProviderParameters(
+  call: Readonly<Record<string, unknown>>,
+) {
+  const parameters = generationProviderParameters(call);
+  if (
+    parameters.duration !== undefined ||
+    parameters.duration_seconds !== undefined ||
+    parameters.seconds !== undefined
+  ) {
+    return parameters;
+  }
+  return generationProviderParameters({ ...parameters, duration: 1 });
 }
 
 function publicSnapshot(
