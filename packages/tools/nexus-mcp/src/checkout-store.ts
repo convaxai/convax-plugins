@@ -5,13 +5,13 @@ import os from "node:os";
 import path from "node:path";
 
 export interface NexusCheckoutAttempt {
+  bindingId: string;
   checkoutId?: string;
   idempotencyKey: string;
   planKey: string;
-  schema: "convax.nexus-checkout-attempt/1";
+  schema: "convax.nexus-application-checkout-attempt/1";
   startedAt: string;
   status?: string;
-  workspaceAccessId: string;
 }
 
 function checkoutPath(
@@ -34,10 +34,10 @@ function valid(value: unknown): value is NexusCheckoutAttempt {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const input = value as Partial<NexusCheckoutAttempt>;
   return (
-    input.schema === "convax.nexus-checkout-attempt/1" &&
-    typeof input.workspaceAccessId === "string" &&
-    input.workspaceAccessId.length >= 8 &&
-    input.workspaceAccessId.length <= 191 &&
+    input.schema === "convax.nexus-application-checkout-attempt/1" &&
+    typeof input.bindingId === "string" &&
+    input.bindingId.length >= 8 &&
+    input.bindingId.length <= 191 &&
     typeof input.planKey === "string" &&
     /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(input.planKey) &&
     typeof input.idempotencyKey === "string" &&
@@ -77,12 +77,12 @@ export class NexusCheckoutStore {
   }
 
   async begin(
-    workspaceAccessId: string,
+    bindingId: string,
     planKey: string,
   ): Promise<NexusCheckoutAttempt> {
     const existing = await this.read();
     if (
-      existing?.workspaceAccessId === workspaceAccessId &&
+      existing?.bindingId === bindingId &&
       existing.planKey === planKey &&
       existing.status !== "FAILED" &&
       existing.status !== "EXPIRED"
@@ -90,11 +90,11 @@ export class NexusCheckoutStore {
       return existing;
     }
     const attempt: NexusCheckoutAttempt = {
+      bindingId,
       idempotencyKey: randomUUID(),
       planKey,
-      schema: "convax.nexus-checkout-attempt/1",
+      schema: "convax.nexus-application-checkout-attempt/1",
       startedAt: new Date().toISOString(),
-      workspaceAccessId,
     };
     await this.write(attempt);
     return attempt;

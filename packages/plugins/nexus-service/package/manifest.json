@@ -2,11 +2,15 @@
   "schema": "convax.plugin/8",
   "id": "nexus-service",
   "name": "Convax",
-  "description": "Connects Convax to OpenRouter models through short-lived Data Tokens without exposing provider credentials.",
-  "version": "0.5.1",
+  "description": "Connects Convax to AuthX identity and Nexus Application Access without exposing credentials or provider configuration.",
+  "version": "0.6.2",
   "contributes": {
     "generation": {
       "models": [
+        {
+          "tool": "audio.generate",
+          "name": "Convax Audio"
+        },
         {
           "tool": "image.generate",
           "name": "Convax Image"
@@ -17,6 +21,13 @@
         }
       ],
       "tools": [
+        {
+          "id": "audio.generate",
+          "title": "Convax Audio",
+          "description": "Generate speech audio with a model discovered through the OpenRouter protocol.",
+          "output": "audio",
+          "acceptedInputs": []
+        },
         {
           "id": "image.generate",
           "title": "Convax Image",
@@ -29,7 +40,11 @@
           "title": "Convax Video",
           "description": "Generate a video with a model discovered through the OpenRouter protocol.",
           "output": "video",
-          "acceptedInputs": []
+          "acceptedInputs": [],
+          "recovery": {
+            "mode": "long-running-operation",
+            "schema": "convax.generation-lro/1"
+          }
         }
       ]
     },

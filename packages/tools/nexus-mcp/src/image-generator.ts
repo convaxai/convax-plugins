@@ -6,10 +6,11 @@ import path from "node:path";
 import {
   asRecord,
   generationCallSchema,
+  generationProviderParameters,
   type GenerationArtifact,
   type GenerationCall,
 } from "./contracts.ts";
-import type { NexusImageRoute } from "./nexus-client.ts";
+import type { NexusImageRoute } from "./application-client.ts";
 
 const maximumPromptBytes = 20_000;
 const maximumImageBytes = 12 * 1024 * 1024;
@@ -79,6 +80,7 @@ export class NexusImageGenerator {
     const response = await route.complete(
       model,
       call.prompt,
+      generationProviderParameters(call),
       call.operation_id,
       signal,
     );
@@ -126,21 +128,7 @@ export class NexusImageGenerator {
 
 function parseGenerationCall(value: unknown): GenerationCall {
   const input = asRecord(value, "Nexus generation call");
-  const keys = [
-    "model",
-    "operation_id",
-    "output",
-    "output_directory",
-    "prompt",
-    "references",
-    "schema",
-  ];
-  if (
-    Object.keys(input).length !== keys.length ||
-    Object.keys(input).some((key) => !keys.includes(key))
-  ) {
-    throw new Error("Nexus generation call contains unsupported fields");
-  }
+  const providerParameters = generationProviderParameters(input);
   if (input.schema !== generationCallSchema || input.output !== "image") {
     throw new Error("Nexus generation call contract is unsupported");
   }
@@ -168,6 +156,7 @@ function parseGenerationCall(value: unknown): GenerationCall {
     throw new Error("Nexus generation operation id is invalid");
   }
   return {
+    ...providerParameters,
     model,
     operation_id: operationId,
     output: "image",

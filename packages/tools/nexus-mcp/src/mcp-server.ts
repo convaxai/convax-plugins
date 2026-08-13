@@ -1,30 +1,57 @@
-import { asRecord, type JsonRpcRequest, type ToolResult } from "./contracts.ts";
+import { createHash } from "node:crypto";
+import path from "node:path";
+
+import {
+  asRecord,
+  generationLroCapabilitySchema,
+  generationLroRequestSchema,
+  type GenerationRecoveryRequest,
+  type JsonRpcRequest,
+  type ToolResult,
+} from "./contracts.ts";
 import { NexusAuthorization } from "./authorization.ts";
 import { NexusCheckoutStore } from "./checkout-store.ts";
 import {
   NexusClient,
   publicNexusErrorMessage,
   type NexusClientOptions,
+  type NexusAudioRoute,
   type NexusGenerationRoutes,
   type NexusImageRoute,
   type NexusVideoRoute,
-} from "./nexus-client.ts";
+} from "./application-client.ts";
+import { NexusAudioGenerator } from "./audio-generator.ts";
+import {
+  createProductionCredentialStore,
+  type NexusCredentialStore,
+} from "./credential-store.ts";
 import { NexusImageGenerator } from "./image-generator.ts";
 import { NexusLlmGateway } from "./llm-gateway.ts";
 import { NexusPluginService } from "./plugin-service.ts";
-import { NexusSessionStore } from "./session-store.ts";
-import { NexusVideoGenerator } from "./video-generator.ts";
+import { NexusGenerationLro } from "./generation-lro.ts";
+import { resolveNexusLocalDevelopmentEnvironment } from "./local-development-config.ts";
+import { VideoOperationJournal } from "./video-journal.ts";
 
 const protocolVersion = "2025-03-26";
 const maximumRequestBytes = 4 * 1024 * 1024;
 const mediaModelCatalogTtlMs = 60_000;
+const generationLroCapabilityKey = "convax/generation-lro";
+const generationLroMethods = {
+  acknowledge: "convax/generation/operations/acknowledge",
+  cancel: "convax/generation/operations/cancel",
+  get: "convax/generation/operations/get",
+  result: "convax/generation/operations/result",
+  wait: "convax/generation/operations/wait",
+} as const;
+const unsafeTaskIdSegment =
+  /(?:^|[._:-])(?:authorization|cookie|password|passwd|secret|token|api[-_]?key|access[-_]?key|ak|sk)(?:[._:-]|$)/i;
 const emptyInputSchema = {
   additionalProperties: false,
   properties: {},
   type: "object",
 } as const;
 
-function generationCallProperties(output: "image" | "video") {
+function generationCallProperties(output: "audio" | "image" | "video") {
   return {
     operation_id: {
       maxLength: 128,
@@ -40,7 +67,141 @@ function generationCallProperties(output: "image" | "video") {
   } as const;
 }
 
-function generationModelChoices(models: readonly { id: string; name: string }[]) {
+const boundedProviderToken = {
+  maxLength: 32,
+  minLength: 1,
+  type: "string",
+} as const;
+
+const imageGenerationProperties = {
+  aspect_ratio: {
+    description: "Requested output aspect ratio, for example 1:1 or 16:9.",
+    maxLength: 16,
+    minLength: 3,
+    title: "Aspect ratio",
+    type: "string",
+  },
+  background: {
+    description: "Requested image background mode.",
+    enum: ["auto", "opaque", "transparent"],
+    title: "Background",
+    type: "string",
+  },
+  n: {
+    description: "Number of images to generate.",
+    maximum: 8,
+    minimum: 1,
+    title: "Images",
+    type: "integer",
+  },
+  output_compression: {
+    description: "Requested output compression from 0 to 100.",
+    maximum: 100,
+    minimum: 0,
+    title: "Compression",
+    type: "integer",
+  },
+  output_format: {
+    description: "Requested image encoding.",
+    enum: ["png", "jpeg", "webp"],
+    title: "Format",
+    type: "string",
+  },
+  quality: {
+    description: "Requested image quality.",
+    enum: ["auto", "low", "medium", "high"],
+    title: "Quality",
+    type: "string",
+  },
+  resolution: {
+    ...boundedProviderToken,
+    description: "Provider-native image resolution token.",
+    title: "Resolution",
+  },
+  seed: {
+    description: "Deterministic provider seed when supported.",
+    maximum: 4_294_967_295,
+    minimum: 0,
+    title: "Seed",
+    type: "integer",
+  },
+  size: {
+    ...boundedProviderToken,
+    description: "Provider-native image size token, for example 1024x1024.",
+    title: "Size",
+  },
+} as const;
+
+const videoGenerationProperties = {
+  aspect_ratio: {
+    description: "Requested output aspect ratio, for example 16:9 or 9:16.",
+    maxLength: 16,
+    minLength: 3,
+    title: "Aspect ratio",
+    type: "string",
+  },
+  duration: {
+    description: "Requested video duration in seconds.",
+    maximum: 60,
+    minimum: 1,
+    title: "Duration",
+    type: "integer",
+  },
+  generate_audio: {
+    description: "Request generated audio when the model supports it.",
+    title: "Generate audio",
+    type: "boolean",
+  },
+  resolution: {
+    ...boundedProviderToken,
+    description: "Provider-native video resolution token.",
+    title: "Resolution",
+  },
+  seed: {
+    description: "Deterministic provider seed when supported.",
+    maximum: 4_294_967_295,
+    minimum: 0,
+    title: "Seed",
+    type: "integer",
+  },
+  size: {
+    ...boundedProviderToken,
+    description: "Provider-native video size token, for example 1280x720.",
+    title: "Size",
+  },
+} as const;
+
+const audioGenerationProperties = {
+  instructions: {
+    description: "Provider-native voice rendering instructions.",
+    maxLength: 20_000,
+    minLength: 1,
+    title: "Instructions",
+    type: "string",
+  },
+  response_format: {
+    description: "Requested audio encoding.",
+    enum: ["mp3", "opus", "aac", "flac", "wav", "pcm"],
+    title: "Format",
+    type: "string",
+  },
+  speed: {
+    description: "Requested speaking speed.",
+    maximum: 4,
+    minimum: 0.25,
+    title: "Speed",
+    type: "number",
+  },
+  voice: {
+    ...boundedProviderToken,
+    description: "Provider-native voice identifier.",
+    title: "Voice",
+  },
+} as const;
+
+function generationModelChoices(
+  models: readonly { id: string; name: string }[],
+) {
   return models
     .map(({ id, name }) => ({ id, name }))
     .sort(
@@ -67,8 +228,12 @@ export function imageGenerationTool(
     description:
       "Generate an image through Convax using the OpenRouter protocol.",
     inputSchema: {
-      additionalProperties: false,
-      properties: { ...generationCallProperties("image"), model: modelSchema },
+      additionalProperties: true,
+      properties: {
+        ...generationCallProperties("image"),
+        ...imageGenerationProperties,
+        model: modelSchema,
+      },
       required: [
         "schema",
         "operation_id",
@@ -99,10 +264,15 @@ export function videoGenerationTool(
     "x-convax-role": "generation-model-id",
   } as const;
   return {
-    description: "Generate a video through Convax using the OpenRouter protocol.",
+    description:
+      "Generate a video through Convax using the OpenRouter protocol.",
     inputSchema: {
-      additionalProperties: false,
-      properties: { ...generationCallProperties("video"), model: modelSchema },
+      additionalProperties: true,
+      properties: {
+        ...generationCallProperties("video"),
+        ...videoGenerationProperties,
+        model: modelSchema,
+      },
       required: [
         "schema",
         "operation_id",
@@ -118,28 +288,67 @@ export function videoGenerationTool(
   } as const;
 }
 
+export function audioGenerationTool(
+  models: readonly { id: string; name: string }[],
+) {
+  if (models.length === 0 || models.length > 64) {
+    throw new Error(
+      "Nexus audio model catalog is outside the bounded choice limit",
+    );
+  }
+  const modelSchema = {
+    oneOf: models.map(({ id, name }) => ({ const: id, title: name })),
+    title: "Model",
+    type: "string",
+    "x-convax-role": "generation-model-id",
+  } as const;
+  return {
+    description:
+      "Generate audio through Convax using the OpenRouter speech protocol.",
+    inputSchema: {
+      additionalProperties: true,
+      properties: {
+        ...generationCallProperties("audio"),
+        ...audioGenerationProperties,
+        model: modelSchema,
+      },
+      required: [
+        "schema",
+        "operation_id",
+        "prompt",
+        "output",
+        "output_directory",
+        "references",
+        "model",
+      ],
+      type: "object",
+    },
+    name: "audio.generate",
+  } as const;
+}
+
 const fixedTools = [
   {
     description:
-      "Report the bounded Convax Workspace, access, quota, and OpenRouter connection status.",
+      "Report the bounded Nexus Application Access, quota, Plan, and fixed OpenRouter connection status.",
     inputSchema: emptyInputSchema,
     name: "service.status",
   },
   {
     description:
-      "Start Convax Hosted Auth in the user's system browser with PKCE and a loopback callback.",
+      "Start AuthX Authorization Code login in the system browser with PKCE S256 and an exact loopback callback.",
     inputSchema: emptyInputSchema,
     name: "service.authorize",
   },
   {
     description:
-      "Restart Convax Hosted Auth without deleting the current grant until replacement succeeds.",
+      "Restart AuthX login without deleting the current credential until Application Access replacement succeeds.",
     inputSchema: emptyInputSchema,
     name: "service.reauthorize",
   },
   {
     description:
-      "Complete the active Convax Hosted Auth request after the loopback callback arrives.",
+      "Complete AuthX login, bootstrap Nexus Application Access, and rotate this application's Inference Key.",
     inputSchema: {
       additionalProperties: false,
       properties: {
@@ -155,19 +364,19 @@ const fixedTools = [
     name: "service.authorization.complete",
   },
   {
-    description: "Cancel the active Convax Hosted Auth request.",
+    description: "Cancel the active AuthX loopback authorization request.",
     inputSchema: emptyInputSchema,
     name: "service.authorization.cancel",
   },
   {
     description:
-      "Revoke the Convax refresh grant and remove the local private session.",
+      "Revoke Nexus Application Access, revoke the AuthX refresh credential, and remove the Keychain item.",
     inputSchema: emptyInputSchema,
     name: "service.sign_out",
   },
   {
     description:
-      "Create an access-scoped Convax Hosted Checkout for one server-advertised Plan.",
+      "Create this application's Checkout for one server-advertised Plan.",
     inputSchema: {
       additionalProperties: false,
       properties: {
@@ -193,6 +402,7 @@ const fixedTools = [
 export const tools = fixedTools;
 
 const toolNames = new Set([
+  "audio.generate",
   "image.generate",
   "video.generate",
   ...tools.map(({ name }) => name),
@@ -216,6 +426,10 @@ export function publicImageGenerationErrorMessage(error: unknown) {
   return publicNexusErrorMessage("image generation", error);
 }
 
+export function publicAudioGenerationErrorMessage(error: unknown) {
+  return publicNexusErrorMessage("audio generation", error);
+}
+
 export function publicVideoGenerationErrorMessage(error: unknown) {
   return publicNexusErrorMessage("video generation", error);
 }
@@ -223,9 +437,11 @@ export function publicVideoGenerationErrorMessage(error: unknown) {
 export interface NexusMcpServerOptions {
   checkouts?: NexusCheckoutStore;
   client?: NexusClientOptions;
+  credentials?: NexusCredentialStore;
   environment?: Readonly<Record<string, string | undefined>>;
+  nexusClient?: NexusClient;
   send?: (value: unknown) => void;
-  sessions?: NexusSessionStore;
+  videoJournal?: VideoOperationJournal;
 }
 
 export class NexusMcpServer {
@@ -236,8 +452,10 @@ export class NexusMcpServer {
   readonly #inflight = new Map<number | string, AbortController>();
   readonly #sendValue: (value: unknown) => void;
   readonly #service: NexusPluginService;
+  readonly #audioGenerator: NexusAudioGenerator;
   readonly #imageGenerator: NexusImageGenerator;
-  readonly #videoGenerator: NexusVideoGenerator;
+  readonly #videoLro: NexusGenerationLro | undefined;
+  readonly #recoveryBinding: Promise<string | undefined>;
   #activeGenerationRoutes: NexusGenerationRoutes | undefined;
   #generationRouteEpoch = 0;
   #generationRouteExpiresAt = 0;
@@ -246,22 +464,41 @@ export class NexusMcpServer {
   #reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
 
   constructor(options: NexusMcpServerOptions = {}) {
-    const sessions =
-      options.sessions ?? new NexusSessionStore(options.environment);
-    const client = new NexusClient(sessions, options.client);
-    const checkouts =
-      options.checkouts ?? new NexusCheckoutStore(options.environment);
+    const environment = resolveNexusLocalDevelopmentEnvironment(
+      options.environment,
+    );
+    const credentials =
+      options.credentials ?? createProductionCredentialStore(environment);
+    const client =
+      options.nexusClient ??
+      new NexusClient(
+        credentials,
+        options.client ?? clientOptionsFromEnvironment(environment),
+      );
+    const checkouts = options.checkouts ?? new NexusCheckoutStore(environment);
     this.#authorization = new NexusAuthorization(client);
     this.#client = client;
     this.#service = new NexusPluginService(
       this.#authorization,
       client,
-      sessions,
+      credentials,
       checkouts,
     );
     this.#gateway = new NexusLlmGateway(client);
+    this.#audioGenerator = new NexusAudioGenerator();
     this.#imageGenerator = new NexusImageGenerator();
-    this.#videoGenerator = new NexusVideoGenerator();
+    let videoJournal = options.videoJournal;
+    if (!videoJournal) {
+      try {
+        videoJournal = new VideoOperationJournal(environment);
+      } catch {
+        videoJournal = undefined;
+      }
+    }
+    this.#videoLro = videoJournal
+      ? new NexusGenerationLro(videoJournal)
+      : undefined;
+    this.#recoveryBinding = recoveryBinding(credentials, videoJournal);
     this.#sendValue =
       options.send ??
       ((value) => {
@@ -336,11 +573,33 @@ export class NexusMcpServer {
         this.#sendError(value.id, -32_602, "Unsupported MCP protocol version");
         return;
       }
+      const recoveryBinding = await this.#recoveryBinding;
       this.#sendResult(value.id, {
-        capabilities: { tools: {} },
+        capabilities: {
+          ...(recoveryBinding === undefined
+            ? {}
+            : {
+                experimental: {
+                  [generationLroCapabilityKey]: {
+                    binding: recoveryBinding,
+                    mode: "long-running-operation",
+                    schema: generationLroCapabilitySchema,
+                  },
+                },
+              }),
+          tools: {},
+        },
         protocolVersion,
-        serverInfo: { name: "convax-nexus-mcp", version: "0.4.1" },
+        serverInfo: { name: "convax-nexus-mcp", version: "0.5.2" },
       });
+      return;
+    }
+    if (
+      Object.values(generationLroMethods).includes(
+        value.method as (typeof generationLroMethods)[keyof typeof generationLroMethods],
+      )
+    ) {
+      await this.#handleOperation({ ...value, id: value.id });
       return;
     }
     if (value.method === "tools/list") {
@@ -410,6 +669,14 @@ export class NexusMcpServer {
         structuredContent = await this.#service.checkout(
           input.plan_key as string,
         );
+      } else if (params.name === "audio.generate") {
+        structuredContent = {
+          artifacts: await this.#audioGenerator.generate(
+            input,
+            () => this.#currentAudioRoute(),
+            controller.signal,
+          ),
+        };
       } else if (params.name === "image.generate") {
         structuredContent = {
           artifacts: await this.#imageGenerator.generate(
@@ -419,18 +686,39 @@ export class NexusMcpServer {
           ),
         };
       } else if (params.name === "video.generate") {
-        structuredContent = {
-          artifacts: await this.#videoGenerator.generate(
-            input,
-            () => this.#currentVideoRoute(),
-            controller.signal,
-          ),
-        };
+        if (!this.#videoLro || (await this.#recoveryBinding) === undefined) {
+          throw new Error("Nexus video recovery authority is unavailable");
+        }
+        const generation = parseGenerationOperationMeta(params._meta);
+        const result = await this.#videoLro.start(
+          input,
+          generation.request,
+          () => this.#currentVideoRoute(),
+          controller.signal,
+          generation.progressToken === undefined
+            ? undefined
+            : async (taskId) => {
+                this.#sendValue({
+                  jsonrpc: "2.0",
+                  method: "notifications/convax/generation-lifecycle",
+                  params: {
+                    event: "submitted",
+                    progressToken: generation.progressToken,
+                    schema: "convax.generation-lifecycle/1",
+                    taskId,
+                  },
+                });
+              },
+        );
+        this.#sendResult(request.id, result);
+        return;
       } else {
         structuredContent = await this.#gateway.start();
       }
       this.#sendResult(request.id, {
-        content: [{ text: "Convax service operation completed.", type: "text" }],
+        content: [
+          { text: "Convax service operation completed.", type: "text" },
+        ],
         structuredContent,
       } satisfies ToolResult);
     } catch (error) {
@@ -443,11 +731,13 @@ export class NexusMcpServer {
           {
             text: cancelled
               ? "Convax request was cancelled."
-              : toolName === "image.generate"
-                ? publicImageGenerationErrorMessage(error)
-                : toolName === "video.generate"
-                  ? publicVideoGenerationErrorMessage(error)
-                : "Convax request failed.",
+              : toolName === "audio.generate"
+                ? publicAudioGenerationErrorMessage(error)
+                : toolName === "image.generate"
+                  ? publicImageGenerationErrorMessage(error)
+                  : toolName === "video.generate"
+                    ? publicVideoGenerationErrorMessage(error)
+                    : "Convax request failed.",
             type: "text",
           },
         ],
@@ -458,15 +748,81 @@ export class NexusMcpServer {
     }
   }
 
+  async #handleOperation(request: JsonRpcRequest & { id: number | string }) {
+    const controller = new AbortController();
+    this.#inflight.set(request.id, controller);
+    try {
+      if (!this.#videoLro || (await this.#recoveryBinding) === undefined) {
+        this.#sendError(request.id, -32_601, "Method not found");
+        return;
+      }
+      const input = parseOperationParams(
+        request.params,
+        request.method === generationLroMethods.result,
+      );
+      let result: Record<string, unknown>;
+      if (request.method === generationLroMethods.get) {
+        result = await this.#videoLro.get(input);
+      } else if (request.method === generationLroMethods.wait) {
+        result = await this.#videoLro.wait(
+          input,
+          () => this.#recoveryVideoRoute(),
+          controller.signal,
+        );
+      } else if (request.method === generationLroMethods.cancel) {
+        result = await this.#videoLro.cancel(
+          input,
+          () => this.#recoveryVideoRoute(),
+          controller.signal,
+        );
+      } else if (request.method === generationLroMethods.result) {
+        result = await this.#videoLro.result({
+          ...input,
+          outputDirectory: input.outputDirectory!,
+        });
+      } else {
+        result = await this.#videoLro.acknowledge(input);
+      }
+      this.#sendResult(request.id, result);
+    } catch (error) {
+      console.error(
+        controller.signal.aborted
+          ? "[nexus] operation request cancelled"
+          : "[nexus] operation request failed",
+      );
+      this.#sendError(
+        request.id,
+        controller.signal.aborted ? -32_800 : -32_602,
+        controller.signal.aborted
+          ? "Operation request was cancelled"
+          : publicVideoGenerationErrorMessage(error),
+      );
+    } finally {
+      this.#inflight.delete(request.id);
+    }
+  }
+
   async #listedTools() {
     try {
       const routes = await this.#loadGenerationRoutes();
       const dynamic = [];
-      if (routes.image.models.length > 0) {
-        dynamic.push(imageGenerationTool(generationModelChoices(routes.image.models)));
+      if (routes.audio.models.length > 0) {
+        dynamic.push(
+          audioGenerationTool(generationModelChoices(routes.audio.models)),
+        );
       }
-      if (routes.video.models.length > 0) {
-        dynamic.push(videoGenerationTool(generationModelChoices(routes.video.models)));
+      if (routes.image.models.length > 0) {
+        dynamic.push(
+          imageGenerationTool(generationModelChoices(routes.image.models)),
+        );
+      }
+      if (
+        routes.video.models.length > 0 &&
+        (await this.#recoveryBinding) !== undefined
+      ) {
+        dynamic.push(
+          videoGenerationTool(generationModelChoices(routes.video.models)),
+        );
       }
       return [...dynamic, ...fixedTools];
     } catch (error) {
@@ -490,13 +846,19 @@ export class NexusMcpServer {
       if (epoch !== this.#generationRouteEpoch) {
         throw new Error("Nexus generation route request was invalidated");
       }
+      if (routes.audio.models.length > 0) {
+        audioGenerationTool(generationModelChoices(routes.audio.models));
+      }
       if (routes.image.models.length > 0) {
         imageGenerationTool(generationModelChoices(routes.image.models));
       }
       if (routes.video.models.length > 0) {
         videoGenerationTool(generationModelChoices(routes.video.models));
       }
-      if (!Number.isFinite(routes.image.maximumAgeMs) || routes.image.maximumAgeMs <= 0) {
+      if (
+        !Number.isFinite(routes.image.maximumAgeMs) ||
+        routes.image.maximumAgeMs <= 0
+      ) {
         throw new Error("Nexus generation route expires too soon");
       }
       return routes;
@@ -512,7 +874,8 @@ export class NexusMcpServer {
         }
         this.#activeGenerationRoutes = routes;
         this.#generationRouteExpiresAt =
-          Date.now() + Math.min(mediaModelCatalogTtlMs, routes.image.maximumAgeMs);
+          Date.now() +
+          Math.min(mediaModelCatalogTtlMs, routes.image.maximumAgeMs);
       },
       () => undefined,
     );
@@ -537,13 +900,34 @@ export class NexusMcpServer {
     return route;
   }
 
+  #currentAudioRoute(): NexusAudioRoute {
+    const route = this.#activeGenerationRoutes?.audio;
+    if (
+      !route ||
+      Date.now() >= this.#generationRouteExpiresAt ||
+      !route.isCurrent()
+    ) {
+      this.#invalidateGenerationRoutes();
+      throw new Error("Nexus audio models must be refreshed before generation");
+    }
+    return route;
+  }
+
   #currentVideoRoute(): NexusVideoRoute {
     const route = this.#activeGenerationRoutes?.video;
-    if (!route || Date.now() >= this.#generationRouteExpiresAt || !route.isCurrent()) {
+    if (
+      !route ||
+      Date.now() >= this.#generationRouteExpiresAt ||
+      !route.isCurrent()
+    ) {
       this.#invalidateGenerationRoutes();
       throw new Error("Nexus video models must be refreshed before generation");
     }
     return route;
+  }
+
+  async #recoveryVideoRoute(): Promise<NexusVideoRoute> {
+    return this.#client.videoRoute();
   }
 
   #invalidateGenerationRoutes() {
@@ -568,6 +952,7 @@ export class NexusMcpServer {
       controller.abort("MCP server is closing");
     this.#authorization.cancel();
     this.#gateway.close();
+    this.#videoLro?.close();
     void this.#reader?.cancel().catch(() => undefined);
   }
 
@@ -588,4 +973,145 @@ export class NexusMcpServer {
       if (timer) clearTimeout(timer);
     }
   }
+}
+
+function clientOptionsFromEnvironment(
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): NexusClientOptions {
+  const nexusOrigin = environment.CONVAX_NEXUS_ORIGIN;
+  const gatewayOrigin = environment.CONVAX_NEXUS_GATEWAY_ORIGIN;
+  const localDevelopment = environment.CONVAX_NEXUS_LOCAL_DEVELOPMENT === "1";
+  if (!localDevelopment) {
+    if (
+      environment.CONVAX_AUTHX_PUBLIC_CLIENT_PROFILE !== undefined ||
+      nexusOrigin !== undefined ||
+      gatewayOrigin !== undefined
+    ) {
+      throw new Error(
+        "Local AuthX and Nexus configuration requires CONVAX_NEXUS_LOCAL_DEVELOPMENT=1",
+      );
+    }
+    return { environment };
+  }
+  if (
+    !environment.CONVAX_AUTHX_PUBLIC_CLIENT_PROFILE ||
+    !nexusOrigin ||
+    !gatewayOrigin
+  ) {
+    throw new Error(
+      "Local AuthX profile, Nexus origin, and Gateway origin must be configured",
+    );
+  }
+  return {
+    environment,
+    gatewayOrigins: [gatewayOrigin],
+    nexusOrigin,
+  };
+}
+
+function parseOperationParams(value: unknown, acceptsOutputDirectory: boolean) {
+  const input = asRecord(value, "operation params");
+  const allowed = [
+    "operationId",
+    "outputDirectory",
+    "requestDigest",
+    "resultDigest",
+    "schema",
+    "taskId",
+  ];
+  if (
+    Object.keys(input).some((key) => !allowed.includes(key)) ||
+    input.schema !== generationLroRequestSchema ||
+    typeof input.operationId !== "string" ||
+    !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(input.operationId) ||
+    typeof input.requestDigest !== "string" ||
+    !/^[a-f0-9]{64}$/u.test(input.requestDigest) ||
+    (input.taskId !== undefined &&
+      (typeof input.taskId !== "string" ||
+        !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,511}$/u.test(input.taskId) ||
+        unsafeTaskIdSegment.test(input.taskId))) ||
+    (input.resultDigest !== undefined &&
+      (typeof input.resultDigest !== "string" ||
+        !/^[a-f0-9]{64}$/u.test(input.resultDigest))) ||
+    (acceptsOutputDirectory && typeof input.outputDirectory !== "string") ||
+    (input.outputDirectory !== undefined &&
+      (!acceptsOutputDirectory ||
+        typeof input.outputDirectory !== "string" ||
+        !path.isAbsolute(input.outputDirectory) ||
+        input.outputDirectory.includes("\0") ||
+        input.outputDirectory.length > 4_096))
+  ) {
+    throw new Error("Generation operation params are invalid");
+  }
+  return {
+    operationId: input.operationId,
+    ...(input.outputDirectory === undefined
+      ? {}
+      : { outputDirectory: input.outputDirectory }),
+    requestDigest: input.requestDigest,
+    schema: generationLroRequestSchema,
+    ...(input.resultDigest === undefined
+      ? {}
+      : { resultDigest: input.resultDigest }),
+    ...(input.taskId === undefined ? {} : { taskId: input.taskId }),
+  } satisfies GenerationRecoveryRequest;
+}
+
+function parseGenerationOperationMeta(value: unknown) {
+  const meta = asRecord(value, "generation call metadata");
+  const operation = asRecord(
+    meta.convaxGeneration,
+    "Convax generation operation metadata",
+  );
+  if (
+    Object.keys(meta).some(
+      (key) => !["convaxGeneration", "progressToken"].includes(key),
+    ) ||
+    Object.keys(operation).length !== 4 ||
+    operation.schema !== "convax.generation-operation/1" ||
+    operation.recovery !== "required" ||
+    typeof operation.operationId !== "string" ||
+    !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(operation.operationId) ||
+    typeof operation.requestDigest !== "string" ||
+    !/^[a-f0-9]{64}$/u.test(operation.requestDigest) ||
+    (meta.progressToken !== undefined &&
+      (typeof meta.progressToken !== "string" ||
+        meta.progressToken.length < 1 ||
+        meta.progressToken.length > 512 ||
+        meta.progressToken.includes("\0")))
+  ) {
+    throw new Error("Convax generation operation metadata is invalid");
+  }
+  return {
+    ...(meta.progressToken === undefined
+      ? {}
+      : { progressToken: meta.progressToken }),
+    request: {
+      operationId: operation.operationId,
+      requestDigest: operation.requestDigest,
+      schema: generationLroRequestSchema,
+    } satisfies GenerationRecoveryRequest,
+  };
+}
+
+async function recoveryBinding(
+  credentials: NexusCredentialStore,
+  journal: VideoOperationJournal | undefined,
+) {
+  if (!journal) return undefined;
+  const stored = await credentials.read();
+  if (!stored) return undefined;
+  const authority = await journal.authority();
+  return `nexus.${createHash("sha256")
+    .update(
+      JSON.stringify({
+        accountBinding: stored.accountBinding,
+        authxIssuer: stored.authxIssuer,
+        bindingId: stored.bindingId,
+        journalAuthority: authority,
+        nexusOrigin: stored.nexusOrigin,
+        providerConnectionId: stored.providerConnectionId,
+      }),
+    )
+    .digest("hex")}`;
 }

@@ -8,8 +8,17 @@ export const externalAuthorizationCompletionSchema =
   "convax.plugin-service-external-authorization-completion/1" as const;
 export const llmGatewaySchema = "convax.llm-gateway/1" as const;
 export const generationCallSchema = "convax.generation-call/1" as const;
-
-export const workspaceSlug = "convax";
+export const generationLroCapabilitySchema = "convax.generation-lro/1" as const;
+export const generationLroRequestSchema =
+  "convax.generation-lro-request/1" as const;
+export const generationLroSnapshotSchema =
+  "convax.generation-lro-snapshot/1" as const;
+export const generationLroResultSchema =
+  "convax.generation-lro-result/1" as const;
+export const generationLroAcknowledgementSchema =
+  "convax.generation-lro-acknowledgement/1" as const;
+export const applicationCredentialsSchema =
+  "convax.nexus-application-credentials/1" as const;
 
 export interface NexusProviderModel {
   id: string;
@@ -17,10 +26,89 @@ export interface NexusProviderModel {
   outputModalities: readonly string[];
 }
 
+export type GenerationProviderParameter =
+  | null
+  | string
+  | number
+  | boolean
+  | readonly GenerationProviderParameter[]
+  | { readonly [key: string]: GenerationProviderParameter };
+export type GenerationProviderParameters = Readonly<
+  Record<string, GenerationProviderParameter>
+>;
+
+const generationCallEnvelopeFields = new Set([
+  "model",
+  "operation_id",
+  "output",
+  "output_directory",
+  "prompt",
+  "references",
+  "schema",
+]);
+export function generationProviderParameters(
+  input: Readonly<Record<string, unknown>>,
+): GenerationProviderParameters {
+  const entries = Object.entries(input)
+    .filter(([key]) => !generationCallEnvelopeFields.has(key))
+    .sort(([left], [right]) => left.localeCompare(right));
+  const parameters: Record<string, GenerationProviderParameter> = {};
+  for (const [key, value] of entries) {
+    if (!isJsonValue(value)) {
+      throw new Error(`Nexus generation provider parameter ${key} is not JSON`);
+    }
+    parameters[key] = value;
+  }
+  return parameters;
+}
+
+export function isGenerationProviderParameters(
+  value: unknown,
+): value is GenerationProviderParameters {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  try {
+    const parsed = generationProviderParameters(
+      value as Record<string, unknown>,
+    );
+    const input = value as Record<string, unknown>;
+    return Object.keys(parsed).length === Object.keys(input).length;
+  } catch {
+    return false;
+  }
+}
+
+function isJsonValue(value: unknown): value is GenerationProviderParameter {
+  try {
+    JSON.stringify(value);
+  } catch {
+    return false;
+  }
+  const pending: unknown[] = [value];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (
+      current === null ||
+      typeof current === "string" ||
+      typeof current === "boolean"
+    ) {
+      continue;
+    }
+    if (typeof current === "number") {
+      if (!Number.isFinite(current)) return false;
+      continue;
+    }
+    if (!current || typeof current !== "object") return false;
+    pending.push(
+      ...(Array.isArray(current) ? current : Object.values(current)),
+    );
+  }
+  return true;
+}
+
 export interface GenerationCall extends Record<string, unknown> {
   model: string;
   operation_id: string;
-  output: "image" | "video";
+  output: "audio" | "image" | "video";
   output_directory: string;
   prompt: string;
   references: [];
@@ -62,11 +150,7 @@ export interface PluginServiceStatus extends Record<string, unknown> {
                 checkoutId: string;
                 planKey: string;
                 status:
-                  | "created"
-                  | "processing"
-                  | "converted"
-                  | "failed"
-                  | "expired";
+                  "created" | "processing" | "converted" | "failed" | "expired";
               };
               plans: Array<{
                 billingInterval?: "month" | "year";
@@ -97,82 +181,56 @@ export interface ExternalAuthorizationRequest extends Record<string, unknown> {
   timeout_seconds: number;
 }
 
-export interface HostedSession {
-  accessToken: string;
-  accessTokenExpiresAt: string;
-  dataToken: string;
-  dataTokenExpiresAt: string;
+export interface NexusApplicationCredentials {
+  accountBinding: string;
+  authxIssuer: string;
+  bindingId: string;
+  gatewayBaseUrl: string;
+  inferenceKey: string;
   nexusOrigin: string;
+  providerConnectionId: string;
   refreshToken: string;
-  schema: "convax.nexus-session/1";
-  workspaceSlug: typeof workspaceSlug;
+  schema: typeof applicationCredentialsSchema;
 }
 
-export interface HostedRefreshGrant {
-  nexusOrigin: string;
-  refreshToken: string;
-  schema: "convax.nexus-refresh-grant/1";
-  workspaceSlug: typeof workspaceSlug;
-}
-
-export interface HostedTokenResponse {
+export interface AuthXTokenResponse {
   access_token: string;
-  data_token: string;
-  data_token_expires_at: string;
   expires_in: number;
+  id_token: string;
   refresh_token: string;
+  scope?: string;
   token_type: "Bearer";
 }
 
-export interface HostedAccess {
-  subject: string;
-  workspace: { id: string; slug: string; name: string };
-  access: {
+export interface NexusApplicationAccess {
+  bindingId: string;
+  checkoutAvailable: boolean;
+  gatewayBaseUrl: string;
+  inferenceKey?: {
+    enabled: boolean;
+    expiresAt: string;
     id: string;
-    planId: string;
-    status: string;
-    accessStartsAt: string;
-    accessEndsAt?: string;
+    prefix: string;
   };
-  plan?: {
-    id: string;
-    key: string;
-    name: string;
-    billingInterval: string;
-  };
-  quota?: HostedQuota;
-  billing?: {
-    subscriptionStatus?: string;
-    checkoutAvailable: boolean;
-    availablePlans: Array<{
-      id: string;
-      key: string;
-      name: string;
-      billingInterval: string;
-    }>;
-  };
+  planKey: string;
+  providerConnectionId: string;
+  state: "UNBOOTSTRAPPED" | "ACTIVE" | "REVOKED";
+  workspaceAccessId?: string;
 }
 
-export interface HostedQuota {
-  availableUsd?: string;
-  availableUnits: string;
-  budgetUsd?: string;
-  consumedUsd?: string;
-  consumedUnits: string;
-  periodEnd: string;
-  reservedUsd?: string;
+export interface NexusApplicationBootstrap extends NexusApplicationAccess {
+  inferenceKeyPlaintext?: string;
 }
 
-export interface HostedCheckout {
-  browserUrl: string;
-  checkoutId: string;
-  status: string;
-}
-
-export interface HostedCheckoutStatus {
-  checkoutId: string;
-  convertedAt?: string;
+export interface NexusApplicationCheckout {
+  action?: {
+    kind: "REDIRECT" | "QR_CODE" | "FORM_POST";
+    qrCode?: string;
+    url?: string;
+  };
   expiresAt: string;
+  id: string;
+  provider: string;
   status: string;
 }
 
@@ -182,14 +240,42 @@ export interface PluginServiceCheckoutResult extends Record<string, unknown> {
   schema: typeof pluginServiceCheckoutSchema;
 }
 
-export interface HostedProviderConnection {
-  gatewayBaseUrl: string;
-  id: string;
-  name: string;
-  protocolProfile: string;
-  status: string;
-  workspaceId: string;
+export interface GenerationRecoveryRequest {
+  operationId: string;
+  outputDirectory?: string;
+  requestDigest: string;
+  resultDigest?: string;
+  schema: typeof generationLroRequestSchema;
+  taskId?: string;
 }
+
+export type GenerationRecoverySnapshot =
+  | {
+      schema: typeof generationLroSnapshotSchema;
+      status: "absent" | "prepared" | "unknown";
+    }
+  | {
+      schema: typeof generationLroSnapshotSchema;
+      status: "submitted" | "running";
+      taskId: string;
+    }
+  | {
+      resultDigest: string;
+      schema: typeof generationLroSnapshotSchema;
+      status: "succeeded";
+      taskId: string;
+    }
+  | {
+      error: { code: string; message: string };
+      schema: typeof generationLroSnapshotSchema;
+      status: "failed";
+      taskId?: string;
+    }
+  | {
+      schema: typeof generationLroSnapshotSchema;
+      status: "cancelled";
+      taskId?: string;
+    };
 
 export interface JsonRpcRequest {
   id?: number | string | null;
