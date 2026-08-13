@@ -20,11 +20,11 @@ export interface AuthXPublicClientProfile {
 }
 
 const productionProfile: AuthXPublicClientProfile = Object.freeze({
-  clientId: "oauthclient_B9_0ytc_a6EYscxqP1XJTK1dP0_MLf7L",
+  clientId: "oauthclient_Ty33MTkmTR6M90SCR1mvdUykHDJAHUnr",
   environment: "production",
   issuer: "https://authx.microvoid.io",
   jwksUri: "https://authx.microvoid.io/oauth/jwks.json",
-  projectId: "project_MsBvyP8LJmnTzmkwTLfmc5ORarS6fhfC",
+  projectId: "project_OKnlkG5kU1lNrOqJs0GFTu4JM2SwNkHz",
   redirectUri: exactRedirectUri,
   scopes: exactScopes,
 });

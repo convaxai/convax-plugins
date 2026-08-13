@@ -11,12 +11,15 @@ import path from "node:path";
 
 import { NexusClient } from "../src/application-client.ts";
 import { MemoryCredentialStore } from "../src/credential-store.ts";
-import type { AuthXPublicClientProfile } from "../src/authx-profile.ts";
+import {
+  resolveAuthXPublicClientProfile,
+  type AuthXPublicClientProfile,
+} from "../src/authx-profile.ts";
 
 const servers: Array<Bun.Server<unknown>> = [];
 const roots: string[] = [];
-const clientId = "oauthclient_B9_0ytc_a6EYscxqP1XJTK1dP0_MLf7L";
-const projectId = "project_MsBvyP8LJmnTzmkwTLfmc5ORarS6fhfC";
+const clientId = "oauthclient_Ty33MTkmTR6M90SCR1mvdUykHDJAHUnr";
+const projectId = "project_OKnlkG5kU1lNrOqJs0GFTu4JM2SwNkHz";
 const redirectUri = "http://127.0.0.1:65051/oauth/callback";
 const now = new Date("2026-08-13T00:00:00.000Z");
 
@@ -30,6 +33,16 @@ afterEach(async () => {
 });
 
 describe("AuthX OAuth and Nexus Application Access owner contracts", () => {
+  test("pins the production Convax AuthX public client", async () => {
+    await expect(resolveAuthXPublicClientProfile({})).resolves.toMatchObject({
+      clientId,
+      environment: "production",
+      issuer: "https://authx.microvoid.io",
+      projectId,
+      redirectUri,
+    });
+  });
+
   test("verifies AuthX ES256 tokens and consumes only generated Application Access operations", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "convax-nexus-application-contract-"),
