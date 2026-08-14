@@ -1,9 +1,13 @@
 import { afterAll, describe, expect, test } from "bun:test"
 import { execFileSync } from "node:child_process"
+import { createHash } from "node:crypto"
 import { promises as fs } from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { changedMarketplaceVersions } from "@convax/marketplace-kit"
+import {
+  buildMarketplace,
+  changedMarketplaceVersions,
+} from "@convax/marketplace-kit"
 import {
   assertSelectedCandidatesMatchSnapshot,
   createReleaseSelectionPlan,
@@ -15,6 +19,19 @@ import { createV8CutoverSelections } from "./marketplace-v8-cutover.mjs"
 import { composePublicationPlan } from "./publication-plan.mjs"
 
 const temporaryDirectories = []
+
+function canonicalJson(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`
+  return `{${Object.keys(value)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+    .join(",")}}`
+}
+
+function sha256(value) {
+  return createHash("sha256").update(value).digest("hex")
+}
 
 async function temporaryDirectory() {
   const directory = await fs.mkdtemp(
@@ -152,6 +169,81 @@ async function writePlugin(root, version = "1.0.0") {
 async function writeReadyFixture(root, version = "1.0.0") {
   await writePolicy(root)
   await writePlugin(root, version)
+}
+
+async function writeOwnedSkillMarketplaceFixture(root) {
+  await fs.copyFile(
+    path.resolve(import.meta.dir, "..", "marketplace.json"),
+    path.join(root, "marketplace.json"),
+  )
+  await writePlugin(root)
+  const manifestPath = path.join(
+    root,
+    "packages",
+    "plugins",
+    "example-plugin",
+    "package",
+    "manifest.json",
+  )
+  const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"))
+  manifest.contributes.skills = [
+    { name: "example-guide", path: "skills/example-guide" },
+  ]
+  await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+
+  const skillRoot = path.join(
+    root,
+    "packages",
+    "skills",
+    "example-guide",
+  )
+  await fs.mkdir(path.join(skillRoot, "package"), { recursive: true })
+  await fs.writeFile(
+    path.join(skillRoot, "convax-package.json"),
+    `${JSON.stringify(
+      {
+        schema: "convax.package/2",
+        kind: "skill",
+        id: "example-guide",
+        name: "Example Guide",
+        description: "An owned example Skill.",
+        version: "1.0.0",
+        ownerPluginId: "example-plugin",
+        yanked: false,
+      },
+      null,
+      2,
+    )}\n`,
+  )
+  await fs.writeFile(
+    path.join(skillRoot, "package.json"),
+    `${JSON.stringify(
+      {
+        name: "@example/convax-skill-example-guide",
+        version: "1.0.0",
+        private: true,
+        type: "module",
+        scripts: { validate: "true", pack: "true" },
+      },
+      null,
+      2,
+    )}\n`,
+  )
+  await fs.writeFile(
+    path.join(skillRoot, "package", "SKILL.md"),
+    [
+      "---",
+      "name: example-guide",
+      "version: 1.0.0",
+      "description: Exercise an owned example Skill.",
+      "---",
+      "",
+      "# Example Guide",
+      "",
+      "Use the owning Plugin through its documented contracts.",
+      "",
+    ].join("\n"),
+  )
 }
 
 async function writePendingRequestDocument(root, document, name) {
@@ -417,18 +509,142 @@ describe("Marketplace Kit release selection and publication policy", () => {
       }),
     ).toEqual([
       {
-        kind: "plugin",
-        id: "jianying-editor",
-        version: "3.0.3",
-        releaseTag: "plugin-jianying-editor-v3.0.3",
-      },
-      {
         kind: "skill",
         id: "jianying-editor",
         version: "3.0.0",
         releaseTag: "skill-jianying-editor-v3.0.0",
       },
     ])
+  })
+
+  test("inherits an exact production owner while selectively adding its missing Skill", async () => {
+    const fixture = await temporaryDirectory()
+    await writeOwnedSkillMarketplaceFixture(fixture)
+    const initialOut = path.join(fixture, "initial")
+    const initial = await buildMarketplace({
+      root: fixture,
+      outDir: initialOut,
+      sequence: 7,
+    })
+    const owner = initial.registry.packages.find(
+      (entry) => entry.kind === "plugin" && entry.id === "example-plugin",
+    )
+    expect(owner).toBeDefined()
+    const productionPackages = [owner]
+    const productionRevision = sha256(canonicalJson(productionPackages))
+    const productionRegistry = {
+      schema: "convax.registry/2",
+      marketplaceId: "convax-official",
+      sequence: initial.registry.sequence,
+      revision: productionRevision,
+      packages: productionPackages,
+    }
+    const productionShowcase = {
+      schema: "convax.showcase/2",
+      marketplaceId: "convax-official",
+      revision: productionRevision,
+      packages: [],
+    }
+    const previousRoot = path.join(fixture, "previous")
+    await fs.mkdir(previousRoot)
+    const previousDescriptorPath = path.join(previousRoot, "marketplace.json")
+    const previousRegistryPath = path.join(previousRoot, "registry-v2.json")
+    const previousShowcasePath = path.join(previousRoot, "showcase-v2.json")
+    await Promise.all([
+      fs.copyFile(path.join(fixture, "marketplace.json"), previousDescriptorPath),
+      fs.writeFile(
+        previousRegistryPath,
+        `${JSON.stringify(productionRegistry, null, 2)}\n`,
+      ),
+      fs.writeFile(
+        previousShowcasePath,
+        `${JSON.stringify(productionShowcase, null, 2)}\n`,
+      ),
+    ])
+
+    const current = new Map([
+      [
+        "plugin\0example-plugin",
+        {
+          kind: "plugin",
+          id: "example-plugin",
+          version: "1.0.0",
+          releaseTag: "plugin-example-plugin-v1.0.0",
+          publication: { status: "ready", blockers: [], blockedBy: [] },
+        },
+      ],
+      [
+        "skill\0example-guide",
+        {
+          kind: "skill",
+          id: "example-guide",
+          ownerPluginId: "example-plugin",
+          version: "1.0.0",
+          releaseTag: "skill-example-guide-v1.0.0",
+          publication: { status: "ready", blockers: [], blockedBy: [] },
+        },
+      ],
+    ])
+    const selections = includeMissingProductionPackages(
+      [],
+      current,
+      productionRegistry,
+    )
+    expect(selections).toEqual([
+      {
+        kind: "skill",
+        id: "example-guide",
+        version: "1.0.0",
+        releaseTag: "skill-example-guide-v1.0.0",
+      },
+    ])
+
+    const inheritedArtifacts = new Map(
+      initial.artifacts.map((artifact) => [artifact.url, artifact]),
+    )
+    const selective = await buildMarketplace({
+      root: fixture,
+      outDir: path.join(fixture, "selective"),
+      previousDescriptorPath,
+      previousRegistryPath,
+      previousShowcasePath,
+      publishSelections: selections,
+      fetchArtifact: async (artifact) => {
+        const inherited = inheritedArtifacts.get(artifact.url)
+        if (!inherited) throw new Error(`Unexpected inherited artifact ${artifact.url}`)
+        return new Uint8Array(await fs.readFile(inherited.path))
+      },
+    })
+    expect(
+      selective.selectionContext?.selectedPackages.map(
+        ({ kind, id, productionPreviousVersion }) => ({
+          kind,
+          id,
+          productionPreviousVersion,
+        }),
+      ),
+    ).toEqual([
+      {
+        kind: "skill",
+        id: "example-guide",
+        productionPreviousVersion: undefined,
+      },
+    ])
+    expect(
+      selective.registry.packages.map(({ kind, id, version }) => ({
+        kind,
+        id,
+        version,
+      })),
+    ).toEqual([
+      { kind: "plugin", id: "example-plugin", version: "1.0.0" },
+      { kind: "skill", id: "example-guide", version: "1.0.0" },
+    ])
+    expect(
+      selective.registry.packages.find(
+        (entry) => entry.kind === "plugin" && entry.id === "example-plugin",
+      ),
+    ).toEqual(owner)
   })
 
   test("fails closed when the sole publication policy is missing", async () => {

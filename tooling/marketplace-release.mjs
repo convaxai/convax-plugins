@@ -486,6 +486,7 @@ export function includeMissingProductionPackages(
     if (!candidate || candidate.publication?.status === "blocked") return
     const identity = `${candidate.kind}/${candidate.id}`
     if (selections.has(identity) || visiting.has(identity)) return
+    if (publishedVersions.get(identity) === candidate.version) return
     visiting.add(identity)
     if (candidate.ownerPluginId) {
       include(current.get(`plugin\0${candidate.ownerPluginId}`))
