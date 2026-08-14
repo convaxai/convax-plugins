@@ -22,7 +22,7 @@ import {
 } from "./application-client.ts";
 import { NexusAudioGenerator } from "./audio-generator.ts";
 import {
-  createProductionCredentialStore,
+  createCredentialStore,
   type NexusCredentialStore,
 } from "./credential-store.ts";
 import { NexusImageGenerator } from "./image-generator.ts";
@@ -468,7 +468,7 @@ export class NexusMcpServer {
       options.environment,
     );
     const credentials =
-      options.credentials ?? createProductionCredentialStore(environment);
+      options.credentials ?? createCredentialStore(environment);
     const client =
       options.nexusClient ??
       new NexusClient(
@@ -590,7 +590,7 @@ export class NexusMcpServer {
           tools: {},
         },
         protocolVersion,
-        serverInfo: { name: "convax-nexus-mcp", version: "1.0.0" },
+        serverInfo: { name: "convax-nexus-mcp", version: "1.0.1" },
       });
       return;
     }

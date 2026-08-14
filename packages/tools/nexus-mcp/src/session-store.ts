@@ -115,8 +115,10 @@ export class NexusSessionStore {
 */
 
 export {
+  LocalDevelopmentCredentialStore,
   MacOsKeychainCredentialStore as NexusSessionStore,
   MemoryCredentialStore,
+  createCredentialStore,
   createProductionCredentialStore,
 } from "./credential-store.ts";
 export type { NexusCredentialStore } from "./credential-store.ts";

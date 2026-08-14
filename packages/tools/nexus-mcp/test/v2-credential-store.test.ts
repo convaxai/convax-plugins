@@ -4,6 +4,8 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  createCredentialStore,
+  LocalDevelopmentCredentialStore,
   MacOsKeychainCredentialStore,
   MemoryCredentialStore,
 } from "../src/credential-store.ts";
@@ -146,7 +148,10 @@ describe("Nexus credential stores", () => {
     expect(cleared).toBe(1);
   });
 
-  test.skipIf(process.platform !== "darwin")(
+  test.skipIf(
+    process.platform !== "darwin" ||
+      process.env.CONVAX_NEXUS_TEST_REAL_KEYCHAIN !== "1",
+  )(
     "round-trips a large isolated credential through the real macOS Keychain",
     async () => {
       const service = `io.convax.nexus-service.local-${crypto.randomUUID().replaceAll("-", "").slice(0, 16)}`;
@@ -178,6 +183,70 @@ describe("Nexus credential stores", () => {
     expect(await store.read()).toEqual(credentials);
     await store.clear();
     expect(await store.read()).toBeNull();
+  });
+
+  test("uses a private file only for explicit local development", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "convax-nexus-local-credentials-"),
+    );
+    roots.push(root);
+    const environment = {
+      CONVAX_NEXUS_LOCAL_DEVELOPMENT: "1",
+      XDG_CONFIG_HOME: path.join(root, "config"),
+    };
+    const store = createCredentialStore(environment);
+    expect(store).toBeInstanceOf(LocalDevelopmentCredentialStore);
+    const credentials = fixtureCredentials();
+
+    await store.write(credentials);
+    expect(await store.read()).toEqual(credentials);
+    const credentialPath = (store as LocalDevelopmentCredentialStore).path;
+    expect((await fs.lstat(credentialPath)).mode & 0o777).toBe(0o600);
+    expect(
+      (await fs.lstat(path.dirname(credentialPath))).mode & 0o777,
+    ).toBe(0o700);
+
+    await store.clear();
+    expect(await store.read()).toBeNull();
+    await expect(fs.lstat(credentialPath)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  test("fails closed on unsafe local credential files", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "convax-nexus-local-credentials-"),
+    );
+    roots.push(root);
+    const environment = {
+      CONVAX_NEXUS_LOCAL_DEVELOPMENT: "1",
+      XDG_CONFIG_HOME: path.join(root, "config"),
+    };
+    const store = new LocalDevelopmentCredentialStore(environment);
+    await fs.mkdir(path.dirname(store.path), { mode: 0o700, recursive: true });
+    const target = path.join(root, "outside.json");
+    await fs.writeFile(target, JSON.stringify(fixtureCredentials()), {
+      mode: 0o600,
+    });
+    await fs.symlink(target, store.path);
+
+    await expect(store.read()).rejects.toThrow(
+      "Nexus local credentials must be a private regular file",
+    );
+    await expect(store.clear()).rejects.toThrow(
+      "Nexus local credentials must be a private regular file",
+    );
+    expect(await fs.readFile(target, "utf8")).toContain(
+      fixtureCredentials().refreshToken,
+    );
+  });
+
+  test("keeps production credential selection on the macOS Keychain", () => {
+    const store = createCredentialStore({});
+    expect(store).toBeInstanceOf(MacOsKeychainCredentialStore);
+    expect(
+      () => new LocalDevelopmentCredentialStore({}),
+    ).toThrow("limited to local development");
   });
 });
 

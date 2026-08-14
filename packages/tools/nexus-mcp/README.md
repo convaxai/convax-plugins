@@ -17,9 +17,11 @@ Inference Keys.
   metadata. Access Tokens additionally require the exact Convax Application,
   client, Project, Environment, audience, `token_use=access`, and
   `nexus:access` scope.
-- The short-lived Access Token stays in companion memory. Only the rotating
-  AuthX Refresh Credential and non-secret authority digests are stored in the
-  macOS Keychain.
+- The short-lived Access Token stays in companion memory. In production, only
+  the rotating AuthX Refresh Credential and non-secret authority digests are
+  stored in the macOS Keychain. Explicit local-development mode instead uses a
+  private `0600` file below the configured `XDG_CONFIG_HOME`; it never falls
+  back to that file in production.
 - Nexus Application Access is preconfigured by an administrator in AuthX.
   The companion calls only `status` and `checkout`; it never creates a Nexus
   Application, chooses a Workspace, Plan, or Provider, or receives a Nexus
