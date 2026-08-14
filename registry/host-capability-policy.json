@@ -33,7 +33,7 @@
         {
           "kind": "plugin",
           "id": "chatcut",
-          "version": "0.4.2"
+          "version": "0.4.3"
         }
       ]
     },
@@ -103,7 +103,7 @@
         {
           "kind": "plugin",
           "id": "chatcut",
-          "version": "0.4.2",
+          "version": "0.4.3",
           "blocker": {
             "code": "unverified-runtime-dependency",
             "note": "The companion resolves ffmpeg and ffprobe from ambient PATH instead of an immutable Host-verified dependency."

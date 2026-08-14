@@ -32,7 +32,7 @@ describe("automated Plugin contract governance", () => {
       {
         kind: "plugin",
         id: "chatcut",
-        version: "0.4.2",
+        version: "0.4.3",
         policyId: "verified-companion-toolchain",
         status: "blocked",
         blockers: [
