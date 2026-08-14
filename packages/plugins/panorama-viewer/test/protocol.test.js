@@ -12,55 +12,27 @@ const repositoryRoot = path.resolve(import.meta.dir, "../../../..")
 
 describe("panorama-viewer v8 Web Host API", () => {
   test("uses only declared Catalog ids and opaque input keys", async () => {
-    const [
-      application,
-      sdkClient,
-      imageDecoder,
-      manifest,
-      metadata,
-      workspace,
-      publication,
-    ] = await Promise.all([
+    const [application, sdkClient, imageDecoder, manifest, metadata, workspace, publication] = await Promise.all([
       readFile(path.join(pluginRoot, "package/assets/app.js"), "utf8"),
-      readFile(
-        path.join(pluginRoot, "package/assets/plugin-host-client.js"),
-        "utf8",
-      ),
-      readFile(
-        path.join(pluginRoot, "package/assets/panorama-image.js"),
-        "utf8",
-      ),
-      readFile(path.join(pluginRoot, "package/manifest.json"), "utf8").then(
-        JSON.parse,
-      ),
-      readFile(path.join(pluginRoot, "convax-package.json"), "utf8").then(
-        JSON.parse,
-      ),
+      readFile(path.join(pluginRoot, "package/assets/plugin-host-client.js"), "utf8"),
+      readFile(path.join(pluginRoot, "package/assets/panorama-image.js"), "utf8"),
+      readFile(path.join(pluginRoot, "package/manifest.json"), "utf8").then(JSON.parse),
+      readFile(path.join(pluginRoot, "convax-package.json"), "utf8").then(JSON.parse),
       readFile(path.join(pluginRoot, "package.json"), "utf8").then(JSON.parse),
-      readFile(
-        path.join(repositoryRoot, "registry/host-capability-policy.json"),
-        "utf8",
-      ).then(JSON.parse),
+      readFile(path.join(repositoryRoot, "registry/host-capability-policy.json"), "utf8").then(JSON.parse),
     ])
 
     expect([manifest.version, metadata.version, workspace.version]).toEqual([
-      "0.3.2",
-      "0.3.2",
-      "0.3.2",
+      "0.3.3",
+      "0.3.3",
+      "0.3.3",
     ])
     expect(metadata).not.toHaveProperty("publication")
-    expect(
-      publication.requirements
-        .filter((requirement) =>
-          requirement.affected.some((item) => item.id === "panorama-viewer"),
-        )
-        .map((requirement) => requirement.id),
-    ).toEqual(["web-plugin-image-input-read"])
-    expect(
-      publication.blockers
-        .flatMap((blocker) => blocker.affected)
-        .find((item) => item.id === "panorama-viewer"),
-    ).toBeUndefined()
+    expect(publication.requirements
+      .filter((requirement) => requirement.affected.some((item) => item.id === "panorama-viewer"))
+      .map((requirement) => requirement.id)).toEqual(["web-plugin-image-input-read"])
+    expect(publication.blockers.flatMap((blocker) => blocker.affected)
+      .find((item) => item.id === "panorama-viewer")).toBeUndefined()
     expect(manifest.capabilities).toEqual([
       "canvas.connectedInputs.read",
       "canvas.connectedImages.read",
@@ -128,24 +100,16 @@ describe("panorama-viewer v8 Web Host API", () => {
       },
     ])
     expect(manifest.contributes.canvas.toolbar).toEqual([
-      {
-        command: "panorama.capture-viewport",
-        id: "capture-viewport",
-        order: 10,
-      },
+      { command: "panorama.capture-viewport", id: "capture-viewport", order: 10 },
       { command: "panorama.reset", id: "reset", order: 20 },
       { command: "panorama.toggle-auto-rotate", id: "auto-rotate", order: 30 },
       { command: "panorama.refresh-connections", id: "refresh", order: 40 },
     ])
-    expect(
-      manifest.contributes.canvas.toolbar.every((item) => !("title" in item)),
-    ).toBe(true)
+    expect(manifest.contributes.canvas.toolbar.every((item) => !("title" in item))).toBe(true)
     expect(application).toContain(
       'import { acceptPluginHostConnection } from "./plugin-host-client.js"',
     )
-    expect(sdkClient).toContain(
-      "@convax/plugin-sdk/client:createPluginHostClient",
-    )
+    expect(sdkClient).toContain("@convax/plugin-sdk/client:createPluginHostClient")
     expect(sdkClient).toContain("convax.plugin-host/8")
     for (const token of [
       "canvas.inputs.changed",
@@ -175,9 +139,7 @@ describe("panorama-viewer v8 Web Host API", () => {
     expect(application).toContain("sourceLoadController?.abort")
     expect(application).toContain("withPanoramaImageSession")
     expect(application).not.toContain("selectedSourceInputKey:")
-    expect(imageDecoder).toContain(
-      'url.startsWith("convax-connected-media://")',
-    )
+    expect(imageDecoder).toContain('url.startsWith("convax-connected-media://")')
     for (const legacyCommand of [
       '"panorama.capture-viewport"',
       '"panorama.reset"',
@@ -211,9 +173,7 @@ describe("panorama-viewer v8 Web Host API", () => {
       const controller = new AbortController()
       const closes = []
       const result = withPanoramaImageSession({
-        close: async (sessionId) => {
-          closes.push(sessionId)
-        },
+        close: async (sessionId) => { closes.push(sessionId) },
         inputKey: "opaque-panorama-input",
         open: async () => opened,
         signal: controller.signal,
@@ -227,10 +187,7 @@ describe("panorama-viewer v8 Web Host API", () => {
         },
       })
       if (outcome === "success") await expect(result).resolves.toBe("ready")
-      else
-        await expect(result).rejects.toThrow(
-          outcome === "failure" ? "decode failed" : "stale panorama",
-        )
+      else await expect(result).rejects.toThrow(outcome === "failure" ? "decode failed" : "stale panorama")
       expect(closes).toEqual(["panorama-session"])
     }
   })
@@ -248,20 +205,16 @@ describe("panorama-viewer v8 Web Host API", () => {
 
   test("does not claim an exact close when the SDK rejects an open result before returning it", async () => {
     const closes = []
-    await expect(
-      withPanoramaImageSession({
-        close: async (sessionId) => {
-          closes.push(sessionId)
-        },
-        inputKey: "opaque-panorama-input",
-        open: async () => {
-          throw new Error("Plugin Host returned an invalid result")
-        },
-        use: async () => {
-          throw new Error("must not decode")
-        },
-      }),
-    ).rejects.toThrow("Plugin Host returned an invalid result")
+    await expect(withPanoramaImageSession({
+      close: async (sessionId) => { closes.push(sessionId) },
+      inputKey: "opaque-panorama-input",
+      open: async () => {
+        throw new Error("Plugin Host returned an invalid result")
+      },
+      use: async () => {
+        throw new Error("must not decode")
+      },
+    })).rejects.toThrow("Plugin Host returned an invalid result")
     expect(closes).toEqual([])
   })
 })

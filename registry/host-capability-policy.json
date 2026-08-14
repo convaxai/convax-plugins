@@ -55,12 +55,12 @@
         {
           "kind": "plugin",
           "id": "multi-angle",
-          "version": "0.2.2"
+          "version": "0.2.3"
         },
         {
           "kind": "plugin",
           "id": "relight-studio",
-          "version": "0.2.2"
+          "version": "0.2.3"
         }
       ]
     },
@@ -81,17 +81,17 @@
         {
           "kind": "plugin",
           "id": "multi-angle",
-          "version": "0.2.2"
+          "version": "0.2.3"
         },
         {
           "kind": "plugin",
           "id": "panorama-viewer",
-          "version": "0.3.2"
+          "version": "0.3.3"
         },
         {
           "kind": "plugin",
           "id": "relight-studio",
-          "version": "0.2.2"
+          "version": "0.2.3"
         }
       ]
     }

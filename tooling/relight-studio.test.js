@@ -37,7 +37,7 @@ describe("relight-studio package", () => {
       id: "relight-studio",
       name: "重打光",
       description: manifest.description,
-      version: "0.2.2",
+      version: "0.2.3",
       publication: {
         status: "ready",
         blockers: [],

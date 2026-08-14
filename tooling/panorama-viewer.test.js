@@ -32,7 +32,7 @@ describe("panorama-viewer package", () => {
       id: "panorama-viewer",
       name: "全景图预览",
       description: manifest.description,
-      version: "0.3.2",
+      version: "0.3.3",
       publication: {
         status: "ready",
         blockers: [],
