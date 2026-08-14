@@ -1,0 +1,115 @@
+{
+  "schema": "convax.packaged-config/1",
+  "packages": [
+    {
+      "marketplaceId": "convax-official",
+      "kind": "plugin",
+      "id": "cutout-studio",
+      "targets": [
+        "darwin-arm64"
+      ]
+    },
+    {
+      "marketplaceId": "convax-official",
+      "kind": "plugin",
+      "id": "ffmpeg-tools",
+      "targets": [
+        "darwin-arm64"
+      ]
+    },
+    {
+      "marketplaceId": "convax-official",
+      "kind": "plugin",
+      "id": "jianying-editor",
+      "targets": [
+        "darwin-arm64"
+      ]
+    },
+    {
+      "marketplaceId": "convax-official",
+      "kind": "plugin",
+      "id": "nexus-service",
+      "targets": [
+        "darwin-arm64"
+      ]
+    },
+    {
+      "marketplaceId": "convax-official",
+      "kind": "plugin",
+      "id": "storyai-3d-director-desk",
+      "targets": []
+    },
+    {
+      "marketplaceId": "convax-official",
+      "kind": "plugin",
+      "id": "storyboard-studio",
+      "targets": []
+    },
+    {
+      "marketplaceId": "convax-official",
+      "kind": "plugin",
+      "id": "video-timeline",
+      "targets": []
+    },
+    {
+      "marketplaceId": "convax-official",
+      "kind": "skill",
+      "id": "ad-idea",
+      "targets": []
+    },
+    {
+      "marketplaceId": "convax-official",
+      "kind": "skill",
+      "id": "audiobook",
+      "targets": []
+    },
+    {
+      "marketplaceId": "convax-official",
+      "kind": "skill",
+      "id": "convax-plugin-authoring",
+      "targets": []
+    },
+    {
+      "marketplaceId": "convax-official",
+      "kind": "skill",
+      "id": "ecommerce-image",
+      "targets": []
+    },
+    {
+      "marketplaceId": "convax-official",
+      "kind": "skill",
+      "id": "film-shot",
+      "targets": []
+    },
+    {
+      "marketplaceId": "convax-official",
+      "kind": "skill",
+      "id": "image-remix",
+      "targets": []
+    },
+    {
+      "marketplaceId": "convax-official",
+      "kind": "skill",
+      "id": "short-drama-screenwriter",
+      "targets": []
+    },
+    {
+      "marketplaceId": "convax-official",
+      "kind": "skill",
+      "id": "skill-creator",
+      "targets": []
+    },
+    {
+      "marketplaceId": "convax-official",
+      "kind": "skill",
+      "id": "skill-reviewer",
+      "targets": []
+    },
+    {
+      "marketplaceId": "convax-official",
+      "kind": "skill",
+      "id": "video-prompting",
+      "targets": []
+    }
+  ]
+}

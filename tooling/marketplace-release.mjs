@@ -6,12 +6,11 @@ import { fileURLToPath } from "node:url"
 import {
   changedMarketplaceVersions,
   discoverMarketplacePackages,
+  parseRegistryV2,
   releaseTagForPackage,
 } from "@convax/marketplace-kit"
 import { renderPluginApiJson } from "@convax/plugin-api/generator"
-import {
-  discoverPackages,
-} from "./lib.mjs"
+import { discoverPackages } from "./lib.mjs"
 import {
   effectiveCatalogExclusionIdentities,
   parseCatalogExclusions,
@@ -20,7 +19,6 @@ import {
   createOwnedSkillReferenceFiles,
   generateSkillApiReferences,
 } from "./generate-skill-api-references.mjs"
-import { verifyPendingHostCapabilityHistory } from "./host-capability-history.mjs"
 import {
   createV8CutoverSelections,
   parsePinnedV8CutoverRegistry,
@@ -38,7 +36,8 @@ async function collectPackageFiles(directory, relative = "") {
   const entries = await fs.readdir(directory, { withFileTypes: true })
   const files = []
   for (const entry of entries.sort((left, right) =>
-    left.name.localeCompare(right.name, "en"))) {
+    left.name.localeCompare(right.name, "en"),
+  )) {
     if (
       entry.name === "dist" ||
       entry.name === "node_modules" ||
@@ -56,7 +55,7 @@ async function collectPackageFiles(directory, relative = "") {
       continue
     }
     if (entry.isDirectory()) {
-      files.push(...await collectPackageFiles(absolute, nextRelative))
+      files.push(...(await collectPackageFiles(absolute, nextRelative)))
     } else if (entry.isFile()) {
       files.push({ path: nextRelative, bytes: await fs.readFile(absolute) })
     } else {
@@ -88,24 +87,27 @@ async function collectPackageAuthoringFiles(candidate) {
       bytes: await fs.readFile(path.join(candidate.root, name)),
     })
   }
-  files.push(...await collectOptionalFiles(
-    path.join(candidate.root, "showcase"),
-    `${candidate.kind}/${candidate.id} showcase`,
-  ).then((entries) => entries.map((file) => ({
-    path: `showcase/${file.path}`,
-    bytes: file.bytes,
-  }))))
+  files.push(
+    ...(await collectOptionalFiles(
+      path.join(candidate.root, "showcase"),
+      `${candidate.kind}/${candidate.id} showcase`,
+    ).then((entries) =>
+      entries.map((file) => ({
+        path: `showcase/${file.path}`,
+        bytes: file.bytes,
+      })),
+    )),
+  )
   return files
 }
 
 async function collectTrackedSourceFiles(workspaceRoot, relativeRoot) {
   let output
   try {
-    output = execFileSync(
-      "git",
-      ["ls-files", "-z", "--", relativeRoot],
-      { cwd: workspaceRoot, encoding: "utf8" },
-    )
+    output = execFileSync("git", ["ls-files", "-z", "--", relativeRoot], {
+      cwd: workspaceRoot,
+      encoding: "utf8",
+    })
   } catch {
     return collectPackageFiles(path.join(workspaceRoot, relativeRoot))
   }
@@ -132,7 +134,8 @@ async function collectTrackedSourceFiles(workspaceRoot, relativeRoot) {
 function digestFiles(files) {
   const hash = createHash("sha256")
   for (const file of files.sort((left, right) =>
-    left.path.localeCompare(right.path, "en"))) {
+    left.path.localeCompare(right.path, "en"),
+  )) {
     const pathBytes = Buffer.from(file.path, "utf8")
     const size = Buffer.alloc(8)
     size.writeBigUInt64BE(BigInt(file.bytes.length))
@@ -163,9 +166,7 @@ function generatedReferenceFiles(pkg, authoredByIdentity) {
       }
     }
   } else if (pkg.metadata.ownerPluginId) {
-    const owner = authoredByIdentity.get(
-      `plugin/${pkg.metadata.ownerPluginId}`,
-    )
+    const owner = authoredByIdentity.get(`plugin/${pkg.metadata.ownerPluginId}`)
     const skill = owner?.manifest.contributes.skills?.find(
       (item) => item.name === pkg.metadata.id,
     )
@@ -197,10 +198,7 @@ export async function packageVersionSnapshot(workspaceRoot) {
   const authored = await discoverPackages({ workspaceRoot })
   const effectivePublications = effectivePackagePublications(authored)
   const authoredByIdentity = new Map(
-    authored.map((pkg) => [
-      `${pkg.metadata.kind}/${pkg.metadata.id}`,
-      pkg,
-    ]),
+    authored.map((pkg) => [`${pkg.metadata.kind}/${pkg.metadata.id}`, pkg]),
   )
   const discovered = await discoverMarketplacePackages(workspaceRoot)
   const result = new Map()
@@ -222,24 +220,29 @@ export async function packageVersionSnapshot(workspaceRoot) {
           `${candidate.kind}/${candidate.id}: missing admitted package`,
         )
       }
-      files.push(...(await collectPackageAuthoringFiles(candidate)).map((file) => ({
-        path: `.source/${candidate.kind}/${candidate.id}/${file.path}`,
-        bytes: file.bytes,
-      })))
-      files.push(...pkg.files.map((file) => ({
-        path: `${candidate.kind}/${candidate.id}/${file.relativePath}`,
-        bytes: file.data,
-      })))
+      files.push(
+        ...(await collectPackageAuthoringFiles(candidate)).map((file) => ({
+          path: `.source/${candidate.kind}/${candidate.id}/${file.path}`,
+          bytes: file.bytes,
+        })),
+      )
+      files.push(
+        ...pkg.files.map((file) => ({
+          path: `${candidate.kind}/${candidate.id}/${file.relativePath}`,
+          bytes: file.data,
+        })),
+      )
       files.push(...generatedReferenceFiles(pkg, authoredByIdentity))
       if (candidate.kind === "plugin") {
         for (const companion of pkg.metadata.companions ?? []) {
-          files.push(...(await collectTrackedSourceFiles(
-            workspaceRoot,
-            companion.source,
-          )).map((file) => ({
-            path: `${companion.source}/${file.path}`,
-            bytes: file.bytes,
-          })))
+          files.push(
+            ...(
+              await collectTrackedSourceFiles(workspaceRoot, companion.source)
+            ).map((file) => ({
+              path: `${companion.source}/${file.path}`,
+              bytes: file.bytes,
+            })),
+          )
           for (const target of companion.targets) {
             const targetPath = path.join(
               workspaceRoot,
@@ -260,30 +263,36 @@ export async function packageVersionSnapshot(workspaceRoot) {
         }
       }
     } else {
-      files.push(...(await collectPackageFiles(candidate.root)).map((file) => ({
-        path: `mcp-server/${candidate.id}/${file.path}`,
-        bytes: file.bytes,
-      })))
+      files.push(
+        ...(await collectPackageFiles(candidate.root)).map((file) => ({
+          path: `mcp-server/${candidate.id}/${file.path}`,
+          bytes: file.bytes,
+        })),
+      )
       const companionRoot = `.marketplace/companion-inputs/${itemKey(
         candidate.kind,
         candidate.id,
       )}`
-      files.push(...(await collectOptionalFiles(
-        path.join(workspaceRoot, companionRoot),
-        "managed MCP companion input",
-      )).map((file) => ({
-        path: `${companionRoot}/${file.path}`,
-        bytes: file.bytes,
-      })))
+      files.push(
+        ...(
+          await collectOptionalFiles(
+            path.join(workspaceRoot, companionRoot),
+            "managed MCP companion input",
+          )
+        ).map((file) => ({
+          path: `${companionRoot}/${file.path}`,
+          bytes: file.bytes,
+        })),
+      )
     }
     result.set(key, {
       digest: digestFiles(files),
       id: candidate.id,
       itemKey: itemKey(candidate.kind, candidate.id),
       kind: candidate.kind,
-      publication:
-        effectivePublications.get(`${candidate.kind}/${candidate.id}`) ??
-        { status: "ready", blockers: [], blockedBy: [] },
+      publication: effectivePublications.get(
+        `${candidate.kind}/${candidate.id}`,
+      ) ?? { status: "ready", blockers: [], blockedBy: [] },
       releaseTag: releaseTagForPackage(candidate),
       version: candidate.version,
       ...(authoredPackage?.metadata.ownerPluginId
@@ -344,7 +353,11 @@ export function assertSelectedCandidatesMatchSnapshot(
   }
 }
 
-export function createReleaseSelectionPlan(selected, current, { excluded = [] } = {}) {
+export function createReleaseSelectionPlan(
+  selected,
+  current,
+  { excluded = [] } = {},
+) {
   assertSelectedCandidatesMatchSnapshot(selected, current, {
     allowBlocked: true,
   })
@@ -361,10 +374,12 @@ export function createReleaseSelectionPlan(selected, current, { excluded = [] } 
         ...entry,
         publication: {
           status: "blocked",
-          blockers: [{
-            code: "catalog-policy-excluded",
-            note: "Excluded from the Official Catalog publication view.",
-          }],
+          blockers: [
+            {
+              code: "catalog-policy-excluded",
+              note: "Excluded from the Official Catalog publication view.",
+            },
+          ],
           blockedBy: [],
         },
       })
@@ -428,7 +443,71 @@ export function includeCatalogReactivations(
     })
   }
   return [...selections.values()].sort((left, right) =>
-    `${left.kind}/${left.id}`.localeCompare(`${right.kind}/${right.id}`, "en"))
+    `${left.kind}/${left.id}`.localeCompare(`${right.kind}/${right.id}`, "en"),
+  )
+}
+
+function releaseSelection(candidate) {
+  return {
+    kind: candidate.kind,
+    id: candidate.id,
+    version: candidate.version,
+    releaseTag: candidate.releaseTag,
+  }
+}
+
+export function includeMissingProductionPackages(
+  selected,
+  current,
+  productionRegistry,
+) {
+  assertSelectedCandidatesMatchSnapshot(selected, current, {
+    allowBlocked: true,
+  })
+  if (!productionRegistry) return selected
+  const publishedVersions = new Map(
+    productionRegistry.packages.map((entry) => [
+      `${entry.kind}/${entry.id}`,
+      entry.version,
+    ]),
+  )
+  const selections = new Map(
+    selected.map((entry) => [`${entry.kind}/${entry.id}`, entry]),
+  )
+  const ownedByPlugin = new Map()
+  for (const candidate of current.values()) {
+    if (!candidate.ownerPluginId) continue
+    const owned = ownedByPlugin.get(candidate.ownerPluginId) ?? []
+    owned.push(candidate)
+    ownedByPlugin.set(candidate.ownerPluginId, owned)
+  }
+  const visiting = new Set()
+  const include = (candidate) => {
+    if (!candidate || candidate.publication?.status === "blocked") return
+    const identity = `${candidate.kind}/${candidate.id}`
+    if (selections.has(identity) || visiting.has(identity)) return
+    visiting.add(identity)
+    if (candidate.ownerPluginId) {
+      include(current.get(`plugin\0${candidate.ownerPluginId}`))
+    }
+    selections.set(identity, releaseSelection(candidate))
+    if (candidate.kind === "plugin") {
+      for (const owned of ownedByPlugin.get(candidate.id) ?? []) include(owned)
+    }
+    visiting.delete(identity)
+  }
+  for (const candidate of current.values()) {
+    if (
+      candidate.publication?.status !== "blocked" &&
+      publishedVersions.get(`${candidate.kind}/${candidate.id}`) !==
+        candidate.version
+    ) {
+      include(candidate)
+    }
+  }
+  return [...selections.values()].sort((left, right) =>
+    `${left.kind}/${left.id}`.localeCompare(`${right.kind}/${right.id}`, "en"),
+  )
 }
 
 function catalogExclusionsAtRevision(workspaceRoot, revision) {
@@ -437,21 +516,20 @@ function catalogExclusionsAtRevision(workspaceRoot, revision) {
   }
   let value
   try {
-    value = JSON.parse(execFileSync(
-      "git",
-      ["show", `${revision}:catalogs/excluded.json`],
-      { cwd: workspaceRoot, encoding: "utf8", maxBuffer: 256 * 1024 },
-    ))
+    value = JSON.parse(
+      execFileSync("git", ["show", `${revision}:catalogs/excluded.json`], {
+        cwd: workspaceRoot,
+        encoding: "utf8",
+        maxBuffer: 256 * 1024,
+      }),
+    )
   } catch (cause) {
     throw new Error(
       `Unable to read catalog exclusions from Marketplace base ${revision}`,
       { cause },
     )
   }
-  return parseCatalogExclusions(
-    value,
-    `${revision}:catalogs/excluded.json`,
-  )
+  return parseCatalogExclusions(value, `${revision}:catalogs/excluded.json`)
 }
 
 function parseCliArgs(argv) {
@@ -467,10 +545,10 @@ function parseCliArgs(argv) {
         "base",
         "catalog",
         "cutover-registry",
-        "governance-base",
         "head",
         "omissions-output",
         "output",
+        "previous-registry",
       ].includes(key) ||
       result[key] !== undefined
     ) {
@@ -486,12 +564,11 @@ function parseCliArgs(argv) {
   if (
     !result.base ||
     !result.catalog ||
-    !result["governance-base"] ||
     !result.output ||
     !result["omissions-output"]
   ) {
     throw new Error(
-      "Usage: marketplace-release --base <sha> --governance-base <protected-main-sha> --catalog <external-plugin-api.json> --output <ready-file> --omissions-output <diagnostics-file> [--cutover-registry <production-v2.json>] [--head <sha>]",
+      "Usage: marketplace-release --base <sha> --catalog <external-plugin-api.json> --output <ready-file> --omissions-output <diagnostics-file> [--cutover-registry <production-v2.json>] [--previous-registry <production-v2.json>] [--head <sha>]",
     )
   }
   return result
@@ -512,27 +589,39 @@ async function main(argv) {
     encoding: "utf8",
   }).trim()
   if (args.head && args.head !== head) {
-    throw new Error(`--head ${args.head} does not equal checked out HEAD ${head}`)
+    throw new Error(
+      `--head ${args.head} does not equal checked out HEAD ${head}`,
+    )
   }
-  await verifyPendingHostCapabilityHistory(
-    repositoryRoot,
-    args["governance-base"],
-    { catalogPath: args.catalog },
-  )
   const current = await packageVersionSnapshot(repositoryRoot)
   const officialSource = await loadOfficialMarketplaceSource(repositoryRoot)
   const changed = args["cutover-registry"]
     ? createV8CutoverSelections(
         parsePinnedV8CutoverRegistry(
-          JSON.parse(await fs.readFile(
-            path.resolve(repositoryRoot, args["cutover-registry"]),
-            "utf8",
-          )),
+          JSON.parse(
+            await fs.readFile(
+              path.resolve(repositoryRoot, args["cutover-registry"]),
+              "utf8",
+            ),
+          ),
         ),
         current,
       )
     : includeCatalogReactivations(
-        await changedMarketplaceVersions(repositoryRoot, args.base),
+        includeMissingProductionPackages(
+          await changedMarketplaceVersions(repositoryRoot, args.base),
+          current,
+          args["previous-registry"]
+            ? parseRegistryV2(
+                JSON.parse(
+                  await fs.readFile(
+                    path.resolve(repositoryRoot, args["previous-registry"]),
+                    "utf8",
+                  ),
+                ),
+              )
+            : undefined,
+        ),
         current,
         {
           excluded: officialSource.excluded,
@@ -546,10 +635,7 @@ async function main(argv) {
     excluded: officialSource.excluded,
   })
   const output = path.resolve(repositoryRoot, args.output)
-  const omissionsOutput = path.resolve(
-    repositoryRoot,
-    args["omissions-output"],
-  )
+  const omissionsOutput = path.resolve(repositoryRoot, args["omissions-output"])
   await Promise.all([
     fs.mkdir(path.dirname(output), { recursive: true }),
     fs.mkdir(path.dirname(omissionsOutput), { recursive: true }),

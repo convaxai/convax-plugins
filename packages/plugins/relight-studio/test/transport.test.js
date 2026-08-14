@@ -13,36 +13,63 @@ const repositoryRoot = path.resolve(import.meta.dir, "../../../..")
 
 describe("relight-studio v8 transport", () => {
   test("uses input streams and Catalog API ids without legacy RPC", async () => {
-    const [application, sdkClient, manifest, metadata, publication] = await Promise.all([
-      readFile(path.join(packageRoot, "assets", "app.js"), "utf8"),
-      readFile(path.join(packageRoot, "assets", "plugin-host-client.js"), "utf8"),
-      readFile(path.join(packageRoot, "manifest.json"), "utf8").then(JSON.parse),
-      readFile(path.join(packageRoot, "..", "convax-package.json"), "utf8").then(JSON.parse),
-      readFile(path.join(repositoryRoot, "registry/host-capability-policy.json"), "utf8").then(JSON.parse),
-    ])
+    const [application, sdkClient, manifest, metadata, publication] =
+      await Promise.all([
+        readFile(path.join(packageRoot, "assets", "app.js"), "utf8"),
+        readFile(
+          path.join(packageRoot, "assets", "plugin-host-client.js"),
+          "utf8",
+        ),
+        readFile(path.join(packageRoot, "manifest.json"), "utf8").then(
+          JSON.parse,
+        ),
+        readFile(
+          path.join(packageRoot, "..", "convax-package.json"),
+          "utf8",
+        ).then(JSON.parse),
+        readFile(
+          path.join(repositoryRoot, "registry/host-capability-policy.json"),
+          "utf8",
+        ).then(JSON.parse),
+      ])
 
     expect(manifest.version).toBe("0.2.2")
     expect(metadata).not.toHaveProperty("publication")
-    expect(publication.requests.flatMap((request) => request.affected)
-      .find((item) => item.id === "relight-studio")).toMatchObject({
-      blocker: { code: "host-capability-review-required" },
-    })
+    expect(
+      publication.requirements
+        .filter((requirement) =>
+          requirement.affected.some((item) => item.id === "relight-studio"),
+        )
+        .map((requirement) => requirement.id),
+    ).toEqual([
+      "web-plugin-generation-input-binding",
+      "web-plugin-image-input-read",
+    ])
+    expect(
+      publication.blockers
+        .flatMap((blocker) => blocker.affected)
+        .find((item) => item.id === "relight-studio"),
+    ).toBeUndefined()
     expect(manifest.capabilities).toContain("canvas.connectedImages.read")
     expect(manifest.capabilities).not.toContain("canvas.connectedMedia.stream")
     expect(manifest.hostApi.major).toBe(3)
-    expect(manifest.hostApi.required).toEqual(expect.arrayContaining([
-      "canvas.inputs.image.close",
-      "canvas.inputs.image.open",
-      "canvas.inputs.list",
-      "canvas.node.state.replace",
-      "generation.execute",
-      "generation.tools.list",
-      "host.context.get",
-    ]))
+    expect(manifest.hostApi.required).toEqual(
+      expect.arrayContaining([
+        "canvas.inputs.image.close",
+        "canvas.inputs.image.open",
+        "canvas.inputs.list",
+        "canvas.node.state.replace",
+        "generation.execute",
+        "generation.tools.list",
+        "host.context.get",
+      ]),
+    )
     expect(application).toContain(
       'import { acceptPluginHostConnection } from "./plugin-host-client.js"',
     )
-    expect(sdkClient).toContain("@convax/plugin-sdk/client:createPluginHostClient")
+    expect(sdkClient).toContain(
+      "@convax/plugin-sdk/client:createPluginHostClient",
+    )
     expect(sdkClient).toContain("convax.plugin-host/8")
     expect(application).toContain("hostClient.callHostApi(method, params")
     expect(application).toContain("hostClient.onCommand(handleHostCommand)")
@@ -63,30 +90,51 @@ describe("relight-studio v8 transport", () => {
   })
 
   test("accepts only v8 opaque image keys and stream results", () => {
-    expect(normalizeImageInputs({
-      inputs: [
-        { id: "legacy-id", kind: "image", mimeType: "image/png" },
-        { inputKey: "failed", kind: "image", mimeType: "image/png", status: "error" },
-        { inputKey: "audio", kind: "audio", mimeType: "audio/mpeg" },
-        { inputKey: "ready", kind: "image", name: "Portrait", mimeType: "IMAGE/JPEG" },
-      ],
-    })).toEqual([
+    expect(
+      normalizeImageInputs({
+        inputs: [
+          { id: "legacy-id", kind: "image", mimeType: "image/png" },
+          {
+            inputKey: "failed",
+            kind: "image",
+            mimeType: "image/png",
+            status: "error",
+          },
+          { inputKey: "audio", kind: "audio", mimeType: "audio/mpeg" },
+          {
+            inputKey: "ready",
+            kind: "image",
+            name: "Portrait",
+            mimeType: "IMAGE/JPEG",
+          },
+        ],
+      }),
+    ).toEqual([
       expect.objectContaining({ id: "failed", readable: false }),
-      expect.objectContaining({ id: "ready", mimeType: "image/jpeg", name: "Portrait", readable: true }),
+      expect.objectContaining({
+        id: "ready",
+        mimeType: "image/jpeg",
+        name: "Portrait",
+        readable: true,
+      }),
     ])
-    expect(parseOpenedImageSession({
-      probe: { kind: "image", mimeType: "image/png" },
-      sessionId: "session-2",
-      url: "convax-connected-media://session-2/token",
-    })).toEqual({
+    expect(
+      parseOpenedImageSession({
+        probe: { kind: "image", mimeType: "image/png" },
+        sessionId: "session-2",
+        url: "convax-connected-media://session-2/token",
+      }),
+    ).toEqual({
       probe: { kind: "image", mimeType: "image/png" },
       sessionId: "session-2",
       url: "convax-connected-media://session-2/token",
     })
-    expect(() => parseOpenedImageSession({
-      dataUrl: "data:image/png;base64,AA==",
-      mimeType: "image/png",
-    })).toThrow()
+    expect(() =>
+      parseOpenedImageSession({
+        dataUrl: "data:image/png;base64,AA==",
+        mimeType: "image/png",
+      }),
+    ).toThrow()
   })
 
   test("closes every acquired image session exactly once on success, failure, and cancellation", async () => {
@@ -99,7 +147,9 @@ describe("relight-studio v8 transport", () => {
       const controller = new AbortController()
       const closes = []
       const result = withOpenedImageSession({
-        close: async (sessionId) => { closes.push(sessionId) },
+        close: async (sessionId) => {
+          closes.push(sessionId)
+        },
         inputKey: "opaque-relight-input",
         open: async () => opened,
         signal: controller.signal,
@@ -113,23 +163,30 @@ describe("relight-studio v8 transport", () => {
         },
       })
       if (outcome === "success") await expect(result).resolves.toBe("ready")
-      else await expect(result).rejects.toThrow(outcome === "failure" ? "decode failed" : "stale relight")
+      else
+        await expect(result).rejects.toThrow(
+          outcome === "failure" ? "decode failed" : "stale relight",
+        )
       expect(closes).toEqual(["relight-session"])
     }
   })
 
   test("does not claim an exact close when the SDK rejects an open result before returning it", async () => {
     const closes = []
-    await expect(withOpenedImageSession({
-      close: async (sessionId) => { closes.push(sessionId) },
-      inputKey: "opaque-relight-input",
-      open: async () => {
-        throw new Error("Plugin Host returned an invalid result")
-      },
-      use: async () => {
-        throw new Error("must not decode")
-      },
-    })).rejects.toThrow("Plugin Host returned an invalid result")
+    await expect(
+      withOpenedImageSession({
+        close: async (sessionId) => {
+          closes.push(sessionId)
+        },
+        inputKey: "opaque-relight-input",
+        open: async () => {
+          throw new Error("Plugin Host returned an invalid result")
+        },
+        use: async () => {
+          throw new Error("must not decode")
+        },
+      }),
+    ).rejects.toThrow("Plugin Host returned an invalid result")
     expect(closes).toEqual([])
   })
 })

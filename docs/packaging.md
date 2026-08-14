@@ -30,42 +30,27 @@ and avoiding compressor-version drift makes releases reproducible.
 
 New Plugin and Skill source uses only `convax.package/2`. Every source package has
 no portable publication field. `registry/host-capability-policy.json` is the sole
-policy owner and reverse-binds every pending Host capability request to exact
-package versions plus its sorted accepted Plugin API ids and exact Catalog
-contract digests. Every affected workspace independently lists the request id in
+policy owner. Its bounded `requirements` reverse-bind generic Host contract checks
+to exact package versions plus, for Catalog checks, sorted Plugin API ids and exact
+contract digests. Every affected workspace independently lists the requirement id in
 `package.json#convax.hostCapabilityRequests`; tooling requires an exact two-way
-match before deriving blocked state in memory. Normal source admission reports
-blocked packages without publishing them. Repository-wide packing, Marketplace,
-and release selection omit the blocked owner/owned-Skill closure and continue with
-unrelated ready packages; an explicitly selected exact package rejects a blocked
-target. New Plugin manifests use only
+match. Catalog-contract and package-conformance requirements are verified
+automatically. The separate bounded `blockers` collection records only an actual
+technical incompatibility that validation cannot close. Normal source admission
+reports such packages without publishing them. Repository-wide packing,
+Marketplace, and release selection omit the blocked owner/owned-Skill closure and
+continue with unrelated ready packages; an explicitly selected exact package
+rejects a blocked target. New Plugin manifests use only
 `convax.plugin/8`; older manifests are explicit rejection-test fixtures only.
 
 The reverse binding is a bounded set: one exact package version may list at most
-16 unique, orthogonal request ids. Derived blockers are deterministically sorted
-and retain every request even when several requests use the same blocker code.
-Each request is resolved and receipt-verified independently; partial resolution
-keeps the remaining requests blocked.
-
-The protected CI/release path runs `tooling/host-capability-history.mjs` against
-the exact prior protected-main commit before version selection. Every pending
-request and affected package identity from that base is monotonic until an
-externally issued human receipt passes the immutable-Release and workflow
-attestation verifier. The normalized request semantic core is also monotonic while
-generated Catalog evidence may refresh. Simultaneously
-deleting declarations, rewriting the pending contract, or copying a blocked
-implementation to a new Plugin id cannot produce a ready release. New and renamed
-Plugin identities enter pending human review by default.
-
-`.github/CODEOWNERS` covers the governance and publishing paths. The
-`pull_request_target` governance job executes the checker from protected base and
-never executes candidate code; configure it as a required status check. Host
-decisions use `plugin-host-capability-governance`, while the publish job declares
-`plugin-marketplace-production`. Branch protection must require a named human
-code-owner, dismiss stale approvals, reject bot approval, and require current CI.
-Both Environments must be protected, and immutable Releases must be enabled for
-the Host and Plugin repositories. Those remote settings remain mandatory external
-controls and must be verified outside repository source.
+16 unique, orthogonal requirement ids. Derived technical blockers are
+deterministically sorted. A satisfied requirement needs no receipt, tombstone,
+CODEOWNERS approval, protected Environment, or manual exception. The protected
+branch runs the same validation before version selection and the artifact-only
+publisher starts automatically when every selected closure is ready. Immutable
+Releases and exact provenance remain mandatory; they protect bytes and identity,
+not a human approval queue.
 
 A headless `convax.plugin/8` local Tool Plugin may contain only `manifest.json` and
 a license notice. It still declares
@@ -105,7 +90,7 @@ remote MCP Plugin explicitly declares
 `hostApi: {"major":3,"required":[],"optional":[]}`. The concrete manifest and any
 owned Skill source remain under this repository's package workspaces.
 
-The matching source metadata declares the reviewed tool directory and build output
+The matching source metadata declares the versioned tool directory and build output
 for each target. For example:
 
 ```json
@@ -128,7 +113,7 @@ non-executable POSIX artifacts, duplicate targets, and files resolving outside t
 reviewed source. It derives size and SHA-256 from the bytes it copies rather than
 trusting contributor-authored values.
 
-Each reviewed tool exposes one `build:release:<platform>-<arch>` package script per
+Each versioned tool exposes one `build:release:<platform>-<arch>` package script per
 declared target. `bun run build:companions` discovers those declarations and invokes
 only that fixed reviewed script name (never a command supplied by package metadata),
 then immediately applies the same path, symlink, executable-mode, size, and digest
@@ -234,6 +219,13 @@ it produces Registry v2, Showcase v2, grouped immutable Release assets, the Buil
 bundle, and product-lock input. `bun run marketplace:verify` independently closes
 those outputs before publication.
 
+`catalogs/packaged.json` selects the bounded Official product byte closure used by
+that product-lock input. It may contain current Plugins and standalone Skills;
+Plugin-owned Skills are included only by closing their owner Plugin manifest. This
+repository does not assign install semantics to those bytes. The Host product lock
+separately marks each selected Plugin closure as default install, retired recovery,
+or both, and may mark a standalone Skill only as a default install.
+
 ## Protected default-branch release
 
 Authors change an extension's identity version and merge through the protected
@@ -259,14 +251,14 @@ directories, Catalog contract drift, and package byte drift. The publisher runs
 no repository code; it validates the closed artifact shape, binds it through
 `PUBLICATION-SHA256SUMS`, and attests it with the immutable release assets.
 The dormant npm path retains the stronger Host Release and Sigstore checks for
-the later registry migration. Workspace delivery never resolves or bypasses a
-Host capability request.
+the later registry migration. Workspace delivery never bypasses an automated Host
+contract requirement or an explicit technical blocker.
 
 Plugin and Skill tags retain `<kind>-<id>-v<version>`. Namespaced MCP Server ids are
 never embedded in native paths or tags; the release tag uses the stable hashed item
 key emitted by the Kit. Published versions are
 immutable; never move or reuse a tag. Change bytes by publishing a higher SemVer. To
-disable a compromised version for new installs, publish a reviewed higher package
+disable a compromised version for new installs, publish a verified higher package
 version with `yanked: true`. Existing immutable assets remain available for
 inventory, recovery, and audit.
 

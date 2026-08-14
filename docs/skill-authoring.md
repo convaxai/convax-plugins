@@ -32,12 +32,14 @@ format and not part of the released Skill directory.
 
 New source metadata uses only `convax.package/2` and contains no publication
 field. `registry/host-capability-policy.json` is the sole policy owner and
-reverse-binds pending Host capability requests to exact package versions.
-Source validation and Marketplace preflight structurally admit policy-consistent
-blocked packages and report them explicitly. Exact packing rejects a blocked
-target; Marketplace composition and release selection omit blocked versions and
-continue with unrelated ready packages. Older source envelopes are explicit
-rejection fixtures, not authoring options.
+reverse-binds automated Host contract requirements to exact package versions.
+Catalog/package conformance is checked automatically; the separate blocker list is
+reserved for an actual unresolved technical dependency. Source validation and
+Marketplace preflight report blocked packages explicitly. Exact packing rejects a
+blocked target; Marketplace composition and release selection omit blocked
+versions and continue with unrelated ready packages. Older source envelopes are
+explicit rejection fixtures, not authoring options. No human receipt or approval
+Environment participates in publication.
 
 ## Write `SKILL.md`
 

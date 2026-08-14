@@ -27,38 +27,29 @@ Thanks for improving the Convax capability catalog.
 8. Open a `convax-plugins` PR describing behavior, capabilities, manual tests,
    handled data, and any unresolved publication blocker.
 
-## Missing Host API human gate
+## Missing Host contract
 
 Plugin work does not authorize Host changes. If the generated Catalog or current
 SDK lacks a required generic capability:
 
 1. stop Host-dependent implementation and mark the affected package blocked;
-2. create
-   `docs/host-capability-requests/<kebab-case-slug>.md` from the
-   `convax-plugin-authoring` Skill template;
+2. describe the generic requirement with the `convax-plugin-authoring` Skill's
+   `references/host-contract-requirement.md` template;
 3. add the request id to every affected workspace's
    `package.json#convax.hostCapabilityRequests` and bind each exact package
    version in `registry/host-capability-policy.json`;
-4. submit only that implementation-neutral request for explicit human review;
-5. do not edit, branch, commit, push, or open a PR in the Host repository.
+4. keep an explicit technical blocker while the contract is absent;
+5. do not edit, branch, commit, push, or open a PR in the Host repository from
+   this Plugin task.
 
-Only explicit human approval may start a separate Host-owned task. The Plugin task
-remains blocked until the approved contract is released in the generated Catalog;
-writable sibling repositories or a shared Agent session do not waive this gate.
-Editing `humanDecision`, deleting the policy, or deleting both a request and its
-policy entry does not release an explicitly declared dependency. The request
-semantic core is protected across commits, and new or renamed Plugin identities
-do not reset an existing package's obligation. A new Plugin using only published
-Catalog APIs goes through ordinary protected CODEOWNERS review and must not invent
-a Host request. `convax.pet-host/1` is a Manifest-visible missing SDK surface and
-is therefore gated automatically. `canvas.inputs.open` is a legal audio/video
-stream contract, not an image API; a Plugin needing image bytes must explicitly
-submit the pending image-input request rather than reinterpret the result or edit
-Host code.
-Unblocking additionally requires a protected decision receipt bound to the exact
-released generic contract version, Catalog digest, and runtime conformance
-evidence. Remote branch rules must enforce the repository CODEOWNERS and the
-protected production environment; repository text cannot self-certify a human.
+A separate Host-owned task may add only the generic contract. Once the generated
+Catalog contains it, bind the exact API digest as a `catalog-contracts`
+requirement and remove the technical blocker. Validation then makes the package
+ready automatically. Do not add `humanDecision`, approval receipts, CODEOWNERS
+gates, or approval Environments. A new Plugin using only published Catalog APIs
+must not invent a requirement. `canvas.inputs.open` remains an audio/video stream
+contract; image consumers use the published `canvas.inputs.image.open`/`close`
+contracts.
 
 ## Review checklist
 

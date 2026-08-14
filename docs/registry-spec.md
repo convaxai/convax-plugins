@@ -26,10 +26,12 @@ Source admission and Registry consumption are deliberately different contracts.
 Every new Plugin or Skill Release candidate is admitted from
 `convax.package/2`. New Plugin candidates additionally require
 `convax.plugin/8`. Source metadata contains neither publication policy nor
-`compatibility`. `registry/host-capability-policy.json` reverse-binds pending Host
-capability requests to exact package versions and sorted accepted API
-`{id,digest}` pairs, and tooling merges that policy before validation, packing,
-Marketplace builds, or release selection.
+`compatibility`. `registry/host-capability-policy.json` reverse-binds automated
+Host contract requirements to exact package versions and, for Catalog checks,
+sorted accepted API `{id,digest}` pairs. A separate list contains only unresolved
+technical blockers. Tooling merges that policy before validation, packing,
+Marketplace builds, or release selection; no human approval state enters the
+runtime Registry.
 
 The builder derives, rather than accepts, the Registry compatibility envelope:
 

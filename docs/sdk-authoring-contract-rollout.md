@@ -104,8 +104,9 @@ owned Agent tool. The Skill reference generator cannot safely invent these types
   exercised during development. Protected publication accepts only committed
   vendored bytes whose exact installed workspace resolutions and digests appear
   in the canonical closure artifact.
-- This file is intentionally outside `docs/host-capability-requests/`; it is not a
-  Host capability request and cannot change package publication policy.
+- This is a delivery design record, not
+  `registry/host-capability-policy.json`, and cannot change package publication
+  requirements or blockers.
 - The npm migration remains blocked until the four exact npm versions are
   publicly resolvable, a clean frozen install succeeds without workspace links,
   and the committed lockfile records that public dependency closure. This no
@@ -156,15 +157,15 @@ unless all of the following are true:
    tarball SRI/SHA-256, Host release identities, package manifest, source
    entrypoints, and final ZIP bytes.
 
-The environment-gated publisher does not check out source or execute Bun, Node,
+The artifact-only publisher does not check out source or execute Bun, Node,
 Git, npm, or repository scripts. It consumes the uploaded candidate, verifies the
 complete checksum manifest and closed statements, attests the bundles/statements/
 checksums together, and rejects every existing tag or Release version.
 
-`host-capability-governance.yml` runs the high-water checker first and then invokes
-the protected-base copy of `plugin-publication-policy.mjs` against candidate bytes.
-That ordering prevents a candidate from weakening its own SDK gate or treating an
-SDK package Release as capability approval.
+The low-privilege release verifier invokes `plugin-publication-policy.mjs` before
+creating the candidate artifact plan. The minimal publisher accepts only that
+checksummed plan, preventing candidate code from weakening its own SDK gate or
+treating an SDK package Release as a missing Host contract.
 
 Once Host publishes the exact npm and immutable Release assets and their Sigstore
 bundles, the release owner must change the explicit source selector to `npm`,

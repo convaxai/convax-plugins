@@ -22,8 +22,11 @@ async function write(root, relative, contents = "{}\n") {
 }
 
 afterAll(async () => {
-  await Promise.all(temporaryDirectories.map((directory) =>
-    fs.rm(directory, { force: true, recursive: true })))
+  await Promise.all(
+    temporaryDirectories.map((directory) =>
+      fs.rm(directory, { force: true, recursive: true }),
+    ),
+  )
 })
 
 describe("ready-only Marketplace publication view", () => {
@@ -31,7 +34,7 @@ describe("ready-only Marketplace publication view", () => {
     const workspaceRoot = await temporaryDirectory("convax-publication-source-")
     await write(workspaceRoot, "marketplace.json")
     await write(workspaceRoot, "catalogs/builtin.json")
-    await write(workspaceRoot, "catalogs/preinstalled.json")
+    await write(workspaceRoot, "catalogs/packaged.json")
     await write(workspaceRoot, "registry/config.json")
     for (const relative of [
       "packages/plugins/blocked-plugin/package/manifest.json",
@@ -108,23 +111,20 @@ describe("ready-only Marketplace publication view", () => {
       workspaceRoot,
     })
     try {
-      await expect(fs.stat(path.join(
-        view.root,
-        "packages/skills/ready-skill/package/SKILL.md",
-      ))).resolves.toBeDefined()
-      await expect(fs.stat(path.join(
-        view.root,
-        "packages/plugins/blocked-plugin",
-      ))).rejects.toMatchObject({ code: "ENOENT" })
-      await expect(fs.stat(path.join(
-        view.root,
-        "packages/skills/blocked-skill",
-      ))).rejects.toMatchObject({ code: "ENOENT" })
-      expect(view.omissions.omitted.map((entry) =>
-        `${entry.kind}/${entry.id}`)).toEqual([
-        "plugin/blocked-plugin",
-        "skill/blocked-skill",
-      ])
+      await expect(
+        fs.stat(
+          path.join(view.root, "packages/skills/ready-skill/package/SKILL.md"),
+        ),
+      ).resolves.toBeDefined()
+      await expect(
+        fs.stat(path.join(view.root, "packages/plugins/blocked-plugin")),
+      ).rejects.toMatchObject({ code: "ENOENT" })
+      await expect(
+        fs.stat(path.join(view.root, "packages/skills/blocked-skill")),
+      ).rejects.toMatchObject({ code: "ENOENT" })
+      expect(
+        view.omissions.omitted.map((entry) => `${entry.kind}/${entry.id}`),
+      ).toEqual(["plugin/blocked-plugin", "skill/blocked-skill"])
       expect(view.omissions.omitted[1].publication.blockedBy).toEqual([
         "plugin/blocked-plugin",
       ])
@@ -137,10 +137,12 @@ describe("ready-only Marketplace publication view", () => {
   })
 
   test("excludes an explicit package and closes owned Skill publication", async () => {
-    const workspaceRoot = await temporaryDirectory("convax-publication-excluded-")
+    const workspaceRoot = await temporaryDirectory(
+      "convax-publication-excluded-",
+    )
     await write(workspaceRoot, "marketplace.json")
     await write(workspaceRoot, "catalogs/builtin.json")
-    await write(workspaceRoot, "catalogs/preinstalled.json")
+    await write(workspaceRoot, "catalogs/packaged.json")
     await write(workspaceRoot, "catalogs/excluded.json")
     await write(workspaceRoot, "registry/config.json")
     for (const relative of [
@@ -199,20 +201,25 @@ describe("ready-only Marketplace publication view", () => {
         { kind: "plugin", id: "excluded-plugin" },
         { kind: "skill", id: "owned-skill" },
       ])
-      await expect(fs.stat(path.join(view.root, "packages/plugins/excluded-plugin")))
-        .rejects.toMatchObject({ code: "ENOENT" })
-      await expect(fs.stat(path.join(view.root, "packages/skills/owned-skill")))
-        .rejects.toMatchObject({ code: "ENOENT" })
-      await expect(fs.stat(path.join(view.root, "packages/skills/ready-skill")))
-        .resolves.toBeDefined()
+      await expect(
+        fs.stat(path.join(view.root, "packages/plugins/excluded-plugin")),
+      ).rejects.toMatchObject({ code: "ENOENT" })
+      await expect(
+        fs.stat(path.join(view.root, "packages/skills/owned-skill")),
+      ).rejects.toMatchObject({ code: "ENOENT" })
+      await expect(
+        fs.stat(path.join(view.root, "packages/skills/ready-skill")),
+      ).resolves.toBeDefined()
     } finally {
       await disposeMarketplacePublicationView(view)
     }
-    await expect(createMarketplacePublicationView({
-      candidates,
-      excluded: [{ kind: "skill", id: "owned-skill" }],
-      packages,
-      workspaceRoot,
-    })).rejects.toThrow("without plugin/excluded-plugin")
+    await expect(
+      createMarketplacePublicationView({
+        candidates,
+        excluded: [{ kind: "skill", id: "owned-skill" }],
+        packages,
+        workspaceRoot,
+      }),
+    ).rejects.toThrow("without plugin/excluded-plugin")
   })
 })

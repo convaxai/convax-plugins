@@ -95,11 +95,15 @@ jobs:
           if [[ -n "${CONVAX_MARKETPLACE_CUTOVER_PREVIOUS:-}" ]]; then
             cutover_args+=(--cutover-registry "$CONVAX_MARKETPLACE_CUTOVER_PREVIOUS")
           fi
+          previous_args=()
+          if [[ -n "${CONVAX_MARKETPLACE_PREVIOUS:-}" ]]; then
+            previous_args+=(--previous-registry "$CONVAX_MARKETPLACE_PREVIOUS")
+          fi
           bun tooling/marketplace-release.mjs \
             --base "$CONVAX_MARKETPLACE_BASE_SHA" \
             --catalog "$CONVAX_PLUGIN_API_CATALOG" \
             "${cutover_args[@]}" \
-            --governance-base "${{ github.event.before }}" \
+            "${previous_args[@]}" \
             --head "$GITHUB_SHA" \
             --omissions-output dist/release-omissions.json \
             --output dist/release-plan.json
@@ -442,7 +446,6 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: plugin-marketplace-production
     permissions:
       attestations: write
       contents: write
