@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 const localDevelopmentConfigSchema =
@@ -12,6 +11,7 @@ export function resolveNexusLocalDevelopmentEnvironment(
 ): Readonly<Record<string, string | undefined>> {
   if (hasExplicitLocalConfiguration(environment)) return environment;
   const configRoot = configuredRoot(environment);
+  if (configRoot === undefined) return environment;
   const configPath = path.join(
     configRoot,
     "convax",
@@ -90,15 +90,13 @@ export function resolveNexusLocalDevelopmentEnvironment(
 
 function configuredRoot(
   environment: Readonly<Record<string, string | undefined>>,
-) {
+): string | undefined {
   const configured = environment.XDG_CONFIG_HOME;
-  if (configured !== undefined) {
-    if (!path.isAbsolute(configured)) {
-      throw new Error("XDG_CONFIG_HOME must be absolute");
-    }
-    return configured;
+  if (configured === undefined) return undefined;
+  if (!path.isAbsolute(configured)) {
+    throw new Error("XDG_CONFIG_HOME must be absolute");
   }
-  return path.join(environment.HOME || os.homedir(), ".config");
+  return configured;
 }
 
 function hasExplicitLocalConfiguration(

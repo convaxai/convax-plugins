@@ -72,7 +72,9 @@ bun run build
 ```
 
 Create the projected profile with `bun run local-profile`, and write the
-digest-bound local configuration with `bun run local-configure`. Local
+digest-bound local configuration with `bun run local-configure`. Automatic
+configuration discovery requires an explicitly configured absolute
+`XDG_CONFIG_HOME`; the companion never falls back to `HOME/.config`. Local
 end-to-end tests must use `nexus/tests/fake-provider`; they must not call a
 paid provider.
 
