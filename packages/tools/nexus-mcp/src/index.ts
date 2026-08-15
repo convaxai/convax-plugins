@@ -1,5 +1,7 @@
 #!/usr/bin/env bun
 
+import { setDefaultResultOrder } from "node:dns"
+
 import { NexusMcpServer } from "./mcp-server.ts"
 
 const shutdownGracePeriodMs = 5_000
@@ -8,8 +10,13 @@ export function createServer() {
   return new NexusMcpServer()
 }
 
+export function configureNetworkPreference() {
+  setDefaultResultOrder("ipv6first")
+}
+
 async function run() {
   if (process.argv.length > 2) throw new Error("Usage: convax-nexus-mcp")
+  configureNetworkPreference()
   const server = createServer()
   let shutdown: Promise<boolean> | undefined
   const stop = () => {
