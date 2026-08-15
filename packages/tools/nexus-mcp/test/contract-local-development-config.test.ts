@@ -38,6 +38,17 @@ describe("Nexus local development configuration", () => {
     expect(JSON.stringify(environment)).not.toContain("credential");
   });
 
+  test("does not discover local development configuration through HOME", async () => {
+    const fixture = await localFixture();
+    await fs.rename(
+      fixture.configRoot,
+      path.join(fixture.root, ".config"),
+    );
+    const input = Object.freeze({ HOME: fixture.root });
+
+    expect(resolveNexusLocalDevelopmentEnvironment(input)).toBe(input);
+  });
+
   test("fails closed on profile drift, public permissions, unknown fields, and non-loopback origins", async () => {
     const drift = await localFixture();
     await fs.writeFile(drift.profilePath, "{}\n", { mode: 0o600 });
