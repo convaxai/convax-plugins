@@ -4,7 +4,7 @@ import { llmGatewaySchema } from "./contracts.ts";
 import {
   publicNexusErrorMessage,
   type NexusClient,
-} from "./nexus-client.ts";
+} from "./application-client.ts";
 
 const maximumRequestBytes = 8 * 1024 * 1024;
 
@@ -63,15 +63,30 @@ export class NexusLlmGateway {
         "authentication_error",
       );
     }
-    if (
-      !["GET", "POST", "DELETE"].includes(request.method) ||
-      !url.pathname.startsWith("/v1/") ||
-      url.pathname.length <= "/v1/".length ||
-      url.hash
-    ) {
+    const upstreamPath =
+      request.method === "GET" && url.pathname === "/v1/models"
+        ? "/models"
+        : request.method === "POST" &&
+            url.pathname === "/v1/chat/completions" &&
+            url.search === ""
+          ? "/chat/completions"
+          : undefined;
+    if (upstreamPath === undefined || url.hash) {
       return errorResponse(
         404,
         "OpenRouter endpoint was not found",
+        "invalid_request_error",
+      );
+    }
+    if (
+      upstreamPath === "/models" &&
+      [...url.searchParams].some(
+        ([key, value]) => key !== "output_modalities" || value !== "text",
+      )
+    ) {
+      return errorResponse(
+        400,
+        "OpenRouter model filters are controlled by Convax",
         "invalid_request_error",
       );
     }
@@ -114,20 +129,47 @@ export class NexusLlmGateway {
           "invalid_request_error",
         );
       }
+      if (upstreamPath === "/chat/completions") {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(body));
+        } catch {
+          return errorResponse(
+            400,
+            "OpenRouter request body is invalid",
+            "invalid_request_error",
+          );
+        }
+        if (
+          !parsed ||
+          typeof parsed !== "object" ||
+          Array.isArray(parsed) ||
+          Object.prototype.hasOwnProperty.call(parsed, "provider")
+        ) {
+          return errorResponse(
+            400,
+            "OpenRouter provider routing is controlled by Nexus",
+            "invalid_request_error",
+          );
+        }
+      }
       const context = await this.client.gatewayContext();
       const upstreamUrl = new URL(
-        `${context.provider.gatewayBaseUrl}${url.pathname.slice("/v1".length)}${url.search}`,
+        `${context.provider.gatewayBaseUrl}${upstreamPath}${
+          upstreamPath === "/models" ? url.search : ""
+        }`,
       );
       const upstream = await fetch(upstreamUrl, {
         method: request.method,
         headers: {
           accept: request.headers.get("accept") ?? "*/*",
-          authorization: `Bearer ${context.dataToken}`,
+          authorization: `Bearer ${context.accessToken}`,
           ...(body && body.length > 0
             ? { "content-type": "application/json" }
             : {}),
         },
         ...(body && body.length > 0 ? { body } : {}),
+        redirect: "error",
         signal: request.signal,
       });
       const headers = new Headers({ "Cache-Control": "no-store" });

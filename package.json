@@ -29,6 +29,7 @@
     "marketplace:bundle": "bun tooling/marketplace-preflight.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" && convax-marketplace bundle . --out dist/builtin",
     "skill-api:check": "bun tooling/generate-skill-api-references.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" --check",
     "marketplace:lock-input": "convax-marketplace lock-input --catalog dist/catalog --builtin dist/builtin --out dist/product-lock-input.json",
+    "marketplace:local-product-lock-input": "bun tooling/local-product-lock-input.mjs",
     "marketplace:verify": "bun tooling/verify-marketplace-output.mjs dist/catalog && bun tooling/verify-product-lock-input.mjs dist/product-lock-input.json",
     "marketplace:build": "bun run marketplace:bundle && bun run marketplace:build-index && bun run marketplace:lock-input && bun run marketplace:verify",
     "build:companions": "bun tooling/build-companions.mjs",

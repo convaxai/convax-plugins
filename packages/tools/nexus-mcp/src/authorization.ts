@@ -3,12 +3,15 @@ import { createHash, randomBytes } from "node:crypto";
 import {
   externalAuthorizationCompletionSchema,
   externalAuthorizationRequestSchema,
-  workspaceSlug,
   type ExternalAuthorizationRequest,
 } from "./contracts.ts";
-import type { NexusClient } from "./nexus-client.ts";
+import type { NexusClient } from "./application-client.ts";
 
 const authorizationTimeoutSeconds = 10 * 60;
+const loopbackHostname = "127.0.0.1";
+const loopbackPort = 65_051;
+const loopbackPath = "/oauth/callback";
+const loopbackRedirectUri = "http://127.0.0.1:65051/oauth/callback";
 
 interface CallbackOutcome {
   code?: string;
@@ -20,7 +23,7 @@ interface PendingAuthorization {
   callback: Promise<CallbackOutcome>;
   codeVerifier: string;
   completionPage: Promise<boolean>;
-  nexusOrigin: string;
+  nonce: string;
   redirectUri: string;
   resolveCompletionPage(succeeded: boolean): void;
   resolve(outcome: CallbackOutcome): void;
@@ -36,10 +39,11 @@ export class NexusAuthorization {
 
   async begin(): Promise<ExternalAuthorizationRequest> {
     this.cancel();
-    const nexusOrigin = await this.client.resolveOrigin();
+    await this.client.resolveAuthXIssuer();
     const authorizationId = randomBytes(24).toString("base64url");
     const state = randomBytes(24).toString("base64url");
-    const codeVerifier = randomBytes(32).toString("base64url");
+    const nonce = randomBytes(24).toString("base64url");
+    const codeVerifier = randomBytes(48).toString("base64url");
     const codeChallenge = createHash("sha256")
       .update(codeVerifier)
       .digest("base64url");
@@ -65,14 +69,14 @@ export class NexusAuthorization {
     };
     let server!: Bun.Server<unknown>;
     server = Bun.serve({
-      hostname: "127.0.0.1",
-      port: 0,
+      hostname: loopbackHostname,
+      port: loopbackPort,
       async fetch(request) {
         const url = new URL(request.url);
         if (
           request.method !== "GET" ||
-          url.host !== `127.0.0.1:${server.port}` ||
-          url.pathname !== "/callback"
+          url.origin !== `http://${loopbackHostname}:${loopbackPort}` ||
+          url.pathname !== loopbackPath
         ) {
           return new Response("Not found", { status: 404 });
         }
@@ -89,7 +93,7 @@ export class NexusAuthorization {
         return callbackPage(succeeded);
       },
     });
-    const redirectUri = `http://127.0.0.1:${server.port}/callback`;
+    const redirectUri = loopbackRedirectUri;
     const timer = setTimeout(
       () => settle({ error: new Error("Nexus authorization timed out") }),
       authorizationTimeoutSeconds * 1_000,
@@ -100,7 +104,7 @@ export class NexusAuthorization {
       callback,
       codeVerifier,
       completionPage,
-      nexusOrigin,
+      nonce,
       redirectUri,
       resolveCompletionPage: settleCompletionPage,
       resolve: settle,
@@ -108,16 +112,14 @@ export class NexusAuthorization {
       state,
       timer,
     };
-    const authorizationUrl = new URL(
-      `/workspace/${workspaceSlug}/auth/sign-up`,
-      nexusOrigin,
-    );
-    authorizationUrl.searchParams.set("redirect_uri", redirectUri);
-    authorizationUrl.searchParams.set("code_challenge", codeChallenge);
-    authorizationUrl.searchParams.set("state", state);
     return {
       authorization_id: authorizationId,
-      authorization_url: authorizationUrl.href,
+      authorization_url: await this.client.authorizationUrl({
+        codeChallenge,
+        nonce,
+        redirectUri,
+        state,
+      }),
       schema: externalAuthorizationRequestSchema,
       timeout_seconds: authorizationTimeoutSeconds,
     };
@@ -135,9 +137,10 @@ export class NexusAuthorization {
       if (!outcome.code)
         throw new Error("Nexus authorization did not return a code");
       await this.client.exchangeAuthorizationCode({
+        authorizationId: pending.authorizationId,
         code: outcome.code,
         codeVerifier: pending.codeVerifier,
-        nexusOrigin: pending.nexusOrigin,
+        nonce: pending.nonce,
         redirectUri: pending.redirectUri,
       });
       pending.resolveCompletionPage(true);

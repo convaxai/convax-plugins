@@ -14,5 +14,12 @@
     "target": "ES2023",
     "types": ["bun"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "test/contract-*.test.ts",
+    "test/v2-audio-generator.test.ts",
+    "test/v2-credential-store.test.ts",
+    "test/v2-image-generator.test.ts",
+    "test/v2-llm-gateway.test.ts"
+  ]
 }

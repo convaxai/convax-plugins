@@ -1,3 +1,4 @@
+/*
 import { randomBytes } from "node:crypto"
 import { constants as fsConstants } from "node:fs"
 import fs from "node:fs/promises"
@@ -111,3 +112,13 @@ export class NexusSessionStore {
     await fs.rm(this.path, { force: true })
   }
 }
+*/
+
+export {
+  LocalDevelopmentCredentialStore,
+  MacOsKeychainCredentialStore as NexusSessionStore,
+  MemoryCredentialStore,
+  createCredentialStore,
+  createProductionCredentialStore,
+} from "./credential-store.ts";
+export type { NexusCredentialStore } from "./credential-store.ts";
