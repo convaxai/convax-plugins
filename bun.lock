@@ -85,7 +85,7 @@
     },
     "packages/plugins/nexus-service": {
       "name": "@microvoid/convax-plugin-nexus-service",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "dependencies": {
         "@microvoid/convax-nexus-mcp": "workspace:*",
       },
@@ -280,7 +280,7 @@
     },
     "packages/tools/nexus-mcp": {
       "name": "@microvoid/convax-nexus-mcp",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "bin": {
         "convax-nexus-mcp": "dist/convax-nexus-mcp",
       },

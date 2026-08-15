@@ -28,6 +28,7 @@ import {
 import { NexusImageGenerator } from "./image-generator.ts";
 import { NexusLlmGateway } from "./llm-gateway.ts";
 import { NexusPluginService } from "./plugin-service.ts";
+import { productionIpv6Fetch } from "./production-network-fetch.ts";
 import { NexusGenerationLro } from "./generation-lro.ts";
 import { resolveNexusLocalDevelopmentEnvironment } from "./local-development-config.ts";
 import { VideoOperationJournal } from "./video-journal.ts";
@@ -590,7 +591,7 @@ export class NexusMcpServer {
           tools: {},
         },
         protocolVersion,
-        serverInfo: { name: "convax-nexus-mcp", version: "1.0.3" },
+        serverInfo: { name: "convax-nexus-mcp", version: "1.0.4" },
       });
       return;
     }
@@ -991,7 +992,7 @@ function clientOptionsFromEnvironment(
         "Local AuthX and Nexus configuration requires CONVAX_NEXUS_LOCAL_DEVELOPMENT=1",
       );
     }
-    return { environment };
+    return { environment, fetch: productionIpv6Fetch };
   }
   if (
     !environment.CONVAX_AUTHX_PUBLIC_CLIENT_PROFILE ||
