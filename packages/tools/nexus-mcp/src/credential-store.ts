@@ -10,7 +10,10 @@ import {
   type NexusApplicationCredentials,
 } from "./contracts.ts";
 
-const productionKeychainService = "io.convax.nexus-service";
+// v2 starts from a clean ACL after the pre-release companion used an unstable
+// linker-generated code identity. Release builds now carry one explicit,
+// version-independent designated requirement so later updates keep access.
+const productionKeychainService = "io.convax.nexus-service.v2";
 const keychainAccount = "application-access";
 const maximumCredentialBytes = 32 * 1024;
 const localCredentialFileName = "authx-refresh-credential.json";
