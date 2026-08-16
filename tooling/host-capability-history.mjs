@@ -4,8 +4,15 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 import {
+  exactKeys,
   parseHostCapabilityPolicy,
+  parseId,
+  parseSemver,
 } from "./lib.mjs"
+import {
+  assertCatalogContainsAcceptedApiContracts,
+  parseAcceptedApiContracts,
+} from "./host-capability-api-contracts.mjs"
 import {
   acquireAndVerifyHostCapabilityDecisionReceipt,
 } from "./host-capability-decision.mjs"
@@ -19,6 +26,235 @@ const emptyPolicy = Object.freeze({
   resolutions: Object.freeze([]),
   schema: "convax.host-capability-policy/2",
 })
+const automatedPolicySchema = "convax.host-capability-policy/3"
+const automatedVerificationModes = new Set([
+  "catalog-contracts",
+  "package-conformance",
+])
+const technicalBlockerCodes = new Set([
+  "release-test-failed",
+  "unsupported-target",
+  "unverified-runtime-dependency",
+])
+const maximumRequirementsPerPackage = 16
+
+function cleanString(value, label, maximumLength) {
+  if (
+    typeof value !== "string" ||
+    value !== value.trim() ||
+    value.length === 0 ||
+    value.length > maximumLength ||
+    /[\u0000-\u001f\u007f]/u.test(value)
+  ) {
+    throw new Error(`${label}: must be a non-empty trimmed string`)
+  }
+  return value
+}
+
+function policyId(value, label) {
+  const id = cleanString(value, label, 128)
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(id)) {
+    throw new Error(`${label}: must be a lowercase kebab-case identifier`)
+  }
+  return id
+}
+
+function parseAutomatedAffected(value, label) {
+  exactKeys(value, ["id", "kind", "version"], ["id", "kind", "version"], label)
+  if (value.kind !== "plugin" && value.kind !== "skill") {
+    throw new Error(`${label}: kind must be plugin or skill`)
+  }
+  return {
+    id: parseId(value.id, `${label} id`),
+    kind: value.kind,
+    version: parseSemver(value.version, `${label} version`),
+  }
+}
+
+function compareAffected(left, right) {
+  return `${left.kind}/${left.id}@${left.version}`.localeCompare(
+    `${right.kind}/${right.id}@${right.version}`,
+    "en",
+  )
+}
+
+function assertUniqueAffected(affected, label) {
+  const identities = affected.map(
+    (item) => `${item.kind}/${item.id}@${item.version}`,
+  )
+  if (new Set(identities).size !== identities.length) {
+    throw new Error(`${label}: contains duplicate affected package versions`)
+  }
+}
+
+export function parseAutomatedHostCapabilityPolicy(
+  value,
+  catalog,
+  label = "registry/host-capability-policy.json",
+) {
+  exactKeys(
+    value,
+    ["blockers", "requirements", "schema"],
+    ["blockers", "requirements", "schema"],
+    label,
+  )
+  if (value.schema !== automatedPolicySchema) {
+    throw new Error(`${label}: unsupported automated policy schema`)
+  }
+  if (!Array.isArray(value.requirements) || value.requirements.length > 1_000) {
+    throw new Error(`${label}: requirements must be an array with at most 1000 items`)
+  }
+  const requirements = value.requirements.map((requirement, index) => {
+    const requirementLabel = `${label} requirement ${index}`
+    exactKeys(
+      requirement,
+      ["acceptedApiContracts", "affected", "id", "verification"],
+      ["acceptedApiContracts", "affected", "id", "verification"],
+      requirementLabel,
+    )
+    const id = policyId(requirement.id, `${requirementLabel} id`)
+    if (!automatedVerificationModes.has(requirement.verification)) {
+      throw new Error(
+        `${requirementLabel}: verification must be catalog-contracts or package-conformance`,
+      )
+    }
+    const acceptedApiContracts = parseAcceptedApiContracts(
+      requirement.acceptedApiContracts,
+      `${requirementLabel} acceptedApiContracts`,
+    )
+    if (
+      requirement.verification === "catalog-contracts" &&
+      acceptedApiContracts.length === 0
+    ) {
+      throw new Error(
+        `${requirementLabel}: catalog-contracts verification requires at least one accepted API contract`,
+      )
+    }
+    if (
+      requirement.verification === "package-conformance" &&
+      acceptedApiContracts.length !== 0
+    ) {
+      throw new Error(
+        `${requirementLabel}: package-conformance verification must not duplicate API contracts`,
+      )
+    }
+    assertCatalogContainsAcceptedApiContracts(
+      catalog,
+      acceptedApiContracts,
+      `${requirementLabel} candidate Catalog`,
+    )
+    if (
+      !Array.isArray(requirement.affected) ||
+      requirement.affected.length < 1 ||
+      requirement.affected.length > 1_000
+    ) {
+      throw new Error(
+        `${requirementLabel}: affected must contain from 1 to 1000 package versions`,
+      )
+    }
+    const affected = requirement.affected.map((item, itemIndex) =>
+      parseAutomatedAffected(
+        item,
+        `${requirementLabel} affected ${itemIndex}`,
+      ))
+    if (
+      requirement.verification === "catalog-contracts" &&
+      affected.some((item) => item.kind !== "plugin")
+    ) {
+      throw new Error(
+        `${requirementLabel}: catalog-contracts verification may affect only Plugins with manifests`,
+      )
+    }
+    assertUniqueAffected(affected, requirementLabel)
+    return {
+      acceptedApiContracts,
+      affected: affected.sort(compareAffected),
+      id,
+      verification: requirement.verification,
+    }
+  }).sort((left, right) => left.id.localeCompare(right.id, "en"))
+  const requirementIds = requirements.map(({ id }) => id)
+  if (new Set(requirementIds).size !== requirementIds.length) {
+    throw new Error(`${label}: contains duplicate requirement ids`)
+  }
+  const requirementCountByPackage = new Map()
+  for (const requirement of requirements) {
+    for (const item of requirement.affected) {
+      const identity = `${item.kind}/${item.id}@${item.version}`
+      const count = (requirementCountByPackage.get(identity) ?? 0) + 1
+      if (count > maximumRequirementsPerPackage) {
+        throw new Error(
+          `${label}: ${identity} binds more than ${maximumRequirementsPerPackage} automated requirements`,
+        )
+      }
+      requirementCountByPackage.set(identity, count)
+    }
+  }
+  if (!Array.isArray(value.blockers) || value.blockers.length > 1_000) {
+    throw new Error(`${label}: blockers must be an array with at most 1000 items`)
+  }
+  const blockers = value.blockers.map((entry, index) => {
+    const blockerLabel = `${label} blocker policy ${index}`
+    exactKeys(entry, ["affected", "id"], ["affected", "id"], blockerLabel)
+    const id = policyId(entry.id, `${blockerLabel} id`)
+    if (
+      !Array.isArray(entry.affected) ||
+      entry.affected.length < 1 ||
+      entry.affected.length > 1_000
+    ) {
+      throw new Error(
+        `${blockerLabel}: affected must contain from 1 to 1000 package versions`,
+      )
+    }
+    const affected = entry.affected.map((item, itemIndex) => {
+      const itemLabel = `${blockerLabel} affected ${itemIndex}`
+      exactKeys(
+        item,
+        ["blocker", "id", "kind", "version"],
+        ["blocker", "id", "kind", "version"],
+        itemLabel,
+      )
+      const identity = parseAutomatedAffected(
+        { id: item.id, kind: item.kind, version: item.version },
+        itemLabel,
+      )
+      exactKeys(
+        item.blocker,
+        ["code", "note"],
+        ["code", "note"],
+        `${itemLabel} blocker`,
+      )
+      const code = cleanString(
+        item.blocker.code,
+        `${itemLabel} blocker code`,
+        80,
+      )
+      if (!technicalBlockerCodes.has(code)) {
+        throw new Error(
+          `${itemLabel} blocker: automated policy accepts only technical blocker codes`,
+        )
+      }
+      return {
+        ...identity,
+        blocker: {
+          code,
+          note: cleanString(
+            item.blocker.note,
+            `${itemLabel} blocker note`,
+            700,
+          ),
+        },
+      }
+    })
+    assertUniqueAffected(affected, blockerLabel)
+    return { affected: affected.sort(compareAffected), id }
+  }).sort((left, right) => left.id.localeCompare(right.id, "en"))
+  const blockerIds = blockers.map(({ id }) => id)
+  if (new Set(blockerIds).size !== blockerIds.length) {
+    throw new Error(`${label}: contains duplicate blocker policy ids`)
+  }
+  return { blockers, requirements, schema: automatedPolicySchema }
+}
 
 function requestById(policy) {
   return new Map(policy.requests.map((request) => [request.id, request]))
@@ -115,6 +351,233 @@ export function assertPendingHostCapabilityHistory(
   }
 }
 
+function exactStringList(left, right) {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  )
+}
+
+export function assertAutomatedHostCapabilityTransition(
+  basePolicy,
+  currentPolicy,
+  workspaceState,
+) {
+  if (basePolicy.schema !== "convax.host-capability-policy/2") {
+    throw new Error(
+      "automated Host capability policy requires an exact protected /2 base",
+    )
+  }
+  if (basePolicy.resolutions.length !== 0) {
+    throw new Error(
+      "automated Host capability policy cannot discard protected resolution tombstones",
+    )
+  }
+  if (workspaceState.requestDocuments.length !== 0) {
+    throw new Error(
+      "automated Host capability policy cannot retain human-review request documents",
+    )
+  }
+  const requirementsById = new Map(
+    currentPolicy.requirements.map((requirement) => [requirement.id, requirement]),
+  )
+  const blockersById = new Map(
+    currentPolicy.blockers.map((blocker) => [blocker.id, blocker]),
+  )
+  for (const baseRequest of basePolicy.requests) {
+    const requirement = requirementsById.get(baseRequest.id)
+    if (!requirement) {
+      throw new Error(
+        `protected Host capability request ${baseRequest.id} must become an automated requirement with the same id`,
+      )
+    }
+    const expectedVerification = baseRequest.acceptedApiContracts.length > 0
+      ? "catalog-contracts"
+      : "package-conformance"
+    if (requirement.verification !== expectedVerification) {
+      throw new Error(
+        `protected Host capability request ${baseRequest.id} must use ${expectedVerification} verification`,
+      )
+    }
+    const baseApiIds = baseRequest.acceptedApiContracts
+      .map(({ id }) => id)
+      .sort()
+    const currentApiIds = requirement.acceptedApiContracts
+      .map(({ id }) => id)
+      .sort()
+    if (!exactStringList(baseApiIds, currentApiIds)) {
+      throw new Error(
+        `protected Host capability request ${baseRequest.id} accepted API ids cannot change during automated migration`,
+      )
+    }
+    const currentAffectedByIdentity = new Map(
+      requirement.affected.map((item) => [affectedKey(item), item]),
+    )
+    for (const baseAffected of baseRequest.affected) {
+      const identity = affectedKey(baseAffected)
+      const currentAffected = currentAffectedByIdentity.get(identity)
+      if (!currentAffected) {
+        throw new Error(
+          `protected Host capability request ${baseRequest.id} cannot release ${identity} during automated migration`,
+        )
+      }
+      for (const baseBlocker of baseAffected.blockers) {
+        if (baseBlocker.code === "host-capability-review-required") continue
+        const blockerPolicy = blockersById.get(baseRequest.id)
+        const currentBlocker = blockerPolicy?.affected.find(
+          (item) => affectedKey(item) === identity,
+        )
+        if (
+          !currentBlocker ||
+          currentBlocker.version !== currentAffected.version ||
+          currentBlocker.blocker.code !== baseBlocker.code
+        ) {
+          throw new Error(
+            `protected technical blocker ${baseRequest.id} for ${identity} must remain fail-closed at the automated requirement version`,
+          )
+        }
+      }
+    }
+  }
+  for (const blockerPolicy of currentPolicy.blockers) {
+    const requirement = requirementsById.get(blockerPolicy.id)
+    if (!requirement) {
+      throw new Error(
+        `technical blocker ${blockerPolicy.id} must bind one automated requirement`,
+      )
+    }
+    const requiredIdentities = new Set(
+      requirement.affected.map(
+        (item) => `${item.kind}/${item.id}@${item.version}`,
+      ),
+    )
+    for (const item of blockerPolicy.affected) {
+      const identity = `${item.kind}/${item.id}@${item.version}`
+      if (!requiredIdentities.has(identity)) {
+        throw new Error(
+          `technical blocker ${blockerPolicy.id} contains stale or unrelated package ${identity}`,
+        )
+      }
+      if (!workspaceState.packageIdentities.has(identity)) {
+        throw new Error(
+          `technical blocker ${blockerPolicy.id} names unknown package ${identity}`,
+        )
+      }
+    }
+  }
+  const policyDeclarations = new Map(
+    currentPolicy.requirements.map((requirement) => [
+      requirement.id,
+      requirement.affected
+        .map((item) => `${item.kind}/${item.id}@${item.version}`)
+        .sort(),
+    ]),
+  )
+  for (const requirementId of new Set([
+    ...policyDeclarations.keys(),
+    ...workspaceState.declarationsByRequirement.keys(),
+  ])) {
+    const expected = policyDeclarations.get(requirementId)
+    const actual = (
+      workspaceState.declarationsByRequirement.get(requirementId) ?? []
+    ).sort()
+    if (!expected || !exactStringList(expected, actual)) {
+      throw new Error(
+        `automated requirement ${requirementId} must exactly match workspace declarations and affected versions`,
+      )
+    }
+  }
+  return {
+    requirements: currentPolicy.requirements.length,
+    technicalBlockers: currentPolicy.blockers.length,
+  }
+}
+
+async function readJsonFile(file, label) {
+  let source
+  try {
+    source = await fs.readFile(file, "utf8")
+  } catch (cause) {
+    throw new Error(`${label}: cannot read`, { cause })
+  }
+  try {
+    return JSON.parse(source)
+  } catch (cause) {
+    throw new Error(`${label}: invalid JSON`, { cause })
+  }
+}
+
+async function inspectAutomatedWorkspace(workspaceRoot) {
+  const declarationsByRequirement = new Map()
+  const packageIdentities = new Set()
+  for (const [kind, directoryName] of [
+    ["plugin", "plugins"],
+    ["skill", "skills"],
+  ]) {
+    const directory = path.join(workspaceRoot, "packages", directoryName)
+    const entries = await fs.readdir(directory, { withFileTypes: true })
+      .catch((cause) => {
+        if (cause?.code === "ENOENT") return []
+        throw cause
+      })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const id = parseId(entry.name, `${kind} directory id`)
+      const packagePath = path.join(directory, entry.name, "package.json")
+      const stat = await fs.lstat(packagePath).catch((cause) => {
+        throw new Error(`${kind}/${id} package.json: cannot inspect`, { cause })
+      })
+      if (!stat.isFile()) {
+        throw new Error(`${kind}/${id} package.json: must be a regular file`)
+      }
+      const packageJson = await readJsonFile(
+        packagePath,
+        `${kind}/${id} package.json`,
+      )
+      const version = parseSemver(
+        packageJson.version,
+        `${kind}/${id} package version`,
+      )
+      const identity = `${kind}/${id}@${version}`
+      packageIdentities.add(identity)
+      const declarations = packageJson["convax.hostCapabilityRequests"] ?? []
+      if (
+        !Array.isArray(declarations) ||
+        declarations.length > maximumRequirementsPerPackage ||
+        new Set(declarations).size !== declarations.length
+      ) {
+        throw new Error(
+          `${kind}/${id} package.json: convax.hostCapabilityRequests must contain at most ${maximumRequirementsPerPackage} unique ids`,
+        )
+      }
+      for (const value of declarations) {
+        const requirementId = policyId(
+          value,
+          `${kind}/${id} automated requirement`,
+        )
+        const affected = declarationsByRequirement.get(requirementId) ?? []
+        affected.push(identity)
+        declarationsByRequirement.set(requirementId, affected)
+      }
+    }
+  }
+  const requestDirectory = path.join(
+    workspaceRoot,
+    "docs",
+    "host-capability-requests",
+  )
+  const requestDocuments = (
+    await fs.readdir(requestDirectory, { withFileTypes: true }).catch((cause) => {
+      if (cause?.code === "ENOENT") return []
+      throw cause
+    })
+  )
+    .filter((entry) => entry.name.endsWith(".md"))
+    .map((entry) => entry.name)
+    .sort()
+  return { declarationsByRequirement, packageIdentities, requestDocuments }
+}
+
 function requireCommit(value) {
   if (typeof value !== "string" || !/^[a-f0-9]{40,64}$/u.test(value)) {
     throw new Error("Host capability governance base must be one exact commit SHA")
@@ -146,7 +609,7 @@ function readBasePolicy(workspaceRoot, baseCommit) {
   return parseHostCapabilityPolicy(value, `protected base ${policyPath}`)
 }
 
-async function readCurrentPolicy(workspaceRoot) {
+async function readCurrentPolicyValue(workspaceRoot) {
   let value
   try {
     value = JSON.parse(
@@ -155,7 +618,7 @@ async function readCurrentPolicy(workspaceRoot) {
   } catch (cause) {
     throw new Error(`current ${policyPath} is not valid JSON`, { cause })
   }
-  return parseHostCapabilityPolicy(value, `current ${policyPath}`)
+  return value
 }
 
 function readBaseFile(workspaceRoot, baseCommit, relativePath) {
@@ -170,10 +633,40 @@ export async function verifyPendingHostCapabilityHistory(
   const baseCommit = requireCommit(baseInput)
   git(workspaceRoot, ["rev-parse", "--verify", `${baseCommit}^{commit}`])
   git(workspaceRoot, ["merge-base", "--is-ancestor", baseCommit, "HEAD"])
-  const [basePolicy, currentPolicy] = await Promise.all([
+  const [basePolicy, currentPolicyValue] = await Promise.all([
     Promise.resolve(readBasePolicy(workspaceRoot, baseCommit)),
-    readCurrentPolicy(workspaceRoot),
+    readCurrentPolicyValue(workspaceRoot),
   ])
+  if (currentPolicyValue?.schema === automatedPolicySchema) {
+    if (!options.catalogPath) {
+      throw new Error("automated Host capability policy requires --catalog")
+    }
+    const catalog = await readJsonFile(
+      path.resolve(workspaceRoot, options.catalogPath),
+      "candidate Plugin API Catalog",
+    )
+    const currentPolicy = parseAutomatedHostCapabilityPolicy(
+      currentPolicyValue,
+      catalog,
+      `current ${policyPath}`,
+    )
+    const transition = assertAutomatedHostCapabilityTransition(
+      basePolicy,
+      currentPolicy,
+      await inspectAutomatedWorkspace(workspaceRoot),
+    )
+    return {
+      automatedTransition: true,
+      baseCommit,
+      resolvedRequests: 0,
+      retainedRequests: basePolicy.requests.length,
+      ...transition,
+    }
+  }
+  const currentPolicy = parseHostCapabilityPolicy(
+    currentPolicyValue,
+    `current ${policyPath}`,
+  )
   const baseSemanticDigests = new Map(
     basePolicy.requests.map((request) => [
       request.id,
@@ -268,7 +761,7 @@ if (import.meta.main) {
       receiptDirectory: parsed["--receipt-directory"],
     },
   )
-  process.stdout.write(
-    `Verified ${result.retainedRequests} protected Host capability request obligation${result.retainedRequests === 1 ? "" : "s"} from ${result.baseCommit}; ${result.resolvedRequests} resolved by immutable protected receipt.\n`,
-  )
+  process.stdout.write(result.automatedTransition
+    ? `Verified one protected /2 to automated /3 transition from ${result.baseCommit}: ${result.requirements} requirements and ${result.technicalBlockers} technical blocker policies.\n`
+    : `Verified ${result.retainedRequests} protected Host capability request obligation${result.retainedRequests === 1 ? "" : "s"} from ${result.baseCommit}; ${result.resolvedRequests} resolved by immutable protected receipt.\n`)
 }

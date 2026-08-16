@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test"
 
-import { assertPendingHostCapabilityHistory } from "./host-capability-history.mjs"
+import {
+  assertAutomatedHostCapabilityTransition,
+  assertPendingHostCapabilityHistory,
+  parseAutomatedHostCapabilityPolicy,
+} from "./host-capability-history.mjs"
 import {
   hostCapabilityRequestSemanticDigest,
 } from "./host-capability-request.mjs"
@@ -55,6 +59,34 @@ function legacyPolicy(requests) {
 function semanticDigests(entries = [["image-input-read", "semantic-v1"]]) {
   const values = new Map(entries)
   return { base: values, current: new Map(values) }
+}
+
+function automatedPolicy(value) {
+  return parseAutomatedHostCapabilityPolicy(
+    {
+      blockers: value.blockers ?? [],
+      requirements: value.requirements,
+      schema: "convax.host-capability-policy/3",
+    },
+    {
+      apis: [
+        {
+          contract: { digest: `sha256:${"3".repeat(64)}` },
+          id: "canvas.inputs.image.open",
+        },
+      ],
+    },
+  )
+}
+
+function automatedWorkspace(entries) {
+  const declarationsByRequirement = new Map()
+  const packageIdentities = new Set()
+  for (const [requirementId, identities] of entries) {
+    declarationsByRequirement.set(requirementId, identities)
+    for (const identity of identities) packageIdentities.add(identity)
+  }
+  return { declarationsByRequirement, packageIdentities, requestDocuments: [] }
 }
 
 describe("protected Host capability request history", () => {
@@ -344,6 +376,124 @@ describe("protected Host capability request history", () => {
         },
       ),
     ).toThrow("semantic contract cannot change")
+  })
+
+  test("accepts one explicit automated migration while retaining technical blockers", () => {
+    const technicalRequest = request("verified-toolchain", [
+      { id: "editor", kind: "plugin", version: "1.0.0" },
+    ])
+    technicalRequest.affected[0].blocker = {
+      code: "unverified-runtime-dependency",
+      note:
+        "The runtime resolves a tool from PATH. Human review is tracked in docs/host-capability-requests/verified-toolchain.md.",
+    }
+    const base = policy([
+      request(
+        "image-input-read",
+        [{ id: "viewer", kind: "plugin", version: "1.0.0" }],
+        [{
+          digest: `sha256:${"1".repeat(64)}`,
+          id: "canvas.inputs.image.open",
+        }],
+      ),
+      technicalRequest,
+    ])
+    const current = automatedPolicy({
+      blockers: [
+        {
+          affected: [
+            {
+              blocker: {
+                code: "unverified-runtime-dependency",
+                note: "The runtime still resolves a tool from PATH.",
+              },
+              id: "editor",
+              kind: "plugin",
+              version: "1.1.0",
+            },
+          ],
+          id: "verified-toolchain",
+        },
+      ],
+      requirements: [
+        {
+          acceptedApiContracts: [{
+            digest: `sha256:${"3".repeat(64)}`,
+            id: "canvas.inputs.image.open",
+          }],
+          affected: [
+            { id: "viewer", kind: "plugin", version: "1.1.0" },
+          ],
+          id: "image-input-read",
+          verification: "catalog-contracts",
+        },
+        {
+          acceptedApiContracts: [],
+          affected: [
+            { id: "editor", kind: "plugin", version: "1.1.0" },
+          ],
+          id: "verified-toolchain",
+          verification: "package-conformance",
+        },
+      ],
+    })
+    expect(
+      assertAutomatedHostCapabilityTransition(
+        base,
+        current,
+        automatedWorkspace([
+          ["image-input-read", ["plugin/viewer@1.1.0"]],
+          ["verified-toolchain", ["plugin/editor@1.1.0"]],
+        ]),
+      ),
+    ).toEqual({ requirements: 2, technicalBlockers: 1 })
+
+    expect(() =>
+      assertAutomatedHostCapabilityTransition(
+        base,
+        { ...current, blockers: [] },
+        automatedWorkspace([
+          ["image-input-read", ["plugin/viewer@1.1.0"]],
+          ["verified-toolchain", ["plugin/editor@1.1.0"]],
+        ]),
+      ),
+    ).toThrow("technical blocker verified-toolchain")
+  })
+
+  test("rejects human review blockers from automated policy", () => {
+    for (const code of [
+      "host-capability-review-required",
+      "security-review-required",
+    ]) {
+      expect(() => automatedPolicy({
+        blockers: [
+          {
+            affected: [
+              {
+                blocker: {
+                  code,
+                  note: "Wait for a person.",
+                },
+                id: "viewer",
+                kind: "plugin",
+                version: "1.0.0",
+              },
+            ],
+            id: "image-input-read",
+          },
+        ],
+        requirements: [
+          {
+            acceptedApiContracts: [],
+            affected: [
+              { id: "viewer", kind: "plugin", version: "1.0.0" },
+            ],
+            id: "image-input-read",
+            verification: "package-conformance",
+          },
+        ],
+      })).toThrow("accepts only technical blocker codes")
+    }
   })
 
   test("semantic hashing preserves Markdown identifiers and punctuation", () => {
