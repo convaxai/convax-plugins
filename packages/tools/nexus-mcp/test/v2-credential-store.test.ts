@@ -64,6 +64,7 @@ describe("Nexus credential stores", () => {
       })),
     );
     expect(serializedMetadata).not.toContain(credentials.refreshToken);
+    expect(calls.every(({ service }) => service === "io.convax.nexus-service.v2")).toBeTrue();
     expect(calls[0]?.value).toContain(credentials.refreshToken);
     expect(calls[0]?.value).not.toContain("inferenceKey");
 
