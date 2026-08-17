@@ -1,71 +1,72 @@
 {
-  "schema": "convax.host-capability-policy/2",
-  "resolutions": [],
-  "requests": [
+  "schema": "convax.host-capability-policy/3",
+  "requirements": [
+    {
+      "id": "public-plugin-ui-foundation",
+      "verification": "package-conformance",
+      "acceptedApiContracts": [],
+      "affected": [
+        {
+          "kind": "plugin",
+          "id": "convax-pet",
+          "version": "0.3.3"
+        }
+      ]
+    },
+    {
+      "id": "sdk-owned-pet-surface-client",
+      "verification": "package-conformance",
+      "acceptedApiContracts": [],
+      "affected": [
+        {
+          "kind": "plugin",
+          "id": "convax-pet",
+          "version": "0.3.3"
+        }
+      ]
+    },
     {
       "id": "verified-companion-toolchain",
-      "document": "docs/host-capability-requests/verified-companion-toolchain.md",
-      "status": "pending",
-      "humanDecision": null,
+      "verification": "package-conformance",
       "acceptedApiContracts": [],
       "affected": [
         {
           "kind": "plugin",
           "id": "chatcut",
-          "version": "0.4.2",
-          "blocker": {
-            "code": "unverified-runtime-dependency",
-            "note": "The companion resolves ffmpeg and ffprobe from ambient PATH instead of an immutable host-verified dependency. Human review is tracked in docs/host-capability-requests/verified-companion-toolchain.md."
-          }
+          "version": "0.4.3"
         }
       ]
     },
     {
       "id": "web-plugin-generation-input-binding",
-      "document": "docs/host-capability-requests/web-plugin-generation-input-binding.md",
-      "status": "pending",
-      "humanDecision": null,
+      "verification": "catalog-contracts",
       "acceptedApiContracts": [
         {
           "id": "generation.execute",
-          "digest": "sha256:a7ec11a6894247ae4485414a82a8a409f618d00bf3206e973ab111d4e7fa8247"
+          "digest": "sha256:c00cba532377ce144fb27d0bc2e9195b6cda796159cff251bce218c3a55da26e"
         }
       ],
       "affected": [
         {
           "kind": "plugin",
           "id": "jianying-editor",
-          "version": "3.0.3",
-          "blocker": {
-            "code": "host-capability-review-required",
-            "note": "Publication awaits a generated API 2 contract that binds generation references to opaque direct-input keys. Human review is tracked in docs/host-capability-requests/web-plugin-generation-input-binding.md."
-          }
+          "version": "3.0.3"
         },
         {
           "kind": "plugin",
           "id": "multi-angle",
-          "version": "0.2.2",
-          "blocker": {
-            "code": "host-capability-review-required",
-            "note": "Publication awaits a generated API 2 contract that binds generation references to opaque direct-input keys. Human review is tracked in docs/host-capability-requests/web-plugin-generation-input-binding.md."
-          }
+          "version": "0.2.3"
         },
         {
           "kind": "plugin",
           "id": "relight-studio",
-          "version": "0.2.2",
-          "blocker": {
-            "code": "host-capability-review-required",
-            "note": "Publication awaits a generated API 2 contract that binds generation references to opaque direct-input keys. Human review is tracked in docs/host-capability-requests/web-plugin-generation-input-binding.md."
-          }
+          "version": "0.2.3"
         }
       ]
     },
     {
       "id": "web-plugin-image-input-read",
-      "document": "docs/host-capability-requests/web-plugin-image-input-read.md",
-      "status": "pending",
-      "humanDecision": null,
+      "verification": "catalog-contracts",
       "acceptedApiContracts": [
         {
           "id": "canvas.inputs.image.close",
@@ -80,64 +81,32 @@
         {
           "kind": "plugin",
           "id": "multi-angle",
-          "version": "0.2.2",
-          "blocker": {
-            "code": "host-capability-review-required",
-            "note": "Publication awaits an external receipt binding canvas.inputs.image.open and canvas.inputs.image.close to their accepted Catalog contract digests. Human review is tracked in docs/host-capability-requests/web-plugin-image-input-read.md."
-          }
+          "version": "0.2.3"
         },
         {
           "kind": "plugin",
           "id": "panorama-viewer",
-          "version": "0.3.2",
-          "blocker": {
-            "code": "host-capability-review-required",
-            "note": "Publication awaits an external receipt binding canvas.inputs.image.open and canvas.inputs.image.close to their accepted Catalog contract digests. Human review is tracked in docs/host-capability-requests/web-plugin-image-input-read.md."
-          }
+          "version": "0.3.3"
         },
         {
           "kind": "plugin",
           "id": "relight-studio",
-          "version": "0.2.2",
-          "blocker": {
-            "code": "host-capability-review-required",
-            "note": "Publication awaits an external receipt binding canvas.inputs.image.open and canvas.inputs.image.close to their accepted Catalog contract digests. Human review is tracked in docs/host-capability-requests/web-plugin-image-input-read.md."
-          }
+          "version": "0.2.3"
         }
       ]
-    },
+    }
+  ],
+  "blockers": [
     {
-      "id": "public-plugin-ui-foundation",
-      "document": "docs/host-capability-requests/public-plugin-ui-foundation.md",
-      "status": "pending",
-      "humanDecision": null,
-      "acceptedApiContracts": [],
+      "id": "verified-companion-toolchain",
       "affected": [
         {
           "kind": "plugin",
-          "id": "convax-pet",
-          "version": "0.3.3",
+          "id": "chatcut",
+          "version": "0.4.3",
           "blocker": {
-            "code": "host-capability-review-required",
-            "note": "convax-pet@0.3.3 consumes the reviewed local @convax/plugin-ui@0.1.0 candidate, but publication still requires a protected human receipt plus published package integrity evidence. Human review is tracked in docs/host-capability-requests/public-plugin-ui-foundation.md."
-          }
-        }
-      ]
-    },
-    {
-      "id": "sdk-owned-pet-surface-client",
-      "document": "docs/host-capability-requests/sdk-owned-pet-surface-client.md",
-      "status": "pending",
-      "humanDecision": null,
-      "acceptedApiContracts": [],
-      "affected": [
-        {
-          "kind": "plugin",
-          "id": "convax-pet",
-          "version": "0.3.3",
-          "blocker": {
-            "code": "host-capability-review-required",
-            "note": "convax-pet@0.3.3 consumes the reviewed local @convax/plugin-sdk@0.2.0 Pet client candidate and no longer authors the transport, but publication still requires a protected human receipt plus published package integrity and runtime conformance evidence. Human review is tracked in docs/host-capability-requests/sdk-owned-pet-surface-client.md."
+            "code": "unverified-runtime-dependency",
+            "note": "The companion resolves ffmpeg and ffprobe from ambient PATH instead of an immutable Host-verified dependency."
           }
         }
       ]

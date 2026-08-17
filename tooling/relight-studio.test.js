@@ -20,8 +20,11 @@ const packageRoot = path.join(sourceRoot, "package")
 const skillRoot = path.join(root, "packages", "skills", "relight-studio")
 
 describe("relight-studio package", () => {
-  test("declares a v8 Web caller blocked on an approved image-input contract", async () => {
-    const packages = await discoverPackages({ kind: "plugin", id: "relight-studio" })
+  test("declares a v8 Web caller admitted by automated Catalog contracts", async () => {
+    const packages = await discoverPackages({
+      kind: "plugin",
+      id: "relight-studio",
+    })
     const metadata = packages.find((pkg) => pkg.kind === "plugin").metadata
     const manifest = parsePluginManifest(
       await readJson(path.join(packageRoot, "manifest.json")),
@@ -34,62 +37,53 @@ describe("relight-studio package", () => {
       id: "relight-studio",
       name: "重打光",
       description: manifest.description,
-      version: "0.2.2",
+      version: "0.2.3",
       publication: {
-        status: "blocked",
-        blockers: expect.arrayContaining([
-          {
-            code: "host-capability-review-required",
-            note: expect.stringContaining(
-              "docs/host-capability-requests/web-plugin-image-input-read.md",
-            ),
-          },
-          {
-            code: "host-capability-review-required",
-            note: expect.stringContaining(
-              "docs/host-capability-requests/web-plugin-generation-input-binding.md",
-            ),
-          },
-        ]),
+        status: "ready",
+        blockers: [],
       },
       yanked: false,
     })
-    expect(manifest).toEqual(expect.objectContaining({
-      schema: "convax.plugin/8",
-      id: metadata.id,
-      name: metadata.name,
-      description: metadata.description,
-      version: metadata.version,
-      entry: "index.html",
-      capabilities: [
-        "canvas.connectedInputs.read",
-        "canvas.connectedImages.read",
-        "canvas.node.write",
-        "generation.execute",
-        "ui.fullscreen",
-      ],
-      hostApi: {
-        major: 3,
-        required: [
-          "canvas.inputs.image.close",
-          "canvas.inputs.image.open",
-          "canvas.inputs.list",
-          "canvas.node.state.replace",
+    expect(manifest).toEqual(
+      expect.objectContaining({
+        schema: "convax.plugin/8",
+        id: metadata.id,
+        name: metadata.name,
+        description: metadata.description,
+        version: metadata.version,
+        entry: "index.html",
+        capabilities: [
+          "canvas.connectedInputs.read",
+          "canvas.connectedImages.read",
+          "canvas.node.write",
           "generation.execute",
-          "generation.tools.list",
-          "host.context.get",
+          "ui.fullscreen",
         ],
-        optional: [],
-      },
-    }))
+        hostApi: {
+          major: 3,
+          required: [
+            "canvas.inputs.image.close",
+            "canvas.inputs.image.open",
+            "canvas.inputs.list",
+            "canvas.node.state.replace",
+            "generation.execute",
+            "generation.tools.list",
+            "host.context.get",
+          ],
+          optional: [],
+        },
+      }),
+    )
     expect(manifest.contributes).toEqual({
       canvas: {
         renderer: { create: true, width: 1080, height: 720 },
       },
-      skills: [{
-        name: "relight-studio",
-        path: "skills/relight-studio",
-      }],
+      skills: [
+        {
+          name: "relight-studio",
+          path: "skills/relight-studio",
+        },
+      ],
     })
     expect(metadata).not.toHaveProperty("compatibility")
     expect(manifest).not.toHaveProperty("skill")
@@ -99,50 +93,54 @@ describe("relight-studio package", () => {
   })
 
   test("selects only generic reference-image generation tools", () => {
-    expect(normalizeGenerationTools({
-      tools: [
-        {
-          id: "example-vendor/image-a",
-          title: "Image A",
-          description: "Accepts image references.",
-          kind: "model",
-          output: "image",
-          acceptedInputs: ["reference_image"],
-        },
-        {
-          id: "example-vendor/image-without-reference",
-          title: "Prompt-only image",
-          kind: "model",
-          output: "image",
-          acceptedInputs: [],
-        },
-        {
-          id: "example-vendor/video-a",
-          title: "Video A",
-          kind: "model",
-          output: "video",
-          acceptedInputs: ["reference_image"],
-        },
-        {
-          id: "example-vendor/image-operation",
-          title: "Image operation",
-          kind: "operation",
-          output: "image",
-          acceptedInputs: ["reference_image"],
-        },
-        {
-          id: "example-vendor/image-a",
-          title: "Duplicate Image A",
-          kind: "model",
-          output: "image",
-          acceptedInputs: ["reference_image"],
-        },
-      ],
-    })).toEqual([{
-      id: "example-vendor/image-a",
-      title: "Image A",
-      description: "Accepts image references.",
-    }])
+    expect(
+      normalizeGenerationTools({
+        tools: [
+          {
+            id: "example-vendor/image-a",
+            title: "Image A",
+            description: "Accepts image references.",
+            kind: "model",
+            output: "image",
+            acceptedInputs: ["reference_image"],
+          },
+          {
+            id: "example-vendor/image-without-reference",
+            title: "Prompt-only image",
+            kind: "model",
+            output: "image",
+            acceptedInputs: [],
+          },
+          {
+            id: "example-vendor/video-a",
+            title: "Video A",
+            kind: "model",
+            output: "video",
+            acceptedInputs: ["reference_image"],
+          },
+          {
+            id: "example-vendor/image-operation",
+            title: "Image operation",
+            kind: "operation",
+            output: "image",
+            acceptedInputs: ["reference_image"],
+          },
+          {
+            id: "example-vendor/image-a",
+            title: "Duplicate Image A",
+            kind: "model",
+            output: "image",
+            acceptedInputs: ["reference_image"],
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        id: "example-vendor/image-a",
+        title: "Image A",
+        description: "Accepts image references.",
+      },
+    ])
   })
 
   test("drains Plugin state before requesting a pending Canvas generation node", async () => {
@@ -160,8 +158,13 @@ describe("relight-studio package", () => {
     })
     expect(request).not.toHaveProperty("nodeId")
 
-    const app = await fs.readFile(path.join(packageRoot, "assets", "app.js"), "utf8")
-    const resultValidationStart = app.indexOf("function validGenerationResult(value)")
+    const app = await fs.readFile(
+      path.join(packageRoot, "assets", "app.js"),
+      "utf8",
+    )
+    const resultValidationStart = app.indexOf(
+      "function validGenerationResult(value)",
+    )
     const generateStart = app.indexOf("async function generateRelight()")
     const generateEnd = app.indexOf("\nfunction bindControls()", generateStart)
     expect(resultValidationStart).toBeGreaterThanOrEqual(0)
@@ -170,22 +173,34 @@ describe("relight-studio package", () => {
     const resultValidation = app.slice(resultValidationStart, generateStart)
     const generate = app.slice(generateStart, generateEnd)
     const drainIndex = generate.indexOf("await drainStateSave()")
-    const executeIndex = generate.indexOf('hostRequest(\n      "generation.execute"')
+    const executeIndex = generate.indexOf(
+      'hostRequest(\n      "generation.execute"',
+    )
     expect(drainIndex).toBeGreaterThanOrEqual(0)
     expect(executeIndex).toBeGreaterThan(drainIndex)
-    expect(generate.slice(0, executeIndex)).not.toContain("void flushStateSave()")
+    expect(generate.slice(0, executeIndex)).not.toContain(
+      "void flushStateSave()",
+    )
     expect(generate.slice(executeIndex)).toContain("void flushStateSave()")
-    expect(resultValidation).toContain('hasOwnProperty.call(value, "operationReceipt")')
-    expect(resultValidation).toContain('hasOwnProperty.call(value, "projection")')
+    expect(resultValidation).toContain(
+      'hasOwnProperty.call(value, "operationReceipt")',
+    )
+    expect(resultValidation).toContain(
+      'hasOwnProperty.call(value, "projection")',
+    )
     expect(resultValidation).not.toContain(".revision")
     expect(generate).not.toContain(".revision")
 
     const queueStart = app.indexOf("function queueStateSave()")
     const queueEnd = app.indexOf("\nasync function flushStateSave", queueStart)
-    expect(app.slice(queueStart, queueEnd)).toContain("if (generationInFlight) return")
+    expect(app.slice(queueStart, queueEnd)).toContain(
+      "if (generationInFlight) return",
+    )
     const flushStart = queueEnd
     const flushEnd = app.indexOf("\nasync function drainStateSave", flushStart)
-    expect(app.slice(flushStart, flushEnd)).toContain("(!allowDuringGeneration && generationInFlight)")
+    expect(app.slice(flushStart, flushEnd)).toContain(
+      "(!allowDuringGeneration && generationInFlight)",
+    )
   })
 
   test("ships Radix Select, Slider, and Tooltip as a self-contained local browser bundle", async () => {
@@ -203,11 +218,16 @@ describe("relight-studio package", () => {
     const [html, source, bundle] = await Promise.all([
       fs.readFile(path.join(packageRoot, "index.html"), "utf8"),
       fs.readFile(path.join(sourceRoot, "src", "radix-controls.tsx"), "utf8"),
-      fs.readFile(path.join(packageRoot, "assets", "radix-controls.js"), "utf8"),
+      fs.readFile(
+        path.join(packageRoot, "assets", "radix-controls.js"),
+        "utf8",
+      ),
     ])
     expect(html.match(/data-radix-select/g)).toHaveLength(2)
     expect(html.match(/data-radix-slider/g)).toHaveLength(8)
-    expect(source).toContain('import { Select, Slider, Tooltip } from "radix-ui"')
+    expect(source).toContain(
+      'import { Select, Slider, Tooltip } from "radix-ui"',
+    )
     expect(source).toContain("<Select.Root")
     expect(source).toContain("<Slider.Root")
     expect(source).toContain("<Tooltip.Root")
@@ -220,16 +240,23 @@ describe("relight-studio package", () => {
     const files = await collectFiles(packageRoot, "plugin/relight-studio")
     const names = files.map((file) => file.relativePath)
 
-    expect(names).toEqual(expect.arrayContaining([
-      "LICENSE",
-      "assets/radix-controls.js",
-      "index.html",
-      "manifest.json",
-    ]))
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "LICENSE",
+        "assets/radix-controls.js",
+        "index.html",
+        "manifest.json",
+      ]),
+    )
     expect(names).not.toContain("SKILL.md")
-    expect(() => assertPluginStatic(files, "plugin/relight-studio")).not.toThrow()
+    expect(() =>
+      assertPluginStatic(files, "plugin/relight-studio"),
+    ).not.toThrow()
 
-    const packages = await discoverPackages({ kind: "plugin", id: "relight-studio" })
+    const packages = await discoverPackages({
+      kind: "plugin",
+      id: "relight-studio",
+    })
     const skillMetadata = packages.find((pkg) => pkg.kind === "skill").metadata
     expect(skillMetadata).toMatchObject({
       schema: "convax.package/2",
@@ -239,7 +266,10 @@ describe("relight-studio package", () => {
       version: "0.2.0",
       publication: { status: "ready", blockers: [] },
     })
-    const skill = await fs.readFile(path.join(skillRoot, "package", "SKILL.md"), "utf8")
+    const skill = await fs.readFile(
+      path.join(skillRoot, "package", "SKILL.md"),
+      "utf8",
+    )
     expect(skill).toContain("references/convax-capabilities.md")
     expect(skill).toMatch(/generated Convax\s+capability reference/u)
     expect(skill).toContain("live availability/error state")

@@ -26,15 +26,19 @@ describe("multi-angle v8 transport", () => {
     ])
 
     expect([manifest.version, metadata.version, workspace.version]).toEqual([
-      "0.2.2",
-      "0.2.2",
-      "0.2.2",
+      "0.2.3",
+      "0.2.3",
+      "0.2.3",
     ])
     expect(metadata).not.toHaveProperty("publication")
-    expect(publication.requests.flatMap((request) => request.affected)
-      .find((item) => item.id === "multi-angle")).toMatchObject({
-      blocker: { code: "host-capability-review-required" },
-    })
+    expect(publication.requirements
+      .filter((requirement) => requirement.affected.some((item) => item.id === "multi-angle"))
+      .map((requirement) => requirement.id)).toEqual([
+      "web-plugin-generation-input-binding",
+      "web-plugin-image-input-read",
+    ])
+    expect(publication.blockers.flatMap((blocker) => blocker.affected)
+      .find((item) => item.id === "multi-angle")).toBeUndefined()
     expect(manifest.capabilities).toContain("canvas.connectedImages.read")
     expect(manifest.capabilities).not.toContain("canvas.connectedMedia.stream")
     expect(manifest.hostApi.major).toBe(3)

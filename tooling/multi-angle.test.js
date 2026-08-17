@@ -22,40 +22,33 @@ async function read(relativePath) {
 
 async function relativeFiles(directory, prefix = "") {
   const files = []
-  for (const entry of await fs.readdir(path.join(directory, prefix), { withFileTypes: true })) {
+  for (const entry of await fs.readdir(path.join(directory, prefix), {
+    withFileTypes: true,
+  })) {
     const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name
-    if (entry.isDirectory()) files.push(...await relativeFiles(directory, relativePath))
+    if (entry.isDirectory())
+      files.push(...(await relativeFiles(directory, relativePath)))
     else files.push(relativePath)
   }
   return files.sort()
 }
 
 describe("multi-angle Plugin package", () => {
-  test("is a provider-neutral v8 Web Plugin blocked on an approved image-input contract", async () => {
-    const [plugin] = await discoverPackages({ kind: "plugin", id: "multi-angle" })
+  test("is a provider-neutral v8 Web Plugin admitted by automated Catalog contracts", async () => {
+    const [plugin] = await discoverPackages({
+      kind: "plugin",
+      id: "multi-angle",
+    })
     const metadata = plugin.metadata
     const manifest = JSON.parse(await read("manifest.json"))
     expect(metadata).toMatchObject({
       schema: "convax.package/2",
       kind: "plugin",
       id: "multi-angle",
-      version: "0.2.2",
+      version: "0.2.3",
       publication: {
-        status: "blocked",
-        blockers: expect.arrayContaining([
-          {
-            code: "host-capability-review-required",
-            note: expect.stringContaining(
-              "docs/host-capability-requests/web-plugin-image-input-read.md",
-            ),
-          },
-          {
-            code: "host-capability-review-required",
-            note: expect.stringContaining(
-              "docs/host-capability-requests/web-plugin-generation-input-binding.md",
-            ),
-          },
-        ]),
+        status: "ready",
+        blockers: [],
       },
     })
     expect(manifest).toMatchObject({
@@ -65,7 +58,9 @@ describe("multi-angle Plugin package", () => {
         "canvas.node.write",
         "generation.execute",
       ],
-      contributes: { canvas: { renderer: { create: true, height: 720, width: 1080 } } },
+      contributes: {
+        canvas: { renderer: { create: true, height: 720, width: 1080 } },
+      },
       entry: "index.html",
       hostApi: {
         major: 3,
@@ -82,7 +77,7 @@ describe("multi-angle Plugin package", () => {
       },
       id: "multi-angle",
       schema: "convax.plugin/8",
-      version: "0.2.2",
+      version: "0.2.3",
     })
     expect(manifest.contributes.canvas.commands).toEqual([
       {
@@ -145,12 +140,20 @@ describe("multi-angle Plugin package", () => {
     expect(app).toContain(
       'import { acceptPluginHostConnection } from "./plugin-host-client.js"',
     )
-    expect(sdkClient).toContain("@convax/plugin-sdk/client:createPluginHostClient")
+    expect(sdkClient).toContain(
+      "@convax/plugin-sdk/client:createPluginHostClient",
+    )
     expect(sdkClient).toContain("convax.plugin-host/8")
-    expect(app).toContain('hostRequest("generation.tools.list", { output: "image" })')
-    expect(app.match(/hostRequest\("generation\.execute", request, null\)/gu)).toHaveLength(1)
+    expect(app).toContain(
+      'hostRequest("generation.tools.list", { output: "image" })',
+    )
+    expect(
+      app.match(/hostRequest\("generation\.execute", request, null\)/gu),
+    ).toHaveLength(1)
     expect(app).toContain("stateWritesSuspended = true")
-    expect(app.indexOf("stateWritesSuspended = true")).toBeLessThan(app.indexOf('hostRequest("generation.execute"'))
+    expect(app.indexOf("stateWritesSuspended = true")).toBeLessThan(
+      app.indexOf('hostRequest("generation.execute"'),
+    )
     expect(runtime).not.toContain("agent.prompt")
     expect(runtime).not.toContain("CONVAX_MULTI_ANGLE_RESULT")
     expect(runtime).not.toContain("canvas_add_resources")
@@ -205,7 +208,11 @@ describe("multi-angle Plugin package", () => {
       ],
     })
     expect(tools.map((tool) => tool.id)).toEqual(["provider/image.model"])
-    expect(tools[0]).toMatchObject({ kind: "model", output: "image", title: "Provider · Image Model" })
+    expect(tools[0]).toMatchObject({
+      kind: "model",
+      output: "image",
+      title: "Provider · Image Model",
+    })
   })
 
   test("builds one multi-angle grid prompt and one exact direct-incoming generation request", () => {
@@ -227,22 +234,26 @@ describe("multi-angle Plugin package", () => {
     expect(prompt).toContain("不要把视角拆成多张图片")
     expect(prompt).not.toContain("Do not create a contact sheet, grid, collage")
     expect(prompt).toContain("keep the red coat and soft side light")
-    expect(createGenerationRequest({
-      prompt,
-      sourceInputKey: "source-1",
-      toolId: "provider/image.model",
-    })).toEqual({
+    expect(
+      createGenerationRequest({
+        prompt,
+        sourceInputKey: "source-1",
+        toolId: "provider/image.model",
+      }),
+    ).toEqual({
       output: "image",
       prompt,
       references: [{ inputKey: "source-1", role: "reference_image" }],
       resultMode: "create-pending-node",
       toolId: "provider/image.model",
     })
-    expect(() => createMultiAngleGridPrompt({
-      notes: "",
-      presetIds: ["front"],
-      subjectType: "character",
-    })).toThrow("镜头方案无效")
+    expect(() =>
+      createMultiAngleGridPrompt({
+        notes: "",
+        presetIds: ["front"],
+        subjectType: "character",
+      }),
+    ).toThrow("镜头方案无效")
   })
 
   test("executes the whole grid through exactly one generation call", async () => {
@@ -274,21 +285,31 @@ describe("multi-angle Plugin package", () => {
   })
 
   test("preserves the authoritative grid node ids and migrates only portable legacy planning state", () => {
-    const result = normalizeGenerationResult({
-      createdNodeIds: ["node-front-a", "node-front-b"],
-      operationReceipt: null,
-      projection: null,
-      toolId: "provider/image.model",
-      warnings: ["one warning"],
-    }, ["front", "left", "top"], "2026-07-21T00:00:01.000Z")
+    const result = normalizeGenerationResult(
+      {
+        createdNodeIds: ["node-front-a", "node-front-b"],
+        operationReceipt: null,
+        projection: null,
+        toolId: "provider/image.model",
+        warnings: ["one warning"],
+      },
+      ["front", "left", "top"],
+      "2026-07-21T00:00:01.000Z",
+    )
     expect(result.createdNodeIds).toEqual(["node-front-a", "node-front-b"])
     expect(result.presetIds).toEqual(["front", "left", "top"])
     expect(result).not.toHaveProperty("revision")
-    expect(() => normalizeGenerationResult({
-      createdNodeIds: ["node-front-a"],
-      toolId: "provider/image.model",
-      warnings: [],
-    }, ["front", "left"], "2026-07-21T00:00:01.000Z")).toThrow("生成结果无效")
+    expect(() =>
+      normalizeGenerationResult(
+        {
+          createdNodeIds: ["node-front-a"],
+          toolId: "provider/image.model",
+          warnings: [],
+        },
+        ["front", "left"],
+        "2026-07-21T00:00:01.000Z",
+      ),
+    ).toThrow("生成结果无效")
 
     const legacy = hydratePluginState({
       lastRun: { status: "waiting" },
@@ -354,13 +375,19 @@ describe("multi-angle Plugin package", () => {
       toolId: "provider/image.model",
     })
     expect(interrupted.source).toBe("current")
-    expect(interrupted.state.result.createdNodeIds).toEqual(["node-front-a", "node-front-b"])
+    expect(interrupted.state.result.createdNodeIds).toEqual([
+      "node-front-a",
+      "node-front-b",
+    ])
     expect(interrupted.state.lastRun).toMatchObject({
       failure: { message: expect.any(String) },
       status: "interrupted",
     })
 
-    const unsupported = hydratePluginState({ schemaVersion: 99, providerSecret: "must remain untouched" })
+    const unsupported = hydratePluginState({
+      schemaVersion: 99,
+      providerSecret: "must remain untouched",
+    })
     expect(unsupported.source).toBe("unsupported")
     expect(unsupported.state).toEqual(createDefaultState())
   })

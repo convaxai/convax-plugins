@@ -16,7 +16,7 @@
     },
     "packages/plugins/chatcut": {
       "name": "@microvoid/convax-plugin-chatcut",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "dependencies": {
         "@microvoid/convax-chatcut-media-import-mcp": "workspace:*",
         "@microvoid/convax-skill-chatcut": "workspace:*",
@@ -78,7 +78,7 @@
     },
     "packages/plugins/multi-angle": {
       "name": "@microvoid/convax-plugin-multi-angle",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "devDependencies": {
         "@convax/plugin-sdk": "0.2.0",
       },
@@ -92,14 +92,14 @@
     },
     "packages/plugins/panorama-viewer": {
       "name": "@microvoid/convax-plugin-panorama-viewer",
-      "version": "0.3.2",
+      "version": "0.3.3",
       "devDependencies": {
         "@convax/plugin-sdk": "0.2.0",
       },
     },
     "packages/plugins/relight-studio": {
       "name": "@microvoid/convax-plugin-relight-studio",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "dependencies": {
         "@microvoid/convax-skill-relight-studio": "workspace:*",
       },
@@ -169,7 +169,7 @@
     },
     "packages/skills/convax-plugin-authoring": {
       "name": "@microvoid/convax-skill-convax-plugin-authoring",
-      "version": "0.1.3",
+      "version": "0.1.4",
     },
     "packages/skills/ecommerce-image": {
       "name": "@microvoid/convax-skill-ecommerce-image",

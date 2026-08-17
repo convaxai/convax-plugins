@@ -27,85 +27,39 @@ valid source candidates, templates, release selections, or new Release entries.
 ```
 
 `registry/host-capability-policy.json` is the sole publication-policy owner.
-Every pending request under `docs/host-capability-requests/` must appear there
-with exact affected package versions. Each affected workspace must also list the
-request id under `package.json#convax.hostCapabilityRequests`; tooling requires the
-declaration and policy to match in both directions before deriving `publication:
-{status:"blocked",blockers}` in memory. Missing policy, request document,
-declaration, edited decision, or stale package version fails closed. The portable
-package and runtime Registry never acquire this authoring policy.
+Its `requirements` bind generic Host contracts to exact affected package versions.
+Each affected workspace lists the same id under
+`package.json#convax.hostCapabilityRequests`; tooling requires both directions to
+match. `catalog-contracts` requirements pin current generated API contract digests,
+while `package-conformance` requirements rely on the repository's public package
+and manifest validators. The separate `blockers` collection records only an
+unsatisfied technical dependency. Missing policy, declaration, Catalog contract,
+or stale package version fails closed. The portable package and runtime Registry
+never acquire this authoring policy.
 
 `convax.hostCapabilityRequests` is a bounded set, not a single-choice field. One
-exact `{kind,id,version}` may bind up to 16 independent requests when capabilities
-are orthogonal. The policy parser rejects duplicates and over-bound sets, and
-normalizes request and blocker ordering so input order cannot affect release
-output. Authors must not merge unrelated requests merely to satisfy tooling.
+exact `{kind,id,version}` may bind up to 16 independent requirements when
+capabilities are orthogonal. The policy parser rejects duplicates and over-bound
+sets and normalizes requirement and blocker ordering. Requirements never wait for
+a person: once current Catalog and package validation pass, the exact package is
+ready automatically. There are no human-decision fields, receipts, resolution
+tombstones, CODEOWNERS gates, or protected approval Environments.
 
-Pending entries still require `status: "pending"` with `humanDecision: null`;
-changing either field cannot unlock publication. Policy schema
-`convax.host-capability-policy/2` additionally keeps append-only resolution
-tombstones that point to external immutable receipt bytes. Each v2 request also
-contains sorted `acceptedApiContracts`: exact API id and Catalog
-`contract.digest` pairs, or an explicit empty list for a non-API request. The
-protected verifier binds a receipt to that list, the request semantic digest,
-affected package identities, exact published generic contract package/version,
-Catalog SHA-256, Host PR/commit, and
-strictly parsed `convax.plugin-api-runtime-conformance/1` evidence before the
-dependency can be removed. The current conformance check set is closed, must be
-all-passed, and must include the exact `plugin-asset-protocol.test.ts` CSP suite.
-The Catalog, tarball, and conformance assets must each carry a
-`<asset>.sigstore.json` keyless Sigstore bundle from the exact Host release
-workflow and source revision. Protected verification requires Public Rekor
-inclusion and binds the GitHub OIDC issuer, workflow, protected ref, source SHA,
-trigger, GitHub-hosted runner, and pinned numeric GitHub repository and owner
-identities. Both live GitHub metadata and Fulcio certificate claims must match
-those numeric pins. The published npm tarball must be byte-identical to the
-already verified Host immutable Release asset, carry the same name/version, and
-contain the exact Catalog bytes. npm integrity is a consistency check, not an
-independent publisher-provenance root. See
-[`host-capability-resolution.md`](host-capability-resolution.md). Approval cannot
-be self-authored in this repository.
+A new or renamed Plugin that uses only the published Catalog is admitted by the
+same automatic source, manifest, provenance, and closure checks. Do not fabricate a
+missing Host capability merely to make a new identity visible to CI.
 
-Resolution is per request id. Each removed request needs its own exact resolution
-tombstone and independently verified receipt; a receipt for one request never
-unblocks sibling requests bound to the same package version. Publication becomes
-eligible only after every blocker for that exact version is either still present
-and reported or has passed its own protected receipt transition.
+Known integrations use the strongest machine-verifiable evidence available. A
+`convax.pet-host/1` contribution is a validated Manifest fact and uses a
+package-conformance requirement. Image consumers bind the published
+`canvas.inputs.image.open` and `canvas.inputs.image.close` Catalog digests; they
+must not reinterpret the audio/video stream API. Tooling does not pretend static
+source inference can prove arbitrary business intent.
 
-CI and release selection also compare the candidate with the exact protected-main
-commit supplied by GitHub. A pending request id and each affected `{kind,id}` from
-that base must remain pending across version bumps. Its normalized semantic core
-also remains immutable: generated Catalog evidence may refresh, but the problem,
-requested contract, authority, compatibility, falsifiable tests, and Plugin-side
-plan cannot be replaced in place. Deleting all declarations or rewriting the
-request therefore fails before release planning.
-
-A new or renamed Plugin that uses only the published Catalog is an ordinary
-Plugin-review decision, not a Host-change request. CODEOWNERS and protected-branch
-review own that admission. Do not fabricate a missing Host capability merely to
-make a new identity visible to CI.
-
-Known gaps use the strongest reliable evidence available. A
-`convax.pet-host/1` contribution is a validated Manifest fact, so tooling requires
-the pending `sdk-owned-pet-surface-client` request regardless of how source code
-spells its transport. By contrast, `canvas.inputs.open` is a valid published
-audio/video stream API: its generated response contract admits only
-`probe.kind: "audio" | "video"`. Declaring it does not imply image access and must
-not be blocked. A Plugin that needs image bytes must stop and declare
-`web-plugin-image-input-read`; it cannot reinterpret the audio/video result or
-request a Host edit. The three known image consumers already carry that explicit
-dependency, and protected request history prevents them from deleting it through
-a business-code rewrite. Tooling does not pretend static source inference can
-prove an arbitrary Plugin's media intent.
-
-`.github/CODEOWNERS` assigns the checker, policy, requests, authoring Skill, Plugin
-source, and workflows to a human owner. Publication declares the protected
-`plugin-marketplace-production` environment; Host decisions use the separate
-`plugin-host-capability-governance` environment. The remote ruleset must require
-that human code-owner, dismiss stale approvals, reject bot approval, require the
-protected-base governance check, prevent Environment self-review and administrator
-bypass, and enable immutable Releases. Local source text cannot prove those
-external settings or reviewer identity.
+Protected CI runs the same automatic checks and sends only a verified artifact
+plan to the minimal publisher. Immutable Releases, exact provenance, and current
+required checks remain mandatory, but publication has no human or Environment
+approval stage.
 
 ## Host API declaration
 
@@ -162,7 +116,7 @@ actual installed resolver directories against those tarballs, and emits
 `convax.plugin-bundle-provenance/1` for the final Plugin ZIP.
 Workspace, file, Git, alternate-registry, mutated-lock, missing-network-evidence,
 or reused-version inputs fail closed. This package evidence is independent from
-Host capability requests and can never approve a missing API.
+automated Host contract requirements and can never substitute for a missing API.
 
 ## Canvas commands and placements
 
@@ -240,13 +194,13 @@ The renderer handles the declared message through the SDK client:
 
 ```js
 const unsubscribeCommands = client.onCommand(({ command }) => {
-  if (command === "renderer.context.refresh") void refreshContext()
-})
+  if (command === "renderer.context.refresh") void refreshContext();
+});
 
 window.addEventListener("pagehide", () => {
-  unsubscribeCommands()
-  client.close()
-})
+  unsubscribeCommands();
+  client.close();
+});
 ```
 
 ## Declarative Tool Plugins
@@ -321,17 +275,14 @@ does not contain the required generic API or contribution point:
 
 1. do not reuse a legacy protocol, invent an undeclared method, inspect Host private
    code, or switch to `../convax`;
-2. mark the affected package `blocked` with a structured
-   `host-capability-review-required` blocker;
-3. copy the Skill's
-   `references/host-capability-request.md` template into this repository and fill
-   in the problem, use case, requested generic capability, alternatives,
-   security/scope/side effect, compatibility, and acceptance tests;
-4. stop Host-dependent implementation until a human approves a generic contract
-   and a newly generated Catalog contains it.
-
-Human approval starts a separate Host-owned task; it is not implicit permission for
-the Plugin authoring task to edit Host code.
+2. record one generic requirement and an explicit technical blocker for the exact
+   affected package version;
+3. describe the missing contract, scope, side effect, compatibility, and
+   falsifiable acceptance tests without coupling it to a concrete Plugin id;
+4. keep Host work in a separate Host-owned task. When the newly generated Catalog
+   contains the exact contract, replace the technical blocker with its
+   `catalog-contracts` digest requirement; normal validation then makes the package
+   ready automatically.
 
 ## Plugin-owned Skills
 
@@ -406,5 +357,5 @@ Validation and Marketplace preflight admit policy-consistent blocked source and
 report it explicitly. Exact packing rejects a blocked target. Release selection and
 Marketplace composition omit blocked exact versions and their owner/owned-Skill
 closure while continuing with unrelated ready packages. A package can move from
-`blocked` to `ready` only through a future protected receipt verifier bound to the
-published contract, Catalog digest, runtime conformance, and a new package version.
+`blocked` to `ready` as soon as its technical blocker is removed and the current
+Catalog/package conformance requirements pass. No approval receipt is involved.

@@ -40,6 +40,20 @@ export interface BuildMarketplaceOptions {
         sha256: string;
     }) => Promise<Uint8Array>;
 }
+export interface StagePublishedProductLockCatalogOptions {
+    root: string;
+    outDir: string;
+    descriptorPath: string;
+    registryPath: string;
+    showcasePath: string;
+    fetchArtifact: NonNullable<BuildMarketplaceOptions["fetchArtifact"]>;
+}
+export interface PublishedProductLockCatalogResult {
+    registry: RegistryV2;
+    showcase: ShowcaseV2;
+    releasePlan: MarketplaceBuildResult["releasePlan"];
+    productLockInput: Record<string, unknown>;
+}
 export interface MarketplaceBuildResult {
     registry: RegistryV2;
     registrySha256: string;
@@ -97,6 +111,7 @@ interface InventoryEntry {
 export declare function createDeterministicZip(entriesValue: readonly InventoryEntry[]): Uint8Array;
 export declare function checkMarketplace(root: string): Promise<void>;
 export declare function buildMarketplace(options: BuildMarketplaceOptions): Promise<MarketplaceBuildResult>;
+export declare function stagePublishedProductLockCatalog(options: StagePublishedProductLockCatalogOptions): Promise<PublishedProductLockCatalogResult>;
 export declare function buildRegistryV2(options: BuildMarketplaceOptions): Promise<RegistryV2>;
 export { parseRegistryV2, releaseTagForPackage };
 export { MARKETPLACE_SELECTION_CONTEXT_SCHEMA, assertSelectiveMarketplaceClosure, packageIdentity, parseMarketplaceSelectionContext, parsePublishIdentities, } from "./selective";

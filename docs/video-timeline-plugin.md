@@ -6,8 +6,8 @@
 
 - 具体 Plugin：`packages/plugins/video-timeline`
 - 可选的后续渲染 companion：`packages/tools/video-timeline-renderer`
-- 缺失的通用宿主能力：在当前插件仓创建
-  `docs/host-capability-requests/<kebab-case-slug>.md`，并保持相关发布 blocked
+- 缺失的通用宿主能力：在当前插件仓记录自动化 Host contract requirement，
+  并在 Catalog contract 尚未存在时保留真实技术 blocker
 
 ## 1. 结论
 
@@ -144,24 +144,24 @@ Plugin state 使用严格校验、显式版本的 JSON 投影。推荐形状：
 
 ```ts
 interface VideoTimelineStateV1 {
-  schema: "convax.video-timeline"
-  schemaVersion: 1
+  schema: "convax.video-timeline";
+  schemaVersion: 1;
   composition: {
-    id: string
-    name: string
+    id: string;
+    name: string;
     settings: {
-      width: number
-      height: number
-      editRate: { numerator: number; denominator: number }
-      sampleRate: number
-      channelLayout: "mono" | "stereo"
-      background: string
-    }
-    trackOrder: string[]
-    tracksById: Record<string, TimelineTrackV1>
-    itemsById: Record<string, TimelineItemV1>
-  }
-  sourceBindingsByNodeId: Record<string, SourceBindingV1>
+      width: number;
+      height: number;
+      editRate: { numerator: number; denominator: number };
+      sampleRate: number;
+      channelLayout: "mono" | "stereo";
+      background: string;
+    };
+    trackOrder: string[];
+    tracksById: Record<string, TimelineTrackV1>;
+    itemsById: Record<string, TimelineItemV1>;
+  };
+  sourceBindingsByNodeId: Record<string, SourceBindingV1>;
 }
 ```
 
@@ -174,13 +174,13 @@ Track 至少保存：
 
 ```ts
 interface TimelineTrackV1 {
-  id: string
-  kind: "video" | "audio"
-  name: string
-  enabled: boolean
-  locked: boolean
-  muted: boolean
-  originNodeId?: string
+  id: string;
+  kind: "video" | "audio";
+  name: string;
+  enabled: boolean;
+  locked: boolean;
+  muted: boolean;
+  originNodeId?: string;
 }
 ```
 
@@ -188,18 +188,18 @@ Media item 至少保存：
 
 ```ts
 interface MediaTimelineItemV1 {
-  id: string
-  type: "media"
-  trackId: string
-  sourceRef: { kind: "canvas-node"; nodeId: string }
-  sourceRange: TimeRangeV1
-  timelineRange: TimeRangeV1
-  playbackRate: { numerator: number; denominator: number }
-  enabled: boolean
-  name: string
-  fit: "contain" | "cover"
-  opacity: number
-  gain: number
+  id: string;
+  type: "media";
+  trackId: string;
+  sourceRef: { kind: "canvas-node"; nodeId: string };
+  sourceRange: TimeRangeV1;
+  timelineRange: TimeRangeV1;
+  playbackRate: { numerator: number; denominator: number };
+  enabled: boolean;
+  name: string;
+  fit: "contain" | "cover";
+  opacity: number;
+  gain: number;
 }
 ```
 
@@ -220,13 +220,13 @@ Renderer 浮点秒和像素进入事实源：
 
 ```ts
 interface MediaTimeV1 {
-  value: string
-  scale: number
+  value: string;
+  scale: number;
 }
 
 interface TimeRangeV1 {
-  start: MediaTimeV1
-  duration: MediaTimeV1
+  start: MediaTimeV1;
+  duration: MediaTimeV1;
 }
 ```
 
@@ -356,15 +356,15 @@ OTIO 是 import/export adapter，不是 Plugin state 的原始序列化格式。
 
 映射：
 
-| OTIO | Video Timeline |
-| --- | --- |
-| Timeline | Composition |
-| 顶层 Stack | `trackOrder` 和 `tracksById` |
-| Track | TimelineTrack |
-| Clip | MediaTimelineItem |
-| Gap | 根据显式 `timelineRange` 空洞生成或导入 |
-| RationalTime/TimeRange | MediaTime/TimeRange |
-| ExternalReference | Canvas source binding 的交换投影 |
+| OTIO                   | Video Timeline                          |
+| ---------------------- | --------------------------------------- |
+| Timeline               | Composition                             |
+| 顶层 Stack             | `trackOrder` 和 `tracksById`            |
+| Track                  | TimelineTrack                           |
+| Clip                   | MediaTimelineItem                       |
+| Gap                    | 根据显式 `timelineRange` 空洞生成或导入 |
+| RationalTime/TimeRange | MediaTime/TimeRange                     |
+| ExternalReference      | Canvas source binding 的交换投影        |
 
 导出时按 `trackOrder` 生成 Track，同轨按时间和稳定 id 排序，空洞生成 Gap，
 `sourceRange` 输出为 Clip source range。非法重叠必须拒绝，不能静默改时间。无法生成
@@ -430,9 +430,10 @@ Golden fixtures 至少覆盖：空 Timeline、单视频、多视频轨、音频�
 ## 13. 验证要求
 
 当前 Plugin 任务不得切换到或修改 Host 仓库。若验证发现现有 Catalog/SDK 缺少通用
-能力，只能在本仓按 `convax-plugin-authoring` 模板创建结构化 capability request，
-标记受影响包 blocked，并停止依赖该能力的实现。只有人类明确批准后，才能另起一个
-独立的 Host-owned 任务；该任务的实现、测试和 PR 不属于本 Plugin 任务。
+能力，只能在本仓按 `convax-plugin-authoring` 模板记录通用 contract requirement，
+标记受影响包存在技术 blocker，并停止依赖该能力的实现。独立 Host-owned 任务只实现
+通用 contract；新 Catalog 的精确 digest 校验通过并移除 blocker 后会自动恢复发布，
+不经过人工审批、receipt 或 Environment。
 
 `convax-plugins` 中按仓库契约运行：
 

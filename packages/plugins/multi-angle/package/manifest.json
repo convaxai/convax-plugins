@@ -3,7 +3,7 @@
   "id": "multi-angle",
   "name": "多角度",
   "description": "通过已安装的统一图片生成工具，一次生成一张多宫格图片，每个格子展示同一主体的一个一致视角。",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "entry": "index.html",
   "capabilities": [
     "canvas.connectedInputs.read",
