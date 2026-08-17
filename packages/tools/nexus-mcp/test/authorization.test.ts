@@ -3,16 +3,41 @@ import { describe, expect, test } from "bun:test";
 import { NexusAuthorization } from "../src/authorization.ts";
 import { externalAuthorizationCompletionSchema } from "../src/contracts.ts";
 
+function authorizationClient(
+  exchangeAuthorizationCode: (input: unknown) => Promise<unknown>,
+) {
+  return {
+    async authorizationUrl(input: {
+      codeChallenge: string;
+      nonce: string;
+      redirectUri: string;
+      state: string;
+    }) {
+      const url = new URL(
+        "http://localhost:3000/workspace/convax/auth/sign-up",
+      );
+      url.searchParams.set("code_challenge", input.codeChallenge);
+      url.searchParams.set("nonce", input.nonce);
+      url.searchParams.set("redirect_uri", input.redirectUri);
+      url.searchParams.set("state", input.state);
+      return url.href;
+    },
+    exchangeAuthorizationCode,
+    async resolveAuthXIssuer() {
+      return "http://localhost:3000";
+    },
+  } as never;
+}
+
 describe("NexusAuthorization", () => {
   test("keeps PKCE and the authorization code inside the companion loopback flow", async () => {
     const exchanges: unknown[] = [];
-    const authorization = new NexusAuthorization({
-      resolveOrigin: async () => "http://localhost:3000",
-      async exchangeAuthorizationCode(input: unknown) {
+    const authorization = new NexusAuthorization(
+      authorizationClient(async (input: unknown) => {
         exchanges.push(input);
         return {} as never;
-      },
-    } as never);
+      }),
+    );
     const request = await authorization.begin();
     const publicUrl = new URL(request.authorization_url);
     const redirectUri = publicUrl.searchParams.get("redirect_uri");
@@ -43,11 +68,10 @@ describe("NexusAuthorization", () => {
     expect(exchanges).toHaveLength(1);
     expect(exchanges[0]).toMatchObject({
       code: "single-use-code",
-      nexusOrigin: "http://localhost:3000",
       redirectUri,
     });
     expect((exchanges[0] as { codeVerifier: string }).codeVerifier).toMatch(
-      /^[A-Za-z0-9_-]{43}$/,
+      /^[A-Za-z0-9_-]{43,128}$/,
     );
   });
 
@@ -56,13 +80,12 @@ describe("NexusAuthorization", () => {
     const exchange = new Promise<void>((resolve) => {
       finishExchange = resolve;
     });
-    const authorization = new NexusAuthorization({
-      resolveOrigin: async () => "http://localhost:3000",
-      async exchangeAuthorizationCode() {
+    const authorization = new NexusAuthorization(
+      authorizationClient(async () => {
         await exchange;
         return {} as never;
-      },
-    } as never);
+      }),
+    );
     const request = await authorization.begin();
     const publicUrl = new URL(request.authorization_url);
     const callback = new URL(publicUrl.searchParams.get("redirect_uri")!);
@@ -78,7 +101,7 @@ describe("NexusAuthorization", () => {
       return response;
     });
 
-    await Bun.sleep(10);
+    await Bun.sleep(10_100);
     expect(callbackCompleted).toBeFalse();
     finishExchange();
 
@@ -87,12 +110,11 @@ describe("NexusAuthorization", () => {
   });
 
   test("returns a failure page without a Convax deep link when the code exchange fails", async () => {
-    const authorization = new NexusAuthorization({
-      resolveOrigin: async () => "http://localhost:3000",
-      async exchangeAuthorizationCode() {
+    const authorization = new NexusAuthorization(
+      authorizationClient(async () => {
         throw new Error("token exchange failed");
-      },
-    } as never);
+      }),
+    );
     const request = await authorization.begin();
     const publicUrl = new URL(request.authorization_url);
     const callback = new URL(publicUrl.searchParams.get("redirect_uri")!);
