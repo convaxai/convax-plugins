@@ -34,11 +34,13 @@ interface PendingAuthorization {
 
 export class NexusAuthorization {
   #pending: PendingAuthorization | undefined;
+  #stopping: Promise<void> | undefined;
 
   constructor(private readonly client: NexusClient) {}
 
   async begin(): Promise<ExternalAuthorizationRequest> {
     this.cancel();
+    await this.#stopping;
     await this.client.resolveAuthXIssuer();
     const authorizationId = randomBytes(24).toString("base64url");
     const state = randomBytes(24).toString("base64url");
@@ -70,6 +72,7 @@ export class NexusAuthorization {
     let server!: Bun.Server<unknown>;
     server = Bun.serve({
       hostname: loopbackHostname,
+      idleTimeout: 60,
       port: loopbackPort,
       async fetch(request) {
         const url = new URL(request.url);
@@ -149,6 +152,7 @@ export class NexusAuthorization {
       throw error;
     } finally {
       this.cancel();
+      await this.#stopping;
     }
   }
 
@@ -159,7 +163,7 @@ export class NexusAuthorization {
     clearTimeout(pending.timer);
     pending.resolve({ error: new Error("Nexus authorization was canceled") });
     pending.resolveCompletionPage(false);
-    void pending.server.stop(false);
+    this.#stopping = pending.server.stop(false);
   }
 }
 
@@ -224,6 +228,7 @@ main{max-width:420px;padding:32px;border:1px solid #ddd;border-radius:18px;backg
     {
       headers: {
         "Cache-Control": "no-store",
+        Connection: "close",
         "Content-Security-Policy":
           "default-src 'none'; style-src 'unsafe-inline'",
         "Content-Type": "text/html; charset=utf-8",
