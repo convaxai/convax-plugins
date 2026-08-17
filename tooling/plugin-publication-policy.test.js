@@ -6,6 +6,48 @@ import path from "node:path"
 import { root } from "./lib.mjs"
 import { verifyPluginPublicationPolicy } from "./plugin-publication-policy.mjs"
 
+async function createAutomaticFixture() {
+  const fixture = await fs.mkdtemp(
+    path.join(os.tmpdir(), "convax-automatic-publication-policy-"),
+  )
+  await Promise.all([
+    fs.mkdir(path.join(fixture, ".github", "workflows"), { recursive: true }),
+    fs.mkdir(path.join(fixture, "registry"), { recursive: true }),
+    fs.mkdir(path.join(fixture, "tooling"), { recursive: true }),
+  ])
+  const release = (
+    await fs.readFile(
+      path.join(root, ".github", "workflows", "release-on-main.yml"),
+      "utf8",
+    )
+  )
+    .replace('            --governance-base "${{ github.event.before }}" \\\n', "")
+    .replace("    environment: plugin-marketplace-production\n", "")
+  await Promise.all([
+    fs.writeFile(
+      path.join(fixture, ".github", "workflows", "release-on-main.yml"),
+      release,
+    ),
+    fs.copyFile(
+      path.join(root, ".github", "workflows", "pages.yml"),
+      path.join(fixture, ".github", "workflows", "pages.yml"),
+    ),
+    fs.copyFile(
+      path.join(root, "tooling", "host-sigstore-bundle.mjs"),
+      path.join(fixture, "tooling", "host-sigstore-bundle.mjs"),
+    ),
+    fs.writeFile(
+      path.join(fixture, "registry", "host-capability-policy.json"),
+      `${JSON.stringify({
+        blockers: [],
+        requirements: [],
+        schema: "convax.host-capability-policy/3",
+      }, null, 2)}\n`,
+    ),
+  ])
+  return { fixture, release }
+}
+
 describe("protected Plugin publication policy", () => {
   test("keeps capability high-water first and the privileged job artifact-only", async () => {
     await expect(verifyPluginPublicationPolicy(root)).resolves.toEqual({
@@ -33,6 +75,53 @@ describe("protected Plugin publication policy", () => {
     expect(stage.if).toBe(
       "env.CONVAX_FFMPEG_REQUIRE_PGP == '1' && steps.plan.outputs.ffmpeg_count != '0'",
     )
+  })
+
+  test("allows automated publication only with human gates retired and provenance intact", async () => {
+    const { fixture, release } = await createAutomaticFixture()
+    const releasePath = path.join(
+      fixture,
+      ".github",
+      "workflows",
+      "release-on-main.yml",
+    )
+    try {
+      await expect(verifyPluginPublicationPolicy(fixture)).resolves.toEqual({
+        artifactOnlyPublish: true,
+        automaticPublish: true,
+        hostPackageEvidence: true,
+      })
+
+      await fs.writeFile(path.join(fixture, ".github", "CODEOWNERS"), "* @human\n")
+      await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
+        "must retire human gate .github/CODEOWNERS",
+      )
+      await fs.rm(path.join(fixture, ".github", "CODEOWNERS"))
+
+      await fs.writeFile(
+        releasePath,
+        release.replace(
+          "    permissions:\n      attestations: write",
+          "    environment: plugin-marketplace-production\n    permissions:\n      attestations: write",
+        ),
+      )
+      await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
+        "automatic after verification",
+      )
+
+      await fs.writeFile(
+        releasePath,
+        release.replace(
+          'cmp -s "$candidate_asset" "$published_asset"',
+          'test -f "$published_asset"',
+        ),
+      )
+      await expect(verifyPluginPublicationPolicy(fixture)).rejects.toThrow(
+        "does not re-verify exact artifact-only provenance",
+      )
+    } finally {
+      await fs.rm(fixture, { force: true, recursive: true })
+    }
   })
 
   test("rejects candidate self-approval through checkout or Host package evidence", async () => {
