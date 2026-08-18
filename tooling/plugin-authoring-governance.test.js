@@ -42,10 +42,36 @@ describe("automated Plugin contract governance", () => {
           },
         ],
       },
+      {
+        kind: "plugin",
+        id: "jimeng-service",
+        version: "0.1.0",
+        policyId: "verified-companion-toolchain",
+        status: "blocked",
+        blockers: [
+          {
+            code: "unverified-runtime-dependency",
+            note: expect.stringContaining("Dreamina CLI"),
+          },
+        ],
+      },
+      {
+        kind: "plugin",
+        id: "libtv-service",
+        version: "0.1.0",
+        policyId: "verified-companion-toolchain",
+        status: "blocked",
+        blockers: [
+          {
+            code: "unverified-runtime-dependency",
+            note: expect.stringContaining("LibTV CLI"),
+          },
+        ],
+      },
     ])
   })
 
-  test("admits resolved Plugins and keeps only the concrete runtime gap blocked", async () => {
+  test("admits resolved Plugins and keeps only concrete runtime gaps blocked", async () => {
     const packages = await discoverPackages()
     const publications = new Map(
       packages.map((pkg) => [
@@ -71,6 +97,20 @@ describe("automated Plugin contract governance", () => {
       status: "blocked",
       blockers: [{ code: "unverified-runtime-dependency" }],
     })
+    for (const identity of [
+      "plugin/jimeng-service",
+      "plugin/libtv-service",
+    ]) {
+      const publication = publications.get(identity)
+      expect(publication?.status).toBe("blocked")
+      expect(publication?.blockers.map(({ code }) => code)).toEqual([
+        "unverified-runtime-dependency",
+      ])
+    }
+    expect(publications.get("plugin/xiaoyunque-service")).toEqual({
+      status: "ready",
+      blockers: [],
+    })
     expect(publications.get("skill/chatcut")).toEqual({
       status: "ready",
       blockers: [],
@@ -92,5 +132,68 @@ describe("automated Plugin contract governance", () => {
     expect(source).toContain('this.#which("ffmpeg")')
     expect(source).toContain('this.#which("ffprobe")')
     expect(source).toContain("commands on PATH")
+  })
+
+  test("keeps Jimeng and LibTV blocked on observable ambient CLI dependencies", async () => {
+    const source = await fs.readFile(
+      path.join(
+        root,
+        "packages",
+        "tools",
+        "shortdrama-router-mcp",
+        "node_modules",
+        "shortdrama-router",
+        "dist",
+        "bundle",
+        "index.js",
+      ),
+      "utf8",
+    )
+    expect(source).toContain(
+      'path.join(homedir(), ".local", "bin", "dreamina")',
+    )
+    expect(source).toContain(
+      'path3.join(homedir3(), ".libtv", "libtv")',
+    )
+  })
+
+  test("binds paid generation operations to a durable upstream claim", async () => {
+    const generation = await fs.readFile(
+      path.join(
+        root,
+        "packages",
+        "tools",
+        "shortdrama-router-mcp",
+        "src",
+        "generation.ts",
+      ),
+      "utf8",
+    )
+    const runtime = await fs.readFile(
+      path.join(
+        root,
+        "packages",
+        "tools",
+        "shortdrama-router-mcp",
+        "src",
+        "runtime.ts",
+      ),
+      "utf8",
+    )
+    const store = await fs.readFile(
+      path.join(
+        root,
+        "packages",
+        "tools",
+        "shortdrama-router-mcp",
+        "src",
+        "sqlite-job-store.ts",
+      ),
+      "utf8",
+    )
+    expect(generation).toContain("idempotency_key: call.operationId")
+    expect(runtime).toContain("openProviderJobStores")
+    expect(store).toContain(".immediate()")
+    expect(store).toContain("compareAndSet")
   })
 })
