@@ -1,0 +1,58 @@
+{
+  "schema": "convax.plugin/8",
+  "id": "jimeng-service",
+  "name": "即梦",
+  "description": "通过 shortdrama-router 连接即梦的图片和视频生成能力，并使用服务原生授权管理账号。",
+  "version": "0.1.0",
+  "capabilities": [],
+  "contributes": {
+    "generation": {
+      "models": [
+        {
+          "tool": "image.generate",
+          "name": "即梦图片"
+        },
+        {
+          "tool": "video.generate",
+          "name": "即梦视频"
+        }
+      ],
+      "tools": [
+        {
+          "id": "image.generate",
+          "title": "即梦 · 图片生成",
+          "description": "使用即梦根据提示词生成图片。",
+          "output": "image",
+          "acceptedInputs": []
+        },
+        {
+          "id": "video.generate",
+          "title": "即梦 · 视频生成",
+          "description": "使用即梦根据提示词生成视频。",
+          "output": "video",
+          "acceptedInputs": []
+        }
+      ]
+    },
+    "service": {
+      "actions": [
+        "authorize",
+        "reauthorize",
+        "authorization.cancel",
+        "sign_out"
+      ]
+    }
+  },
+  "runtime": {
+    "type": "mcp-stdio",
+    "command": "convax-shortdrama-router-mcp",
+    "args": [
+      "--provider=jimeng"
+    ]
+  },
+  "hostApi": {
+    "major": 3,
+    "required": [],
+    "optional": []
+  }
+}

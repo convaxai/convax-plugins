@@ -1,0 +1,23 @@
+{
+  "schema": "convax.package/2",
+  "kind": "plugin",
+  "id": "libtv-service",
+  "name": "LibTV",
+  "description": "通过 shortdrama-router 连接 LibTV 的图片和视频生成能力，读取官方 CLI 授权并安全绑定唯一项目。",
+  "version": "0.1.0",
+  "companions": [
+    {
+      "command": "convax-shortdrama-router-mcp",
+      "version": "0.1.0",
+      "source": "packages/tools/shortdrama-router-mcp",
+      "targets": [
+        {
+          "platform": "darwin",
+          "arch": "arm64",
+          "path": "dist/darwin-arm64/convax-shortdrama-router-mcp"
+        }
+      ]
+    }
+  ],
+  "yanked": false
+}

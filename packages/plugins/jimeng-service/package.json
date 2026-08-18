@@ -1,0 +1,17 @@
+{
+  "name": "@microvoid/convax-plugin-jimeng-service",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "convax.hostCapabilityRequests": [
+    "verified-companion-toolchain"
+  ],
+  "dependencies": {
+    "@microvoid/convax-shortdrama-router-mcp": "workspace:*"
+  },
+  "scripts": {
+    "validate": "bun ../../../tooling/validate.mjs --kind plugin --id jimeng-service",
+    "pack": "bun ../../../tooling/pack.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-../../../node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" --kind plugin --id jimeng-service"
+  }
+}
