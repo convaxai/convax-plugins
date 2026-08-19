@@ -1,0 +1,69 @@
+{
+  "schema": "convax.plugin/8",
+  "id": "xiaoyunque-service",
+  "name": "小云雀",
+  "description": "通过 shortdrama-router 连接小云雀的音频、图片和视频生成能力，并使用服务原生授权管理账号。",
+  "version": "0.1.0",
+  "capabilities": [],
+  "contributes": {
+    "generation": {
+      "models": [
+        {
+          "tool": "audio.generate",
+          "name": "小云雀音频"
+        },
+        {
+          "tool": "image.generate",
+          "name": "小云雀图片"
+        },
+        {
+          "tool": "video.generate",
+          "name": "小云雀视频"
+        }
+      ],
+      "tools": [
+        {
+          "id": "audio.generate",
+          "title": "小云雀 · 音频生成",
+          "description": "使用小云雀根据提示词生成音频。",
+          "output": "audio",
+          "acceptedInputs": []
+        },
+        {
+          "id": "image.generate",
+          "title": "小云雀 · 图片生成",
+          "description": "使用小云雀根据提示词生成图片。",
+          "output": "image",
+          "acceptedInputs": []
+        },
+        {
+          "id": "video.generate",
+          "title": "小云雀 · 视频生成",
+          "description": "使用小云雀根据提示词生成视频。",
+          "output": "video",
+          "acceptedInputs": []
+        }
+      ]
+    },
+    "service": {
+      "actions": [
+        "authorize",
+        "reauthorize",
+        "authorization.cancel",
+        "sign_out"
+      ]
+    }
+  },
+  "runtime": {
+    "type": "mcp-stdio",
+    "command": "convax-shortdrama-router-mcp",
+    "args": [
+      "--provider=xiaoyunque"
+    ]
+  },
+  "hostApi": {
+    "major": 3,
+    "required": [],
+    "optional": []
+  }
+}

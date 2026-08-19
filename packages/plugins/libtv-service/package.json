@@ -1,0 +1,14 @@
+{
+  "name": "@microvoid/convax-plugin-libtv-service",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@microvoid/convax-shortdrama-router-mcp": "workspace:*"
+  },
+  "scripts": {
+    "validate": "bun ../../../tooling/validate.mjs --kind plugin --id libtv-service",
+    "pack": "bun ../../../tooling/pack.mjs --catalog \"${CONVAX_PLUGIN_API_CATALOG:-../../../node_modules/@convax/plugin-api/dist/generated/plugin-api.json}\" --kind plugin --id libtv-service"
+  }
+}
