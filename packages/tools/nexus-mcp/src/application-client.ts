@@ -126,6 +126,18 @@ export class NexusAudioHttpError extends NexusGatewayHttpError {
   }
 }
 
+export class NexusApplicationAccessError extends Error {
+  override name = "NexusApplicationAccessError";
+  readonly code: string | undefined;
+  readonly status: number;
+
+  constructor(status: number, code?: string) {
+    super(applicationAccessErrorMessage(status, code));
+    this.status = status;
+    this.code = code;
+  }
+}
+
 export type NexusAudioMimeType =
   | "audio/aac"
   | "audio/flac"
@@ -659,18 +671,33 @@ export class NexusClient {
     init: RequestInit = {},
   ) {
     assertApplicationUrl(url, this.#nexusOrigin);
-    const response = await this.#fetch(url, {
-      ...init,
-      headers: {
-        ...headerRecord(init.headers),
-        authorization: `Bearer ${accessToken}`,
-      },
-      redirect: "error",
-      signal: init.signal ?? AbortSignal.timeout(15_000),
-    });
+    let response;
+    try {
+      response = await this.#fetch(url, {
+        ...init,
+        headers: {
+          ...headerRecord(init.headers),
+          authorization: `Bearer ${accessToken}`,
+        },
+        redirect: "error",
+        signal: init.signal ?? AbortSignal.timeout(15_000),
+      });
+    } catch (error) {
+      if (
+        init.signal?.aborted ||
+        (error instanceof Error && error.name === "AbortError")
+      ) {
+        throw error;
+      }
+      throw new NexusApplicationAccessError(503, "nexus_unavailable");
+    }
     if (!response.ok) {
-      throw new Error(
-        `Nexus Application Access request failed with HTTP ${response.status}`,
+      const details = await parseApplicationAccessError(response, [
+        accessToken,
+      ]);
+      throw new NexusApplicationAccessError(
+        response.status,
+        typeof details.code === "string" ? details.code : undefined,
       );
     }
     return response.status === 204
@@ -1296,6 +1323,56 @@ async function parseGatewayError(
     ...(message === undefined ? {} : { message }),
     ...(requestId === undefined ? {} : { requestId }),
   };
+}
+
+async function parseApplicationAccessError(
+  response: Response,
+  sensitiveValues: readonly string[],
+): Promise<NexusGatewayErrorDetails> {
+  const serialized = await readText(response, maximumErrorBytes).catch(
+    () => undefined,
+  );
+  if (serialized === undefined) return {};
+  let input: Record<string, unknown>;
+  try {
+    input = record(
+      JSON.parse(serialized) as unknown,
+      "Nexus Application Access error",
+    );
+  } catch {
+    return {};
+  }
+  const nested =
+    input.error &&
+    typeof input.error === "object" &&
+    !Array.isArray(input.error)
+      ? (input.error as Record<string, unknown>)
+      : undefined;
+  const code = safeErrorCode(input.code ?? nested?.code, sensitiveValues);
+  const message = safeErrorMessage(
+    input.message ?? nested?.message,
+    sensitiveValues,
+  );
+  return {
+    ...(code === undefined ? {} : { code }),
+    ...(message === undefined ? {} : { message }),
+  };
+}
+
+function applicationAccessErrorMessage(status: number, code?: string) {
+  if (code === "application_setup_required") {
+    return "Nexus setup is not finished. Ask a Nexus administrator to bind an active Workspace, Plan, and Provider connection.";
+  }
+  if (code === "application_disabled" || code === "access_revoked") {
+    return "Nexus access for Convax has been disabled. Ask a Nexus administrator to review the Application binding.";
+  }
+  if (code === "nexus_unavailable" || status >= 500) {
+    return "Nexus is temporarily unavailable. Try again later.";
+  }
+  if (status === 401 || status === 403) {
+    return "Convax could not verify the current Nexus access. Sign in again or ask an administrator to review access.";
+  }
+  return "Nexus Application Access is unavailable.";
 }
 
 function exactConfiguredOrigin(
