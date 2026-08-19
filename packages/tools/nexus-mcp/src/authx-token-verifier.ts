@@ -209,6 +209,9 @@ function verifyJwt(
     payload.environment !== profile.environment ||
     payload.oauth_client_id !== profile.clientId ||
     payload.client_id !== profile.clientId ||
+    Object.hasOwn(payload, "organization_id") ||
+    Object.hasOwn(payload, "tenant_id") ||
+    Object.hasOwn(payload, "selected_team_id") ||
     payload.token_use !== tokenUse ||
     typeof payload.sub !== "string" ||
     !payload.sub ||

@@ -10,16 +10,19 @@ import os from "node:os";
 import path from "node:path";
 
 import { NexusClient } from "../src/application-client.ts";
+import { AuthXTokenVerifier } from "../src/authx-token-verifier.ts";
 import { MemoryCredentialStore } from "../src/credential-store.ts";
 import {
   resolveAuthXPublicClientProfile,
   type AuthXPublicClientProfile,
 } from "../src/authx-profile.ts";
+import type { AuthXTokenResponse } from "../src/contracts.ts";
 
 const servers: Array<Bun.Server<unknown>> = [];
 const roots: string[] = [];
 const clientId = "oauthclient_Ty33MTkmTR6M90SCR1mvdUykHDJAHUnr";
 const projectId = "project_OKnlkG5kU1lNrOqJs0GFTu4JM2SwNkHz";
+const nexusProjectId = "project_8CTrOpIkozdhK7EkndKbR210ZU1NUYvW";
 const redirectUri = "http://127.0.0.1:65051/oauth/callback";
 const now = new Date("2026-08-13T00:00:00.000Z");
 
@@ -41,6 +44,62 @@ describe("AuthX OAuth and Nexus Application Access owner contracts", () => {
       projectId,
       redirectUri,
     });
+    expect(projectId).not.toBe(nexusProjectId);
+  });
+
+  test("rejects every tenant claim for the Convax NONE profile", async () => {
+    const { privateKey, publicJwk } = signingKey();
+    const issuer = "https://authx.none-profile.test";
+    const profile: AuthXPublicClientProfile = {
+      clientId,
+      environment: "development",
+      issuer,
+      jwksUri: `${issuer}/oauth/jwks.json`,
+      projectId,
+      redirectUri,
+      scopes: [
+        "openid",
+        "profile",
+        "email",
+        "offline_access",
+        "nexus:access",
+      ],
+    };
+    const verifier = new AuthXTokenVerifier(profile, {
+      fetch: async (input) => {
+        const url = new URL(String(input));
+        if (url.pathname === "/.well-known/openid-configuration") {
+          return Response.json({
+            authorization_endpoint: `${issuer}/oauth/authorize`,
+            id_token_signing_alg_values_supported: ["ES256"],
+            issuer,
+            jwks_uri: `${issuer}/oauth/jwks.json`,
+            revocation_endpoint: `${issuer}/oauth/revoke`,
+            token_endpoint: `${issuer}/oauth/token`,
+          });
+        }
+        if (url.pathname === "/oauth/jwks.json") {
+          return Response.json({ keys: [publicJwk] });
+        }
+        return new Response("not found", { status: 404 });
+      },
+      now: () => now,
+    });
+
+    for (const [claim, value] of [
+      ["organization_id", "organization_forbidden"],
+      ["tenant_id", "organization_forbidden"],
+      ["selected_team_id", "team_forbidden"],
+    ] as const) {
+      await expect(
+        verifier.verify(
+          tokenSet(privateKey, issuer, "n".repeat(32), 0, {
+            [claim]: value,
+          }),
+          "n".repeat(32),
+        ),
+      ).rejects.toThrow("AuthX JWT claims are invalid");
+    }
   });
 
   test("verifies AuthX Application tokens and sends the same token directly to Nexus Gateway", async () => {
@@ -429,7 +488,8 @@ function tokenSet(
   issuer: string,
   nonce: string | undefined,
   refreshes: number,
-) {
+  additionalClaims: Readonly<Record<string, unknown>> = {},
+): AuthXTokenResponse {
   const iat = Math.floor(now.getTime() / 1_000);
   const common = {
     application_id: projectId,
@@ -444,6 +504,7 @@ function tokenSet(
     project_id: projectId,
     sid: "authx-session-fixed",
     sub: "pairwise-subject-fixed",
+    ...additionalClaims,
   };
   return {
     access_token: jwt(privateKey, {
