@@ -4,7 +4,9 @@ import os from "node:os"
 import path from "node:path"
 
 import {
+  createBuiltInRuntimeService,
   createShortDramaRouter,
+  detectRuntimePlatform,
   MemoryLibTvConfiguration,
   MemoryXiaoYunqueCredentials,
 } from "shortdrama-router"
@@ -18,9 +20,9 @@ afterEach(async () => {
   )
 })
 
-describe("shortdrama-router 0.3 public contract", () => {
+describe("shortdrama-router 0.5 public contract", () => {
   test("describes provider auth, configuration, dependencies, and model readiness", async () => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), "shortdrama-0.3-"))
+    const directory = await mkdtemp(path.join(os.tmpdir(), "shortdrama-0.5-"))
     temporaryDirectories.push(directory)
     const router = createShortDramaRouter({
       jimeng: { configDir: path.join(directory, "jimeng") },
@@ -44,7 +46,8 @@ describe("shortdrama-router 0.3 public contract", () => {
     expect(byId.get("libtv")?.capabilities.configuration).toBe(true)
     expect(byId.get("libtv")?.dependencies?.[0]).toMatchObject({
       id: "libtv-cli",
-      source_url: "https://github.com/libtv-labs/libtv-skills",
+      managed_install: true,
+      source_url: "https://liblibai-web-static.liblib.cloud/cli/",
       version_command: ["--version"],
     })
 
@@ -60,5 +63,47 @@ describe("shortdrama-router 0.3 public contract", () => {
       step: 1,
     })
     expect(video?.capabilities.output_media_types).toContain("video/mp4")
+  })
+
+  test("binds provider installation and execution through one runtime root", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "shortdrama-runtime-"))
+    temporaryDirectories.push(directory)
+    const platform = detectRuntimePlatform()
+    expect(platform).toBeDefined()
+    const runtimes = createBuiltInRuntimeService({
+      platform: platform!,
+      rootDir: directory,
+    })
+
+    expect(runtimes.supports("jimeng")).toBe(true)
+    expect(runtimes.supports("libtv")).toBe(true)
+    expect(await runtimes.getStatus("jimeng")).toMatchObject({
+      compatible: false,
+      id: "jimeng",
+      managed: true,
+      state: "not_installed",
+    })
+    expect(await runtimes.getStatus("libtv")).toMatchObject({
+      compatible: false,
+      id: "libtv",
+      managed: true,
+      state: "not_installed",
+    })
+
+    const router = createShortDramaRouter({
+      jimeng: { configDir: path.join(directory, "jimeng-config") },
+      libtv: false,
+      runtimeRootDir: directory,
+      xiaoyunque: false,
+    })
+    const descriptor = await router.getProvider("jimeng", {
+      probeDependencies: true,
+    })
+    expect(descriptor.dependency_statuses?.[0]).toMatchObject({
+      available: false,
+      id: "dreamina-cli",
+      managed_install: true,
+      reason_code: "dependency_unavailable",
+    })
   })
 })

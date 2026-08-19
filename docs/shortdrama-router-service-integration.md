@@ -1,7 +1,7 @@
-# `shortdrama-router@0.3.0` 通用媒体路由能力验收
+# `shortdrama-router@0.5.0` 通用媒体路由能力验收
 
 本文仅依据 npm 已发布 tarball 的公共类型、导出与可观察行为验收
-`shortdrama-router@0.3.0`。它描述一个通用媒体路由库已经提供什么、仍需哪些通用
+`shortdrama-router@0.5.0`。它描述一个通用媒体路由库已经提供什么、仍需哪些通用
 发布证据，不假定任何特定下游产品，也不要求各 provider 具备相同功能。
 
 媒体服务不必提供 LLM。聊天、文本补全、SSE 和完整 OpenAI/OpenRouter 协议不属于
@@ -9,34 +9,58 @@
 
 ## 1. 发布物身份
 
-以下信息于 2026-08-18 从 npm registry 获取，并对下载 tarball 本地复算：
+以下信息于 2026-08-19 从 npm registry 获取，并对下载 tarball 本地复算：
 
 | 字段 | 验证值 |
 | --- | --- |
 | package | `shortdrama-router` |
-| version / dist-tag | `0.3.0` / `latest` |
-| npm integrity | `sha512-g5Dya72LE5Qe1IW/fuGy4wZd3YekjLZXPGkKRHsUJVRcxy2/9pCqxCSKTBGqRVhRstjPU5s+9x+BvXnPZu/dGw==` |
-| npm shasum | `af80d4334affe33de6921a2a75c065ccc4143bd2` |
-| git head | `4b955d11582a225f473c2f887dc2cccf9f8b1f12` |
-| published | `2026-08-18T15:23:52.760Z` |
-| archive | 37 files，72.9 kB packed，387.9 kB unpacked |
+| version / dist-tag | `0.5.0` / `latest` |
+| npm integrity | `sha512-iFPlCzXC3l2KUtTTS0ZP7ft9urwR9bUjv+QP2W/bwyJAPx9hWLdRRe7CT41b8GyzgqveN4VfXiJNaovj7u8wgA==` |
+| npm shasum | `915f596a0b5dab1510e0bc850bacf66967782871` |
+| git head | `96b39e300d4e50660188565db0b77d03f1f98a1f` |
+| published | `2026-08-19T06:44:36.634Z` |
+| archive | 45 files，84.6 kB packed，438.9 kB unpacked |
 | runtime | ESM，Node.js `>=22.0.0` |
+| npm provenance | GitHub Actions OIDC，SLSA provenance attestation |
 
 复现命令：
 
 ```sh
-npm view shortdrama-router@0.3.0 version dist.integrity dist.shasum dist.tarball gitHead time engines --json
-npm pack shortdrama-router@0.3.0
-shasum -a 1 shortdrama-router-0.3.0.tgz
-openssl dgst -sha512 -binary shortdrama-router-0.3.0.tgz | openssl base64 -A
+npm view shortdrama-router@0.5.0 version dist.integrity dist.shasum dist.tarball dist.attestations gitHead time engines --json
+npm pack shortdrama-router@0.5.0
+shasum -a 1 shortdrama-router-0.5.0.tgz
+openssl dgst -sha512 -binary shortdrama-router-0.5.0.tgz | openssl base64 -A
 ```
 
-发布物是无运行时 npm 依赖的 bundle，但 Jimeng 与 LibTV adapter 仍会启动 npm 包
-之外的本地 CLI。因此 npm tarball 本身不是这两个 provider 的完整可执行闭包。
+发布物是无运行时 npm 依赖的 bundle。Jimeng 与 LibTV adapter 仍会启动 npm 包之外
+的本地 CLI；0.5.0 内部下载和管理这些 CLI 的 runtime service，但 provider CLI 字节
+仍不在 npm tarball 内，因此 npm tarball 本身不是完整可执行闭包。
 
-## 2. 0.3.0 已验收的通用契约
+## 2. 0.5.0 已验收的通用契约
 
-### 2.1 分方式鉴权
+### 2.1 Managed runtime
+
+公共 API 新增平台识别、受管理路径、安装与状态接口：
+
+- `detectRuntimePlatform()` 覆盖 macOS、Linux、Windows 的 x64/arm64 组合；
+- `createBuiltInRuntimeService()`、`installJimengRuntime()` 和
+  `installLibTvRuntime()` 提供显式安装入口；
+- CLI 与本地 HTTP `POST /api/v1/providers/{provider}/runtime` 可触发同一安装操作；
+- 安装先写临时目录、执行版本 probe，再原子替换现有 runtime；版本无法识别或
+  不兼容时状态为 `invalid`，不会被报告为可用。
+
+`createShortDramaRouter({ runtimeRootDir })` 会把同一 runtime root 传给内建 Provider；
+`startRouterServer({ runtimeRootDir })` 同时把它传给 runtime installer 和 Provider。
+普通业务只调用 Provider/runtime 安装、状态、授权和生成 API，不读取或拼接 CLI
+路径。默认运行不再读取 PATH、`~/.local/bin/dreamina` 或 `~/.libtv/libtv`；显式
+`cliPath` 只保留为开发调试覆盖项。
+
+GitHub Release `v0.5.0` 另提供内置 Node.js 的 `darwin-arm64`、`linux-x64` 和
+`win32-x64` standalone 制品，GitHub API 为三个 release asset 分别记录 SHA-256。
+这解决 router 自身无需 npm/Node.js 的分发问题；它不等同于 installer 后续下载的
+Dreamina/LibTV provider CLI 字节完整性。
+
+### 2.2 分方式鉴权
 
 公共类型现在提供：
 
@@ -49,7 +73,7 @@ openssl dgst -sha512 -binary shortdrama-router-0.3.0.tgz | openssl base64 -A
 LibTV 明确声明 external OAuth，仅支持 status 与 clear。调用方可以据此只暴露真实
 动作，不再通过异常文案猜测能力。
 
-### 2.2 Provider 配置与资源
+### 2.3 Provider 配置与资源
 
 公共 API 已提供配置状态、资源发现、配置选择与清除：
 
@@ -62,7 +86,7 @@ LibTV 明确声明 external OAuth，仅支持 status 与 clear。调用方可以
 LibTV 项目现在是类型化资源，能区分 required、configured、valid、unavailable 和
 error。选择会先验证账号可见性，模型可用性也会反映配置状态。
 
-### 2.3 模型约束和当前可用性
+### 2.4 模型约束和当前可用性
 
 `ProviderModel` 现在包含：
 
@@ -75,9 +99,9 @@ error。选择会先验证账号可见性，模型可用性也会反映配置状
 `durations: null`。图片模型的鉴权 metadata 也已补齐。动态 provider 的模型参数可以
 由调用方统一投影，并在提交前按所选模型再次校验。
 
-### 2.4 Durable job、幂等与恢复
+### 2.5 Durable job、幂等与恢复
 
-0.3.0 已提供完成 crash-safe 适配所需的公开原语：
+0.5.0 保留完成 crash-safe 适配所需的公开原语：
 
 - create 请求接受 `idempotency_key`，HTTP 接受 `Idempotency-Key`；
 - JobStore 支持 `claim`、`compareAndSet`、`getByIdempotencyKey`；
@@ -91,7 +115,7 @@ error。选择会先验证账号可见性，模型可用性也会反映配置状
 durable store。该设计正确地区分了“确认失败”和“是否接受未知”，避免为恢复而重复
 付费提交。
 
-### 2.5 Artifact、错误与能力降级
+### 2.6 Artifact、错误与能力降级
 
 成功任务提供规范化 `MediaArtifact`，包含 kind、canonical MIME、URL 以及可选大小、
 过期时间和临时标记。模型目录声明输出 MIME；旧 outputs 仍可兼容读取。
@@ -106,11 +130,11 @@ ingestion 和 cancellation 都是可发现的 provider 能力。当前三家 pro
 
 ## 3. 原清单验收结果
 
-| 项目 | 0.3.0 结果 | 结论 |
+| 项目 | 0.5.0 结果 | 结论 |
 | --- | --- | --- |
 | R1 分方式鉴权 | 管理模式、动作集合、逐方式状态和稳定原因均已公开 | 已解决 |
 | R2 私有配置与资源 | 发现、验证、选择、清除和可注入配置源均已公开 | 已解决 |
-| R3 外部 CLI 依赖 | 有依赖 descriptor、版本命令；LibTV 有 source URL | 部分解决 |
+| R3 外部 CLI 依赖 | 新增 managed installer、平台识别、绝对路径、版本 probe 和 standalone 发布物；provider CLI 下载仍无不可变摘要或签名 | 部分解决 |
 | R4 模型目录 | 约束、引用、MIME、可用性和 provider options 均已规范化 | 已解决 |
 | R5 素材 ingestion | 能力与 API 已公开；当前三家明确不支持 | 契约已解决，provider 能力按实际降级 |
 | R6 durable job | 幂等 claim、CAS、恢复、submission unknown 和取消 API 均已公开；并发 submitting 观察仍有竞态 | 部分解决 |
@@ -119,25 +143,34 @@ ingestion 和 cancellation 都是可发现的 provider 能力。当前三家 pro
 
 ## 4. 仍需补齐的通用发布证据
 
-### 4.1 外部 CLI 兼容与供应链
+### 4.1 Managed CLI 字节完整性
 
-Jimeng 和 LibTV dependency status 的 `compatible` 仍为 `null`。LibTV descriptor
-给出了源码地址，Jimeng 尚无对应 `source_url`；两者都没有公开受支持版本范围、精确
-发布物摘要或可再分发说明。
+0.5.0 已解决业务层 CLI 路径感知、旧路径回退、安装位置、平台识别和版本不可识别时
+fail closed；npm 包自身也通过 GitHub Actions OIDC 发布并带 SLSA provenance。但
+`ProviderRuntimeArtifact` 只有 URL、archive 类型、文件名和大小上限，没有摘要或
+签名字段。安装器跟随重定向、下载字节并在执行版本 probe 后发布：
+
+- Jimeng 先读取远程 `version.json`，再从不含版本的固定 artifact URL 下载；其 probe
+  接受任意可识别版本，并未把 CLI 报告版本与 release version 做相等校验；
+- LibTV 使用固定 `1.0.2` URL 并严格比较报告版本，但下载字节仍没有 SHA-256 或签名
+  验证。
+
+版本 probe 只能证明“字节可执行并打印了某个版本”，不能证明字节来自预期发布物。
+因此自动下载安装与可验证供应链仍是两个不同层次。
 
 建议后续提供：
 
-1. 每个平台的官方发布来源、许可或再分发说明；
-2. 受支持的精确版本或版本范围，以及 router↔CLI 兼容矩阵；
-3. 官方二进制的字节大小和 SHA-256，或由调用方注入并验证绝对路径的标准流程；
-4. 版本未知或不兼容时，在登录、模型 discovery 和付费 submit 前 fail closed；
-5. clean-profile 测试覆盖登录、账号 probe、模型 discovery、submit、poll 和 logout。
+1. `ProviderRuntimeArtifact` 增加每个精确平台制品的 SHA-256 或可验证签名；
+2. 下载完成、解压和执行前验证完整字节，重定向后的最终来源也必须满足发布策略；
+3. Jimeng 把 CLI 报告版本与版本 discovery 的 release version 绑定；
+4. 发布清单记录官方来源、许可/再分发条件、精确版本和各平台摘要；
+5. clean-profile 测试覆盖安装、篡改拒绝、登录、模型 discovery、submit 与 logout。
 
 这是当前仍然影响“可验证完整运行闭包”的通用契约缺口。
 
 ### 4.2 并发 submitting claim 的所有权
 
-0.3.0 的原子 claim 能保证同一幂等键只调用一次 provider submit，但当前有一个可
+0.5.0 的原子 claim 能保证同一幂等键只调用一次 provider submit，但当前仍有一个可
 复现的观察竞态：
 
 1. 调用 A claim 成功，记录为 `submitting`，并等待 provider 返回 reference；
@@ -172,6 +205,18 @@ tarball 可证明 API 和模拟行为，不能证明真实账号、会员计划�
 - 输出 MIME 与容器样本校验；
 - clear/logout（仅在该动作受支持时）。
 
+### 4.4 External authorization 的可操作入口
+
+LibTV 仍把 OAuth 声明为 external，公开动作只有 status 与 clear。安装 runtime 后，
+调用方仍需在同一配置目录中另行运行官方 CLI 登录；router 的 JavaScript 和 HTTP
+Provider API 没有 begin/complete 或 launch-login 操作。对仅提供 API/UI、没有交互式
+终端的通用接入方，这意味着“可安装”尚不等于“可完成首次授权”。
+
+若目标是完整 managed setup，建议为 external CLI authorization 提供一种公开、可
+取消且可探测的启动契约，例如启动官方 device/web login 并返回登录 URL/状态；若
+Provider 明确只支持人工终端登录，则应继续保持 external，并让调用方隐藏无法完成的
+授权动作。
+
 ## 5. 协议范围说明
 
 当前包是媒体任务 router，不是通用 LLM router。它可以保留：
@@ -186,10 +231,11 @@ tarball 可证明 API 和模拟行为，不能证明真实账号、会员计划�
 
 ## 6. 结论
 
-`shortdrama-router@0.3.0` 已提供通用适配层安全抹平 provider 差异所需的主要公开
+`shortdrama-router@0.5.0` 已提供通用适配层安全抹平 provider 差异所需的主要公开
 契约。调用方现在可以根据 capability、逐方式鉴权、配置状态、模型可用性和稳定错误
 统一隐藏不支持的功能，并通过 durable JobStore 实现不重复提交的恢复。
 
-剩余工作集中在外部 CLI 的可验证供应链、并发 submitting claim 的所有权语义和
-真实账号发布证据，不需要为任何特定下游增加专有字段，也不需要把 LLM、素材
-ingestion 或 provider cancellation 变成所有媒体服务的强制能力。
+剩余工作集中在 managed CLI 下载字节的可验证供应链、LibTV external login 的可操作
+入口、并发 submitting claim 的所有权语义和真实账号发布证据，不需要为任何特定
+下游增加专有字段，也不需要把 LLM、素材 ingestion 或 provider cancellation 变成
+所有媒体服务的强制能力。

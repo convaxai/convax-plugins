@@ -3,7 +3,10 @@ import { mkdtemp, rm, stat } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import type { ProviderAuthorizationStatus } from "shortdrama-router"
+import type {
+  ProviderAuthorizationStatus,
+  ProviderRuntimeService,
+} from "shortdrama-router"
 
 import {
   browserAuthorizationCompletionSchema,
@@ -283,6 +286,52 @@ describe("provider Service projection", () => {
     const result = await service.completeAuthorization(jimengCompletion())
     expect(completedMethod).toBe("oauth")
     expect(result.state).toBe("connected")
+  })
+
+  test("installs the managed Jimeng runtime before beginning authorization", async () => {
+    const calls: string[] = []
+    const runtimes: ProviderRuntimeService = {
+      async getStatus() {
+        calls.push("status")
+        return {
+          compatible: false,
+          id: "jimeng",
+          managed: true,
+          platform: "darwin-arm64",
+          state: "not_installed",
+        }
+      },
+      async install() {
+        calls.push("install")
+        return {
+          compatible: true,
+          executable_path: "/managed/runtimes/jimeng/dreamina",
+          id: "jimeng",
+          managed: true,
+          platform: "darwin-arm64",
+          state: "installed",
+          version: "1.2.3",
+        }
+      },
+      supports(provider) {
+        return provider === "jimeng"
+      },
+    }
+    const router = fakeRouter({
+      async beginProviderAuthorization() {
+        calls.push("begin")
+        return jimengAuthorizationRequest()
+      },
+    })
+    const service = new ProviderService("jimeng", router, {
+      now: () => now,
+      runtimeService: runtimes,
+    })
+
+    expect((await service.authorize()).schema).toBe(
+      externalAuthorizationSchema,
+    )
+    expect(calls).toEqual(["status", "install", "begin"])
   })
 
   test("accepts only the official standard-HTTPS Jimeng authorization origin", async () => {

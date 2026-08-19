@@ -125,7 +125,7 @@
           "version": "0.1.0",
           "blocker": {
             "code": "unverified-runtime-dependency",
-            "note": "shortdrama-router starts a locally installed Dreamina CLI without a reviewed immutable version, source, digest, or compatibility contract."
+            "note": "shortdrama-router 0.5.0 installs Dreamina from a mutable release-selected URL without a published provider-runtime digest or signature and accepts any recognizable reported version."
           }
         },
         {
@@ -134,7 +134,7 @@
           "version": "0.1.0",
           "blocker": {
             "code": "unverified-runtime-dependency",
-            "note": "shortdrama-router exposes the LibTV CLI source and version probe but no accepted version range or immutable binary digest, so the locally installed executable is not a verified runtime dependency."
+            "note": "shortdrama-router 0.5.0 pins the LibTV 1.0.2 download URL but verifies no immutable provider-runtime digest or signature before executing the installed binary."
           }
         }
       ]

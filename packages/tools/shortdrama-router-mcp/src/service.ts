@@ -1,6 +1,7 @@
 import type {
   ProviderAuthorizationRequest,
   ProviderAuthorizationStatus,
+  ProviderRuntimeService,
   XiaoYunqueCredentialSnapshot,
   XiaoYunqueWebSession,
 } from "shortdrama-router"
@@ -57,6 +58,8 @@ export interface ProviderServiceOptions {
   credentials?: CombinedXiaoYunqueCredentialSource
   now?: () => number
   requestTimeoutMs?: number
+  runtimeInstallTimeoutMs?: number
+  runtimeService?: ProviderRuntimeService
   webSessionProbe?: XiaoYunqueWebSessionProbe
 }
 
@@ -374,6 +377,8 @@ export class ProviderService {
   readonly #now: () => number
   #pending: PendingAuthorization | undefined
   readonly #requestTimeoutMs: number
+  readonly #runtimeInstallTimeoutMs: number
+  readonly #runtimeService: ProviderRuntimeService | undefined
   #tail: Promise<void> = Promise.resolve()
   readonly #webSessionProbe: XiaoYunqueWebSessionProbe | undefined
 
@@ -385,6 +390,8 @@ export class ProviderService {
     this.#credentials = options.credentials
     this.#now = options.now ?? Date.now
     this.#requestTimeoutMs = options.requestTimeoutMs ?? 30_000
+    this.#runtimeInstallTimeoutMs = options.runtimeInstallTimeoutMs ?? 10 * 60_000
+    this.#runtimeService = options.runtimeService
     this.#webSessionProbe = options.webSessionProbe
     if (
       provider === "xiaoyunque"
@@ -394,6 +401,12 @@ export class ProviderService {
     }
     if (!Number.isFinite(this.#requestTimeoutMs) || this.#requestTimeoutMs <= 0) {
       throw new Error("Provider status timeout is invalid")
+    }
+    if (
+      !Number.isFinite(this.#runtimeInstallTimeoutMs)
+      || this.#runtimeInstallTimeoutMs <= 0
+    ) {
+      throw new Error("Provider runtime install timeout is invalid")
     }
   }
 
@@ -507,6 +520,9 @@ export class ProviderService {
       throw new Error("LibTV interactive authorization is not supported")
     }
     if (signal?.aborted) throw abortError()
+    if (this.provider === "jimeng" && this.#runtimeService) {
+      await this.#ensureManagedRuntime(signal)
+    }
     this.#pending = undefined
     const request = await boundedCall(
       this.#requestTimeoutMs,
@@ -522,6 +538,31 @@ export class ProviderService {
       : externalRequest(request, this.#now())
     this.#pending = projected.pending
     return projected.result
+  }
+
+  async #ensureManagedRuntime(signal?: AbortSignal) {
+    const runtimes = this.#runtimeService
+    if (!runtimes?.supports(this.provider)) {
+      throw new Error("Provider managed runtime is not configured")
+    }
+    const current = await boundedCall(
+      this.#requestTimeoutMs,
+      signal,
+      (attemptSignal) => runtimes.getStatus(this.provider, {
+        signal: attemptSignal,
+      }),
+    )
+    if (current.state === "installed" && current.compatible) return
+    const installed = await boundedCall(
+      this.#runtimeInstallTimeoutMs,
+      signal,
+      (attemptSignal) => runtimes.install(this.provider, {
+        signal: attemptSignal,
+      }),
+    )
+    if (installed.state !== "installed" || !installed.compatible) {
+      throw new Error("Provider managed runtime is unavailable")
+    }
   }
 
   #currentPending() {

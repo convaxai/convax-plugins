@@ -1,6 +1,6 @@
 import {
-  JimengProvider,
-  LibTvProvider,
+  createBuiltInRuntimeService,
+  createShortDramaRouter,
   MemoryXiaoYunqueCredentials,
   ShortDramaRouter,
   XiaoYunqueProvider,
@@ -74,18 +74,24 @@ export async function createServer(
         { dispose: () => jobStores.close() },
       )
     }
-    const adapter = provider === "jimeng"
-      ? new JimengProvider()
-      : new LibTvProvider({
-          configuration: new FileLibTvConfigurationSource(
-            path.join(stateDirectory, "libtv-configuration.json"),
-          ),
-        })
-    const router: RouterPort = new ShortDramaRouter({
-      ...routerOptions,
-      providers: [adapter],
+    const managedRuntimeRoot = path.join(stateDirectory, "provider-runtimes")
+    const runtimeService = createBuiltInRuntimeService({
+      rootDir: managedRuntimeRoot,
     })
-    const service = new ProviderService(provider, router)
+    const router: RouterPort = createShortDramaRouter({
+      ...routerOptions,
+      jimeng: provider === "jimeng" ? {} : false,
+      libtv: provider === "libtv"
+        ? {
+            configuration: new FileLibTvConfigurationSource(
+              path.join(stateDirectory, "libtv-configuration.json"),
+            ),
+          }
+        : false,
+      runtimeRootDir: managedRuntimeRoot,
+      xiaoyunque: false,
+    })
+    const service = new ProviderService(provider, router, { runtimeService })
     return new McpServer(
       provider,
       router,

@@ -1,7 +1,7 @@
 # Short-drama router companion
 
 `convax-shortdrama-router-mcp` is the reviewed MCP adapter for
-`shortdrama-router@0.3.0`. One process owns exactly one provider:
+`shortdrama-router@0.5.0`. One process owns exactly one provider:
 
 ```sh
 convax-shortdrama-router-mcp --provider=xiaoyunque
@@ -20,7 +20,7 @@ Every generation `operation_id` is passed to `shortdrama-router` as its public
 idempotency key. Audio, image, and video records are stored in a private SQLite
 journal using atomic claim and compare-and-set. A restart resumes the same
 provider reference; an uncertain submit becomes `submission_unknown` and is never
-automatically resubmitted. Because 0.3.0 can otherwise let a concurrent observer
+automatically resubmitted. Because 0.5.0 can otherwise let a concurrent observer
 turn another live submitter's fresh claim into `submission_unknown`, this adapter
 re-observes fresh `submitting` records through the idempotent create path and uses
 get only after the package's 30-minute provider-submit window has expired.
@@ -38,10 +38,14 @@ currently advertise no ingestion support. Provider cancellation is likewise not
 advertised. This companion intentionally exposes media generation only and has no
 `llm.gateway`; media Services are not required to provide an LLM.
 
-Jimeng and LibTV still depend on locally installed official CLIs. The 0.3.0
-dependency descriptors expose probes, and LibTV exposes a source URL, but neither
-declares a compatible version or immutable binary digest; those two Plugin
-packages therefore remain publication-blocked on a verified runtime toolchain.
+Jimeng authorization calls the package's provider runtime service before beginning
+the managed device flow. The adapter gives `createShortDramaRouter()` and
+`createBuiltInRuntimeService()` one private runtime root; it never resolves or
+passes a CLI path. Version 0.5.0 owns platform selection, installation and the
+managed absolute executable, and no longer reads PATH or legacy user CLI
+directories. Its public runtime artifact contract still contains no immutable
+digest or signature, so both Plugin packages remain publication-blocked until the
+downloaded provider CLI bytes are verified before execution.
 
 Generated outputs are downloaded only from public standard-HTTPS endpoints into
 the caller-provided absolute output directory. The companion accepts a closed

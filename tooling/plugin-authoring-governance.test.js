@@ -51,7 +51,7 @@ describe("automated Plugin contract governance", () => {
         blockers: [
           {
             code: "unverified-runtime-dependency",
-            note: expect.stringContaining("Dreamina CLI"),
+            note: expect.stringContaining("mutable release-selected URL"),
           },
         ],
       },
@@ -64,7 +64,7 @@ describe("automated Plugin contract governance", () => {
         blockers: [
           {
             code: "unverified-runtime-dependency",
-            note: expect.stringContaining("LibTV CLI"),
+            note: expect.stringContaining("LibTV 1.0.2 download URL"),
           },
         ],
       },
@@ -134,8 +134,36 @@ describe("automated Plugin contract governance", () => {
     expect(source).toContain("commands on PATH")
   })
 
-  test("keeps Jimeng and LibTV blocked on observable ambient CLI dependencies", async () => {
-    const source = await fs.readFile(
+  test("keeps managed provider downloads blocked until their bytes are verifiable", async () => {
+    const runtimeTypes = await fs.readFile(
+      path.join(
+        root,
+        "packages",
+        "tools",
+        "shortdrama-router-mcp",
+        "node_modules",
+        "shortdrama-router",
+        "dist",
+        "bundle",
+        "types",
+        "vendor",
+        "runtime",
+        "types.d.ts",
+      ),
+      "utf8",
+    )
+    const adapter = await fs.readFile(
+      path.join(
+        root,
+        "packages",
+        "tools",
+        "shortdrama-router-mcp",
+        "src",
+        "runtime.ts",
+      ),
+      "utf8",
+    )
+    const upstream = await fs.readFile(
       path.join(
         root,
         "packages",
@@ -149,12 +177,15 @@ describe("automated Plugin contract governance", () => {
       ),
       "utf8",
     )
-    expect(source).toContain(
-      'path.join(homedir(), ".local", "bin", "dreamina")',
-    )
-    expect(source).toContain(
-      'path3.join(homedir3(), ".libtv", "libtv")',
-    )
+    expect(runtimeTypes).toContain("interface ProviderRuntimeArtifact")
+    expect(runtimeTypes).toContain("readonly url: string")
+    expect(runtimeTypes).not.toContain("sha256")
+    expect(runtimeTypes).not.toContain("integrity")
+    expect(adapter).toContain("createShortDramaRouter")
+    expect(adapter).toContain("runtimeRootDir: managedRuntimeRoot")
+    expect(adapter).not.toContain("ManagedCliPath")
+    expect(upstream).not.toContain('.local", "bin", "dreamina')
+    expect(upstream).not.toContain('.libtv", "libtv')
   })
 
   test("binds paid generation operations to a durable upstream claim", async () => {
