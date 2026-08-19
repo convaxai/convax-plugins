@@ -5,7 +5,7 @@ These rules apply to people and AI agents in this repository.
 ## Repository ownership boundary
 
 - This repository is the authoritative source for concrete Convax Plugins,
-  Plugin-owned Skills, standalone Skills, MCP Servers, reviewed companion tools,
+  Plugin-owned Skills, standalone Skills, MCP Servers, versioned companion tools,
   the Official Marketplace, and the immutable Builtin bundle.
 - The `convaxai/convax` repository owns the generic host platform: manifest ABI,
   validation at installation, lifecycle, runtime bridges, IPC/UI, and Registry
@@ -13,11 +13,12 @@ These rules apply to people and AI agents in this repository.
   host fork here.
 - Plugin development must not inspect, infer, or modify Host implementation.
   If an integration needs a missing Host API or contribution point, use the
-  `convax-plugin-authoring` Skill to check the generated Catalog and create a
-  structured capability request in this repository. Stop Host-dependent work and
-  wait for explicit human review; do not switch to `../convax`. A separately
-  approved Host task may implement only the accepted generic contract. Neither
-  repository may add runtime behavior that branches on the concrete Plugin id.
+  `convax-plugin-authoring` Skill to check the generated Catalog and record one
+  generic capability requirement in this repository. Publication stays
+  automatically blocked only while that machine-verifiable Catalog or package
+  requirement is unsatisfied; do not switch to `../convax`. A separate Host task
+  may implement only the generic contract. Neither repository may add runtime
+  behavior that branches on the concrete Plugin id.
 
 ## Before editing
 
@@ -68,7 +69,7 @@ These rules apply to people and AI agents in this repository.
   `node:module`, or dynamic imports. Convax binds consent to its exact bytes and
   loads a private snapshot only after an explicit install or update;
   default/background provisioning must not authorize new Hook bytes.
-- Reviewed companion tool source may live under `packages/tools/<id>`, but it is a separate
+- Versioned companion tool source may live under `packages/tools/<id>`, but it is a separate
   distributable with its own tests. Repository validation and Plugin packing never
   execute it or include it in `package/`.
 - A `convax.plugin/8` Plugin may contribute Plugin-owned Skills from independent
@@ -82,33 +83,25 @@ These rules apply to people and AI agents in this repository.
   with the remote service and the host's standard MCP OAuth flow.
 - A published companion is declared in source metadata and emitted as a separate,
   target-specific Release asset. Its immutable Registry URL, byte size, and SHA-256
-  are derived from the reviewed build output; never author them by hand.
+  are derived from the verified build output; never author them by hand.
 - A Skill composes documented host capabilities. It must not claim capabilities,
   edit private `.convax` state, or ask users to bypass safety controls.
 - A missing Host API or contribution point is a publication blocker, not permission
   to add a legacy transport, invent a method, inspect Host internals, or change the
-  sibling Host repository. Record the problem, use case, requested generic
-  capability, alternatives, security/scope/side effect, compatibility, and tests in
-  a human-reviewed request before Host work is considered. Every affected
-  workspace must declare that request id in
-  `package.json#convax.hostCapabilityRequests`; the publication policy binds the
-  same request to exact package versions, and tooling requires a two-way match.
-- A pending request's semantic core is append-only until the protected external
-  human receipt verifier accepts an immutable decision Release; only generated
-  Catalog evidence may refresh. A new Plugin that
-  uses only published APIs is reviewed as Plugin source through protected
-  CODEOWNERS and must not fabricate a Host request. Known gaps use validated
-  contracts: `convax.pet-host/1` is Manifest-gated, while
-  `canvas.inputs.open` remains a legal audio/video-only API. Image bytes require
-  the explicit pending image-input request; never reinterpret the stream contract
-  or edit Host code.
-- Do not weaken `.github/CODEOWNERS`, the protected-main ruleset, required current
-  checks, stale-approval dismissal, bot-approval rejection,
-  `plugin-marketplace-production`, `plugin-host-capability-governance`, or
-  immutable Releases. The governance Environment requires named reviewers,
-  prevents self-review and administrator bypass, and the required
-  `pull_request_target` checker must execute from protected base. Repository text
-  does not substitute for verifying those external controls.
+  sibling Host repository from a Plugin task. Record one generic requirement and
+  bind its affected exact package versions in
+  `registry/host-capability-policy.json`. Tooling verifies Catalog contract digests
+  or package conformance automatically and reports any remaining technical blocker.
+  There is no human-decision receipt, CODEOWNERS approval, protected Environment,
+  or manual publication exception. A new Plugin that uses only published APIs does
+  not fabricate a requirement. Known gaps use validated contracts:
+  `convax.pet-host/1` is Manifest-gated, and image input uses the published
+  `canvas.inputs.image.open`/`close` contracts; never reinterpret an unrelated
+  stream contract or edit Host code from this repository.
+- Do not weaken the protected-main ruleset, required current checks, artifact-only
+  publisher, immutable Releases, or exact provenance validation. Once automatic
+  verification succeeds, publication must not wait for a person or Environment
+  approval.
 - Every v8 manifest has an explicit `hostApi` declaration. Web Plugins with
   `entry` require `host.context.get`; headless Plugins keep an explicit empty
   declaration. A Skill required API must be top-level required, while a Skill
@@ -121,15 +114,20 @@ These rules apply to people and AI agents in this repository.
 - Do not use symlinks, absolute paths, traversal, Windows-reserved names, generated
   dependency trees, secrets, or files larger than repository limits.
 - Increment package SemVer whenever released bytes or catalog metadata change.
-- The protected default branch publishes only packages whose identity version
-  changed. Authors do not create release tags. Any tracked package byte change
-  without an identity version change fails before privileged publication.
+- The protected default branch publishes packages whose identity version changed
+  and reactivates a current ready version that is absent from the production
+  Registry. Authors do not create release tags. Any tracked package byte change
+  without an identity version change fails before privileged publication, and an
+  existing immutable Release must match the exact verified bytes.
 - Official Registry v2, Showcase v2, and the Builtin bundle are generated with
   `@convax/marketplace-kit`. Do not duplicate its
   schema parsers, deterministic ZIP writer, or Registry builder in this repository.
 - `catalogs/builtin.json` contains only standalone Skill `canvas-storyboard` in
-  the first bundle. `catalogs/preinstalled.json` contains only Official Plugin
-  `ffmpeg-tools` for `darwin-arm64` with explicit setup. Neither membership grants
+  the first bundle. `catalogs/packaged.json` declares the bounded Official Plugin
+  and standalone Skill byte closure available to the Host product lock. It does
+  not decide whether a Plugin is a default install, retired recovery input, or
+  both; the Host policy assigns those purposes. Plugin-owned Skills enter only
+  through their owner Plugin closure, and package membership alone grants no
   execution authority.
 - Treat `registry/config.json` sequence as the production sequence floor. Bump it for
   explicit catalog-policy changes such as yanking; ordinary package Releases advance
@@ -144,7 +142,7 @@ These rules apply to people and AI agents in this repository.
 Run `bun install --frozen-lockfile --ignore-scripts`, trusted Plugin/Skill workspace
 builds, `bun run validate`, workspace tests, `bun run build:companions`, `bun test`,
 `bun run pack`, `bun run skill-api:check`, Marketplace Kit `check`, Official v2
-build, and Builtin `bundle` before requesting review. Dogfood the real packed
+build, and Builtin `bundle` before handoff. Dogfood the real packed
 `@convax/marketplace-kit` tarball in an isolated consumer until its exact version is
 published; never commit an absolute `file:` override. The explicit package and
 companion build phases finish before validation and packing. Validation and packing

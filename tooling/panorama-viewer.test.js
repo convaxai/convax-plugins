@@ -16,7 +16,10 @@ const packageRoot = path.join(sourceRoot, "package")
 
 describe("panorama-viewer package", () => {
   test("ships one static Chinese Panorama Viewer with explicit viewport capture authority", async () => {
-    const [plugin] = await discoverPackages({ kind: "plugin", id: "panorama-viewer" })
+    const [plugin] = await discoverPackages({
+      kind: "plugin",
+      id: "panorama-viewer",
+    })
     const metadata = plugin.metadata
     const manifest = parsePluginManifest(
       await readJson(path.join(packageRoot, "manifest.json")),
@@ -29,47 +32,42 @@ describe("panorama-viewer package", () => {
       id: "panorama-viewer",
       name: "全景图预览",
       description: manifest.description,
-      version: "0.3.2",
+      version: "0.3.3",
       publication: {
-        status: "blocked",
-        blockers: [
-          {
-            code: "host-capability-review-required",
-            note: expect.stringContaining(
-              "docs/host-capability-requests/web-plugin-image-input-read.md",
-            ),
-          },
-        ],
+        status: "ready",
+        blockers: [],
       },
       yanked: false,
     })
-    expect(manifest).toEqual(expect.objectContaining({
-      schema: "convax.plugin/8",
-      id: metadata.id,
-      name: metadata.name,
-      description: metadata.description,
-      version: metadata.version,
-      entry: "index.html",
-      capabilities: [
-        "canvas.connectedInputs.read",
-        "canvas.connectedImages.read",
-        "canvas.image.write",
-        "canvas.node.write",
-        "ui.fullscreen",
-      ],
-      hostApi: {
-        major: 3,
-        required: [
-          "canvas.inputs.image.close",
-          "canvas.inputs.image.open",
-          "canvas.inputs.list",
-          "canvas.node.state.replace",
-          "canvas.resource.image.create",
-          "host.context.get",
+    expect(manifest).toEqual(
+      expect.objectContaining({
+        schema: "convax.plugin/8",
+        id: metadata.id,
+        name: metadata.name,
+        description: metadata.description,
+        version: metadata.version,
+        entry: "index.html",
+        capabilities: [
+          "canvas.connectedInputs.read",
+          "canvas.connectedImages.read",
+          "canvas.image.write",
+          "canvas.node.write",
+          "ui.fullscreen",
         ],
-        optional: [],
-      },
-    }))
+        hostApi: {
+          major: 3,
+          required: [
+            "canvas.inputs.image.close",
+            "canvas.inputs.image.open",
+            "canvas.inputs.list",
+            "canvas.node.state.replace",
+            "canvas.resource.image.create",
+            "host.context.get",
+          ],
+          optional: [],
+        },
+      }),
+    )
     expect(manifest.contributes.canvas.commands).toEqual([
       {
         id: "panorama.capture-viewport",
@@ -106,7 +104,11 @@ describe("panorama-viewer package", () => {
       },
     ])
     expect(manifest.contributes.canvas.toolbar).toEqual([
-      { command: "panorama.capture-viewport", id: "capture-viewport", order: 10 },
+      {
+        command: "panorama.capture-viewport",
+        id: "capture-viewport",
+        order: 10,
+      },
       { command: "panorama.reset", id: "reset", order: 20 },
       { command: "panorama.toggle-auto-rotate", id: "auto-rotate", order: 30 },
       { command: "panorama.refresh-connections", id: "refresh", order: 40 },
@@ -129,11 +131,14 @@ describe("panorama-viewer package", () => {
 
     const [app, renderer] = await Promise.all([
       fs.readFile(path.join(packageRoot, "assets", "app.js"), "utf8"),
-      fs.readFile(path.join(packageRoot, "assets", "panorama-renderer.js"), "utf8"),
+      fs.readFile(
+        path.join(packageRoot, "assets", "panorama-renderer.js"),
+        "utf8",
+      ),
     ])
     expect(app).toContain('hostRequest("canvas.resource.image.create"')
     expect(app).toContain("全景视口截图.png")
     expect(renderer).toContain("gl.readPixels")
-    expect(renderer).toContain('output.toBlob')
+    expect(renderer).toContain("output.toBlob")
   })
 })

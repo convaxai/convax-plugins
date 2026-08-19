@@ -52,13 +52,14 @@ bun run pack -- --kind skill --id my-skill
 作者源码只有一种可发布格式：包元数据必须使用 `convax.package/2`，所有 Plugin
 manifest 必须使用 `convax.plugin/8`。`convax.package/2` 不再提供兼容性逃生口，
 且不承载 publication 状态。发布资格的唯一 owner 是
-`registry/host-capability-policy.json`：它把每个 pending 的
-`docs/host-capability-requests/*.md` 反向绑定到精确包版本。每个受影响 workspace
-还必须在 `package.json#convax.hostCapabilityRequests` 中独立声明 request id，
-因此改写业务实现不能静默消除治理义务。常规源码校验会接纳并明确报告 blocked
-包；Release selection、Marketplace composition 与仓库级 `bun run pack` 都会省略
-它们及其 owner/owned-Skill 闭包，同时继续处理无关的 ready 包并报告省略项。显式
-使用 `--kind`/`--id` 或 `--tag` 定向打包仍是精确操作，会拒绝 blocked 目标。
+`registry/host-capability-policy.json`：它把可自动验证的通用 Host contract
+requirement 反向绑定到精确包版本，并在 Catalog 校验时绑定精确 API digest。每个受影响
+workspace 还必须在 `package.json#convax.hostCapabilityRequests` 中独立声明
+requirement id；单独的 blocker 列表只记录真实未解决的技术依赖。常规源码校验会接纳
+并明确报告 blocked 包；Release selection、Marketplace composition 与仓库级
+`bun run pack` 都会省略它们及其 owner/owned-Skill 闭包，同时继续处理无关的 ready
+包。Catalog/package conformance 通过且技术 blocker 消失后会自动发布，不需要人工
+receipt、CODEOWNERS 审批或受保护 Environment。
 
 不可变 Registry 历史中仍可能存在切换前的包与 Plugin Schema，客户端可以继续读取
 这些历史条目；但模板、源码校验、打包、Marketplace 构建和 Release 规划都不会把旧

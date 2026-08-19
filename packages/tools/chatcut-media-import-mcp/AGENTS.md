@@ -1,6 +1,6 @@
 # ChatCut media-import companion contract
 
-This workspace is a prototype for an independently reviewed companion
+This workspace is a prototype for an independently verified companion
 executable. It inherits the repository contract.
 
 ## Ownership
@@ -31,9 +31,10 @@ executable. It inherits the repository contract.
   part of the same verified target (for example, bundled into a self-contained
   companion) or Convax gains a generic separately verified dependency
   mechanism. Do not weaken or remove this blocker merely because a developer
-  machine has working commands on `PATH`. Track human review in
-  `docs/host-capability-requests/verified-companion-toolchain.md`; do not edit
-  Host code from this repository.
+  machine has working commands on `PATH`. Track it as the
+  `verified-companion-toolchain` technical blocker in
+  `registry/host-capability-policy.json`; do not edit Host code from this
+  repository.
 - While the prototype remains, failure to resolve or run either media tool must
   return a bounded public setup error.
 

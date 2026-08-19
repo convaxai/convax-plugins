@@ -4,8 +4,10 @@ import { promises as fs } from "node:fs"
 import path from "node:path"
 import { assertOfficialMarketplaceDescriptor } from "./official-marketplace.mjs"
 
-const releaseBase = "https://github.com/convaxai/convax-plugins/releases/download/"
+const releaseBase =
+  "https://github.com/convaxai/convax-plugins/releases/download/"
 const digestPattern = /^[a-f0-9]{64}$/
+const packageIdPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const metadataLimit = 8 * 1024 * 1024
 const manifestLimit = 1024 * 1024
 const packageLimit = 512 * 1024 * 1024
@@ -44,7 +46,9 @@ function parseReleaseUrl(url, label) {
   const suffix = url.slice(releaseBase.length)
   const separator = suffix.indexOf("/")
   if (separator <= 0 || separator === suffix.length - 1) {
-    throw new Error(`${label} must contain one exact Release tag and asset basename`)
+    throw new Error(
+      `${label} must contain one exact Release tag and asset basename`,
+    )
   }
   const tag = suffix.slice(0, separator)
   const name = suffix.slice(separator + 1)
@@ -65,7 +69,9 @@ function validateRelativePath(value, label) {
     value.length === 0 ||
     value.includes("\\") ||
     path.posix.isAbsolute(value) ||
-    value.split("/").some((segment) => segment === "" || segment === "." || segment === "..")
+    value
+      .split("/")
+      .some((segment) => segment === "" || segment === "." || segment === "..")
   ) {
     throw new Error(`${label} must stay below the product lock output`)
   }
@@ -77,7 +83,8 @@ async function readBounded(handle, maximumSize, label) {
   let offset = 0
   while (true) {
     const capacity = Math.min(64 * 1024, maximumSize + 1 - offset)
-    if (capacity <= 0) throw new Error(`${label} exceeds its maximum admitted size`)
+    if (capacity <= 0)
+      throw new Error(`${label} exceeds its maximum admitted size`)
     const chunk = Buffer.allocUnsafe(capacity)
     const { bytesRead } = await handle.read(chunk, 0, capacity, offset)
     if (bytesRead === 0) break
@@ -111,7 +118,9 @@ async function readStableFile(
     throw cause
   })
   if (!before?.isFile() || before.isSymbolicLink() || before.nlink !== 1) {
-    throw new Error(`${label} must be an existing single-link regular no-follow file`)
+    throw new Error(
+      `${label} must be an existing single-link regular no-follow file`,
+    )
   }
   if (before.size > maximumSize) {
     throw new Error(`${label} exceeds its maximum admitted size`)
@@ -120,12 +129,13 @@ async function readStableFile(
   if (!real.startsWith(`${rootRealPath}${path.sep}`)) {
     throw new Error(`${label} must stay below the product lock output`)
   }
-  const handle = await fs.open(
-    absolute,
-    fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
-  ).catch((cause) => {
-    throw new Error(`${label} changed before it could be opened safely`, { cause })
-  })
+  const handle = await fs
+    .open(absolute, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW)
+    .catch((cause) => {
+      throw new Error(`${label} changed before it could be opened safely`, {
+        cause,
+      })
+    })
   try {
     const opened = await handle.stat()
     if (
@@ -148,7 +158,9 @@ async function readStableFile(
       afterPath.nlink !== 1 ||
       !sameFileSnapshot(afterPath, opened)
     ) {
-      throw new Error(`${label} changed while its immutable bytes were being verified`)
+      throw new Error(
+        `${label} changed while its immutable bytes were being verified`,
+      )
     }
     return bytes
   } finally {
@@ -187,7 +199,9 @@ function releasePlanIndex(plan, area) {
       }
       const expectedPath = `releases/${release.tag}/${asset.name}`
       if (asset.path !== expectedPath) {
-        throw new Error(`${area} release-plan asset path differs from its Release`)
+        throw new Error(
+          `${area} release-plan asset path differs from its Release`,
+        )
       }
       if (assets.has(asset.url)) {
         throw new Error(`${area} release-plan contains a duplicate asset URL`)
@@ -232,18 +246,22 @@ async function verifyLockedArtifact({
     if (releaseAsset.path !== `releases/${tag}/${name}`) {
       throw new Error(`${label} release-plan path differs from its URL`)
     }
-    if (expected && (
-      releaseAsset.size !== expected.size ||
-      releaseAsset.sha256 !== expected.sha256
-    )) {
+    if (
+      expected &&
+      (releaseAsset.size !== expected.size ||
+        releaseAsset.sha256 !== expected.sha256)
+    ) {
       throw new Error(`${label} differs from Registry v2`)
     }
   }
-  const maximumSize = area === "builtin"
-    ? builtinLimit
-    : ["marketplace.json", "registry-v2.json", "showcase-v2.json"].includes(name)
-      ? metadataLimit
-      : packageLimit
+  const maximumSize =
+    area === "builtin"
+      ? builtinLimit
+      : ["marketplace.json", "registry-v2.json", "showcase-v2.json"].includes(
+            name,
+          )
+        ? metadataLimit
+        : packageLimit
   const bytes = await readStableFile(
     root,
     rootRealPath,
@@ -314,10 +332,18 @@ export async function verifyProductLockInput(inputFile) {
     lock.builtinReservations[0]?.kind !== "skill" ||
     lock.builtinReservations[0]?.id !== "canvas-storyboard"
   ) {
-    throw new Error("Builtin reservations must exactly contain skill/canvas-storyboard")
+    throw new Error(
+      "Builtin reservations must exactly contain skill/canvas-storyboard",
+    )
   }
-  if (!Array.isArray(lock.packages) || lock.packages.length !== 1) {
-    throw new Error("product lock must contain exactly one ffmpeg-tools preinstall")
+  if (
+    !Array.isArray(lock.packages) ||
+    lock.packages.length < 1 ||
+    lock.packages.length > 64
+  ) {
+    throw new Error(
+      "product lock must contain a bounded packaged product closure",
+    )
   }
 
   const [catalogPlan, builtinPlan, registry] = await Promise.all([
@@ -371,13 +397,15 @@ export async function verifyProductLockInput(inputFile) {
     throw new Error("builtinManifestPath must identify builtin/bundle.json")
   }
   const manifest = JSON.parse(
-    (await readStableFile(
-      root,
-      rootRealPath,
-      manifestPath,
-      "Builtin manifest",
-      manifestLimit,
-    )).toString("utf8"),
+    (
+      await readStableFile(
+        root,
+        rootRealPath,
+        manifestPath,
+        "Builtin manifest",
+        manifestLimit,
+      )
+    ).toString("utf8"),
   )
   if (
     manifest?.schema !== "convax.builtin-bundle/1" ||
@@ -387,10 +415,16 @@ export async function verifyProductLockInput(inputFile) {
     manifest.members[0]?.id !== "canvas-storyboard" ||
     builtinBundle.length === 0
   ) {
-    throw new Error("Builtin manifest must exactly close skill/canvas-storyboard")
+    throw new Error(
+      "Builtin manifest must exactly close skill/canvas-storyboard",
+    )
   }
 
-  exactKeys(lock.official, ["descriptor", "registry", "revision", "showcase"], "Official lock")
+  exactKeys(
+    lock.official,
+    ["descriptor", "registry", "revision", "showcase"],
+    "Official lock",
+  )
   if (lock.official.revision !== registry.revision) {
     throw new Error("Official lock revision differs from Registry v2")
   }
@@ -431,110 +465,192 @@ export async function verifyProductLockInput(inputFile) {
   )
   assertOfficialMarketplaceDescriptor(descriptor)
 
-  const preinstalled = lock.packages[0]
-  exactKeys(
-    preinstalled,
-    [
-      "artifact",
-      "companions",
-      "id",
-      "kind",
-      "marketplaceId",
-      "ownedSkills",
-      "setup",
-      "version",
-    ],
-    "preinstalled package",
-  )
-  if (
-    preinstalled.marketplaceId !== "convax-official" ||
-    preinstalled.kind !== "plugin" ||
-    preinstalled.id !== "ffmpeg-tools" ||
-    preinstalled.setup !== "explicit" ||
-    !Array.isArray(preinstalled.ownedSkills) ||
-    preinstalled.ownedSkills.length !== 1 ||
-    !Array.isArray(preinstalled.companions) ||
-    preinstalled.companions.length !== 1
-  ) {
-    throw new Error("product lock must contain exactly one ffmpeg-tools preinstall")
-  }
-  const plugin = registry.packages.find(
-    (entry) => entry?.kind === "plugin" && entry.id === "ffmpeg-tools",
-  )
-  if (!plugin || preinstalled.version !== plugin.version) {
-    throw new Error("preinstalled ffmpeg-tools version differs from Registry v2")
-  }
-  await verifyLockedArtifact({
-    root,
-    rootRealPath,
-    area: "catalog",
-    lock: preinstalled.artifact,
-    releaseAssets: catalogAssets,
-    label: "preinstalled Plugin artifact",
-    expected: registryArtifact(plugin, "ffmpeg-tools"),
-    allowExistingRelease: true,
-  })
+  const identities = new Set()
+  let verifiedArtifacts = 4
+  for (const [index, packaged] of lock.packages.entries()) {
+    const label = `packaged package[${index}]`
+    exactKeys(
+      packaged,
+      [
+        "artifact",
+        "companions",
+        "id",
+        "kind",
+        "marketplaceId",
+        "ownedSkills",
+        "setup",
+        "version",
+      ],
+      label,
+    )
+    if (
+      packaged.marketplaceId !== "convax-official" ||
+      (packaged.kind !== "plugin" && packaged.kind !== "skill") ||
+      !packageIdPattern.test(packaged.id) ||
+      packaged.setup !== (packaged.kind === "plugin" ? "explicit" : "none") ||
+      !Array.isArray(packaged.ownedSkills) ||
+      packaged.ownedSkills.length > 128 ||
+      !Array.isArray(packaged.companions) ||
+      packaged.companions.length > 6
+    ) {
+      throw new Error(
+        `${label} is not a valid Official Plugin or standalone Skill closure`,
+      )
+    }
+    const identity = `${packaged.kind}\0${packaged.id}`
+    if (identities.has(identity))
+      throw new Error("product lock package identities must be unique")
+    identities.add(identity)
+    const registryEntry = registry.packages.find(
+      (entry) => entry?.kind === packaged.kind && entry.id === packaged.id,
+    )
+    if (
+      !registryEntry ||
+      registryEntry.yanked === true ||
+      packaged.version !== registryEntry.version
+    ) {
+      throw new Error(
+        `${label} version differs from the current Registry v2 package`,
+      )
+    }
+    await verifyLockedArtifact({
+      root,
+      rootRealPath,
+      area: "catalog",
+      lock: packaged.artifact,
+      releaseAssets: catalogAssets,
+      label: `packaged ${packaged.kind === "plugin" ? "Plugin" : "Skill"} artifact`,
+      expected: registryArtifact(registryEntry, packaged.id),
+      allowExistingRelease: true,
+    })
+    verifiedArtifacts += 1
 
-  const declaredOwnedSkills = plugin.manifest?.contributes?.skills
-  if (
-    !Array.isArray(declaredOwnedSkills) ||
-    declaredOwnedSkills.length !== 1 ||
-    declaredOwnedSkills[0]?.name !== "ffmpeg-canvas"
-  ) {
-    throw new Error("ffmpeg-tools must declare exactly one owned Skill")
-  }
-  const ownedSkill = registry.packages.find(
-    (entry) => entry?.kind === "skill" && entry.id === "ffmpeg-canvas",
-  )
-  await verifyLockedArtifact({
-    root,
-    rootRealPath,
-    area: "catalog",
-    lock: preinstalled.ownedSkills[0],
-    releaseAssets: catalogAssets,
-    label: "preinstalled owned Skill artifact",
-    expected: registryArtifact(ownedSkill, "ffmpeg-canvas"),
-    allowExistingRelease: true,
-  })
+    if (packaged.kind === "skill") {
+      if (
+        registryEntry.ownerPluginId !== undefined ||
+        packaged.ownedSkills.length !== 0 ||
+        packaged.companions.length !== 0
+      ) {
+        throw new Error(
+          `${label} must be a standalone Skill without Plugin closure fields`,
+        )
+      }
+      continue
+    }
 
-  const lockedCompanion = preinstalled.companions[0]
-  exactKeys(lockedCompanion, ["arch", "path", "platform", "url"], "preinstalled companion")
-  if (lockedCompanion.platform !== "darwin" || lockedCompanion.arch !== "arm64") {
-    throw new Error("preinstalled companion must target only darwin-arm64")
+    const declaredOwnedSkills = Array.isArray(
+      registryEntry.manifest?.contributes?.skills,
+    )
+      ? registryEntry.manifest.contributes.skills.map((entry) => entry?.name)
+      : []
+    if (
+      declaredOwnedSkills.some(
+        (name) => typeof name !== "string" || !packageIdPattern.test(name),
+      ) ||
+      new Set(declaredOwnedSkills).size !== declaredOwnedSkills.length ||
+      packaged.ownedSkills.length !== declaredOwnedSkills.length
+    ) {
+      throw new Error(
+        `${label} does not close its manifest-declared owned Skills`,
+      )
+    }
+    const registryOwnedSkills = registry.packages
+      .filter(
+        (entry) =>
+          entry?.kind === "skill" && entry.ownerPluginId === registryEntry.id,
+      )
+      .map((entry) => entry.id)
+      .sort()
+    if (
+      JSON.stringify([...declaredOwnedSkills].sort()) !==
+      JSON.stringify(registryOwnedSkills)
+    ) {
+      throw new Error(
+        `${label} owned Skills differ between the Plugin manifest and Registry v2`,
+      )
+    }
+    for (const [skillIndex, name] of declaredOwnedSkills.entries()) {
+      const ownedSkill = registry.packages.find(
+        (entry) =>
+          entry?.kind === "skill" &&
+          entry.id === name &&
+          entry.ownerPluginId === registryEntry.id,
+      )
+      await verifyLockedArtifact({
+        root,
+        rootRealPath,
+        area: "catalog",
+        lock: packaged.ownedSkills[skillIndex],
+        releaseAssets: catalogAssets,
+        label: `packaged owned Skill artifact ${name}`,
+        expected: registryArtifact(ownedSkill, name),
+        allowExistingRelease: true,
+      })
+      verifiedArtifacts += 1
+    }
+
+    const companionTargets =
+      registryEntry.companions?.flatMap((entry) => entry.targets ?? []) ?? []
+    const lockedTargets = new Set()
+    for (const [
+      companionIndex,
+      lockedCompanion,
+    ] of packaged.companions.entries()) {
+      const companionLabel = `${label}.companions[${companionIndex}]`
+      exactKeys(
+        lockedCompanion,
+        ["arch", "path", "platform", "url"],
+        companionLabel,
+      )
+      if (
+        !["darwin", "linux", "win32"].includes(lockedCompanion.platform) ||
+        !["arm64", "x64"].includes(lockedCompanion.arch)
+      ) {
+        throw new Error(`${companionLabel} has an unsupported target`)
+      }
+      const targetIdentity = `${lockedCompanion.platform}-${lockedCompanion.arch}`
+      if (lockedTargets.has(targetIdentity))
+        throw new Error(`${label} companion targets must be unique`)
+      lockedTargets.add(targetIdentity)
+      const companionTarget = companionTargets.find(
+        (target) =>
+          target.platform === lockedCompanion.platform &&
+          target.arch === lockedCompanion.arch,
+      )
+      if (!companionTarget?.artifact) {
+        throw new Error(`${companionLabel} is absent from Registry v2`)
+      }
+      await verifyLockedArtifact({
+        root,
+        rootRealPath,
+        area: "catalog",
+        lock: { path: lockedCompanion.path, url: lockedCompanion.url },
+        releaseAssets: catalogAssets,
+        label: "packaged companion artifact",
+        expected: companionTarget.artifact,
+        allowExistingRelease: true,
+      })
+      verifiedArtifacts += 1
+    }
   }
-  const companionTarget = plugin.companions
-    ?.flatMap((entry) => entry.targets ?? [])
-    .find((target) => target.platform === "darwin" && target.arch === "arm64")
-  if (!companionTarget?.artifact) {
-    throw new Error("Registry v2 has no ffmpeg-tools darwin-arm64 companion")
-  }
-  await verifyLockedArtifact({
-    root,
-    rootRealPath,
-    area: "catalog",
-    lock: { path: lockedCompanion.path, url: lockedCompanion.url },
-    releaseAssets: catalogAssets,
-    label: "preinstalled companion artifact",
-    expected: companionTarget.artifact,
-    allowExistingRelease: true,
-  })
 
   return {
     builtinReservations: 1,
-    preinstalledPackages: 1,
-    verifiedArtifacts: 7,
+    packagedPackages: lock.packages.length,
+    verifiedArtifacts,
   }
 }
 
 async function main(argv) {
-  if (argv.length > 1) throw new Error("Usage: verify-product-lock-input [input-file]")
+  if (argv.length > 1)
+    throw new Error("Usage: verify-product-lock-input [input-file]")
   const result = await verifyProductLockInput(
     path.resolve(argv[0] ?? "dist/product-lock-input.json"),
   )
   console.log(
     `Verified ${result.builtinReservations} Builtin reservation, ` +
-    `${result.preinstalledPackages} preinstalled package, and ` +
-    `${result.verifiedArtifacts} immutable product-lock artifacts.`,
+      `${result.packagedPackages} packaged package, and ` +
+      `${result.verifiedArtifacts} immutable product-lock artifacts.`,
   )
 }
 

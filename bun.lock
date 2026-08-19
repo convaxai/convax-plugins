@@ -16,7 +16,7 @@
     },
     "packages/plugins/chatcut": {
       "name": "@microvoid/convax-plugin-chatcut",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "dependencies": {
         "@microvoid/convax-chatcut-media-import-mcp": "workspace:*",
         "@microvoid/convax-skill-chatcut": "workspace:*",
@@ -76,30 +76,44 @@
         "@convax/plugin-sdk": "0.2.0",
       },
     },
+    "packages/plugins/jimeng-service": {
+      "name": "@microvoid/convax-plugin-jimeng-service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@microvoid/convax-shortdrama-router-mcp": "workspace:*",
+      },
+    },
+    "packages/plugins/libtv-service": {
+      "name": "@microvoid/convax-plugin-libtv-service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@microvoid/convax-shortdrama-router-mcp": "workspace:*",
+      },
+    },
     "packages/plugins/multi-angle": {
       "name": "@microvoid/convax-plugin-multi-angle",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "devDependencies": {
         "@convax/plugin-sdk": "0.2.0",
       },
     },
     "packages/plugins/nexus-service": {
       "name": "@microvoid/convax-plugin-nexus-service",
-      "version": "1.0.3",
+      "version": "1.0.7",
       "dependencies": {
         "@microvoid/convax-nexus-mcp": "workspace:*",
       },
     },
     "packages/plugins/panorama-viewer": {
       "name": "@microvoid/convax-plugin-panorama-viewer",
-      "version": "0.3.2",
+      "version": "0.3.3",
       "devDependencies": {
         "@convax/plugin-sdk": "0.2.0",
       },
     },
     "packages/plugins/relight-studio": {
       "name": "@microvoid/convax-plugin-relight-studio",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "dependencies": {
         "@microvoid/convax-skill-relight-studio": "workspace:*",
       },
@@ -147,6 +161,13 @@
         "@microvoid/convax-xiaoyunque-mcp": "workspace:*",
       },
     },
+    "packages/plugins/xiaoyunque-service": {
+      "name": "@microvoid/convax-plugin-xiaoyunque-service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@microvoid/convax-shortdrama-router-mcp": "workspace:*",
+      },
+    },
     "packages/skills/ad-idea": {
       "name": "@microvoid/convax-skill-ad-idea",
       "version": "0.3.1",
@@ -169,7 +190,7 @@
     },
     "packages/skills/convax-plugin-authoring": {
       "name": "@microvoid/convax-skill-convax-plugin-authoring",
-      "version": "0.1.3",
+      "version": "0.1.4",
     },
     "packages/skills/ecommerce-image": {
       "name": "@microvoid/convax-skill-ecommerce-image",
@@ -280,9 +301,23 @@
     },
     "packages/tools/nexus-mcp": {
       "name": "@microvoid/convax-nexus-mcp",
-      "version": "1.0.3",
+      "version": "1.0.7",
       "bin": {
         "convax-nexus-mcp": "dist/convax-nexus-mcp",
+      },
+      "devDependencies": {
+        "@types/bun": "1.3.14",
+        "typescript": "5.9.3",
+      },
+    },
+    "packages/tools/shortdrama-router-mcp": {
+      "name": "@microvoid/convax-shortdrama-router-mcp",
+      "version": "0.1.0",
+      "bin": {
+        "convax-shortdrama-router-mcp": "dist/convax-shortdrama-router-mcp",
+      },
+      "dependencies": {
+        "shortdrama-router": "0.6.0",
       },
       "devDependencies": {
         "@types/bun": "1.3.14",
@@ -390,6 +425,10 @@
 
     "@microvoid/convax-plugin-jianying-editor": ["@microvoid/convax-plugin-jianying-editor@workspace:packages/plugins/jianying-editor"],
 
+    "@microvoid/convax-plugin-jimeng-service": ["@microvoid/convax-plugin-jimeng-service@workspace:packages/plugins/jimeng-service"],
+
+    "@microvoid/convax-plugin-libtv-service": ["@microvoid/convax-plugin-libtv-service@workspace:packages/plugins/libtv-service"],
+
     "@microvoid/convax-plugin-multi-angle": ["@microvoid/convax-plugin-multi-angle@workspace:packages/plugins/multi-angle"],
 
     "@microvoid/convax-plugin-nexus-service": ["@microvoid/convax-plugin-nexus-service@workspace:packages/plugins/nexus-service"],
@@ -405,6 +444,10 @@
     "@microvoid/convax-plugin-video-timeline": ["@microvoid/convax-plugin-video-timeline@workspace:packages/plugins/video-timeline"],
 
     "@microvoid/convax-plugin-xiaoyunque-generation": ["@microvoid/convax-plugin-xiaoyunque-generation@workspace:packages/plugins/xiaoyunque-generation"],
+
+    "@microvoid/convax-plugin-xiaoyunque-service": ["@microvoid/convax-plugin-xiaoyunque-service@workspace:packages/plugins/xiaoyunque-service"],
+
+    "@microvoid/convax-shortdrama-router-mcp": ["@microvoid/convax-shortdrama-router-mcp@workspace:packages/tools/shortdrama-router-mcp"],
 
     "@microvoid/convax-skill-ad-idea": ["@microvoid/convax-skill-ad-idea@workspace:packages/skills/ad-idea"],
 
@@ -609,6 +652,8 @@
     "require-from-string": ["require-from-string@2.0.2", "", {}, "sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw=="],
 
     "scheduler": ["scheduler@0.27.0", "", {}, "sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q=="],
+
+    "shortdrama-router": ["shortdrama-router@0.6.0", "", { "bin": { "shortdrama-router": "dist/bundle/cli.js" } }, "sha512-DOV9nKiRL3QIfl/heh6av6Znsptzdb5NJnqY4YQCSvtDhUiDXncgplUDCp2bEBCzUA1cGWRRe2gUQqJChb6olQ=="],
 
     "tslib": ["tslib@2.8.1", "", {}, "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="],
 

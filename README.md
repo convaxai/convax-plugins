@@ -60,44 +60,38 @@ Authoring source has exactly one publishable shape: package metadata uses
 `convax.package/2`, and every Plugin manifest uses `convax.plugin/8`.
 `convax.package/2` has no compatibility escape hatch. Its explicit
 publication eligibility is not portable package metadata. The sole owner is
-`registry/host-capability-policy.json`, which reverse-binds every pending
-`docs/host-capability-requests/*.md` request to exact package versions and a sorted
-list of accepted Plugin API ids plus exact Catalog contract digests. Each
-affected workspace independently declares the request id in
+`registry/host-capability-policy.json`, which reverse-binds automated generic Host
+contract requirements to exact package versions and, for Catalog checks, a sorted
+list of accepted Plugin API ids plus exact contract digests. Each affected
+workspace independently declares the requirement id in
 `package.json#convax.hostCapabilityRequests`, so rewriting business code cannot
-silently erase the obligation. Normal source validation admits and reports these
-blocked packages. Repository-wide `bun run pack`, release selection, and
-Marketplace composition omit them and their owner/owned-Skill closure while
-continuing with unrelated ready packages. Explicit `--kind`/`--id` or `--tag`
-packing remains exact and rejects a blocked target.
+silently erase it. A separate policy list records only unresolved technical
+blockers. Normal source validation admits and reports blocked packages;
+repository-wide `bun run pack`, release selection, and Marketplace composition
+omit them and their owner/owned-Skill closure while continuing with unrelated
+ready packages. Explicit `--kind`/`--id` or `--tag` packing remains exact and
+rejects a blocked target.
 
 Current Official catalog omissions are declared separately in
 `catalogs/excluded.json`. They keep reviewed source and immutable historical
 Releases intact while removing the package identity and presentation from the
 current Registry/Showcase through an exact-baseline selective publication.
 
-One exact package version may carry up to 16 orthogonal request ids. Tooling
-deduplicates and deterministically orders that blocker set; it never merges
-requests or lets one decision receipt resolve another request. Resolving only a
-subset leaves the remaining exact request ids publication-blocking.
+One exact package version may carry up to 16 orthogonal requirement ids. Tooling
+deduplicates and deterministically orders them. Catalog and package-conformance
+requirements are checked automatically; once they pass and no technical blocker
+remains, the package is ready without a receipt, CODEOWNERS approval, or protected
+Environment.
 
-Resolution is not a repository-local status edit. It requires a protected human
-decision receipt, an immutable Host Release containing the exact generated Catalog
-and runtime conformance evidence, exact matching accepted API contracts, and an
-immutable attested decision Release. The
-required-check verifier is loaded from protected base and treats author PR bytes
-only as data. See
-[`docs/host-capability-resolution.md`](docs/host-capability-resolution.md).
-
-Plugin SDK provenance is a separate release gate, not capability approval.
+Plugin SDK provenance is a separate release gate, not contract satisfaction.
 Until the Host packages exist on npm, selected Plugin ZIPs use the reviewed
 vendored workspace closure. One canonical artifact binds the protected Plugin
 repository commit, frozen `bun.lock`, generated API Catalog, exact package
 versions, dependency graph, installed workspace resolutions, and every admitted
-vendored package byte. The environment-gated publisher checksums and attests that
+vendored package byte. The automatic publisher checksums and attests that
 closure with the release bytes. The npm-only provenance path remains present but
 disabled until the public packages and immutable Host evidence exist. Neither
-path grants or substitutes for Host capability approval. See
+path grants or substitutes for a missing Host contract. See
 [`docs/sdk-authoring-contract-rollout.md`](docs/sdk-authoring-contract-rollout.md).
 
 Immutable Registry history may still contain pre-cutover package and Plugin

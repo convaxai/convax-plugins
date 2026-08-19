@@ -5,12 +5,14 @@ debugging this Plugin. Verify every Host API against the generated Catalog,
 including its `since`, `audience`, grant, scope, side effect, and availability.
 
 If the required generic API or contribution point is absent, mark publication
-blocked and create a structured Host capability request in this Plugin repository
-from the Skill's `references/host-capability-request.md` template. Add its id to
+blocked and describe one generic Host contract requirement in this Plugin
+repository from the Skill's `references/host-contract-requirement.md` template. Add its id to
 this workspace's `package.json#convax.hostCapabilityRequests` and bind the exact
 package version in `registry/host-capability-policy.json`. Do not invent a method,
 reuse a legacy transport, inspect Host implementation, or switch to the Host
-repository without an explicit human decision and a separate Host-owned task.
+repository from this Plugin task. A separate Host-owned task may add the generic
+contract; current Catalog/package validation then clears the technical blocker and
+publishes automatically, without an approval receipt or Environment.
 
 Canvas UI commands have one canonical definition in
 `contributes.canvas.commands`. `toolbar` and `menus` are placement-only arrays

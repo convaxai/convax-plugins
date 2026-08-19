@@ -19,7 +19,10 @@ function stepsFor(workflow, job) {
 }
 
 function commandText(steps) {
-  return steps.map((step) => step?.run ?? "").filter(Boolean).join("\n")
+  return steps
+    .map((step) => step?.run ?? "")
+    .filter(Boolean)
+    .join("\n")
 }
 
 function requireOrdered(source, fragments, label) {
@@ -83,15 +86,15 @@ function requireHostSigstoreCommands(shell, expectedCount, label) {
         "--certificate-oidc-issuer https://token.actions.githubusercontent.com",
       ) ||
       !command.includes("--certificate-github-workflow-repository") ||
-      !command.includes(
-        "--certificate-github-workflow-ref refs/heads/main",
-      ) ||
+      !command.includes("--certificate-github-workflow-ref refs/heads/main") ||
       !command.includes("--certificate-github-workflow-sha") ||
       !command.includes(
         "--certificate-github-workflow-trigger workflow_dispatch",
       )
     ) {
-      fail(`${label} contains a Host Cosign command with incomplete identity binding`)
+      fail(
+        `${label} contains a Host Cosign command with incomplete identity binding`,
+      )
     }
   }
   if (
@@ -116,37 +119,10 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
     "workflows",
     "pages.yml",
   )
-  const governancePath = path.join(
-    workspaceRoot,
-    ".github",
-    "workflows",
-    "host-capability-governance.yml",
-  )
-  const [
-    releaseSource,
-    pagesSource,
-    governanceSource,
-    approvalSource,
-    capabilityDecisionSource,
-    hostSigstoreVerifierBytes,
-  ] =
+  const [releaseSource, pagesSource, hostSigstoreVerifierBytes] =
     await Promise.all([
       fs.readFile(releasePath, "utf8"),
       fs.readFile(pagesPath, "utf8"),
-      fs.readFile(governancePath, "utf8"),
-      fs.readFile(
-        path.join(
-          workspaceRoot,
-          ".github",
-          "workflows",
-          "approve-host-capability.yml",
-        ),
-        "utf8",
-      ),
-      fs.readFile(
-        path.join(workspaceRoot, "tooling", "host-capability-decision.mjs"),
-        "utf8",
-      ),
       fs.readFile(
         path.join(workspaceRoot, "tooling", "host-sigstore-bundle.mjs"),
       ),
@@ -161,33 +137,26 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
   }
   const release = Bun.YAML.parse(releaseSource)
   const pages = Bun.YAML.parse(pagesSource)
-  const governance = Bun.YAML.parse(governanceSource)
-  const approval = Bun.YAML.parse(approvalSource)
   if (
     !isRecord(release) ||
     !isRecord(release.jobs) ||
     !isRecord(pages) ||
-    !isRecord(pages.jobs) ||
-    !isRecord(governance) ||
-    !isRecord(governance.jobs) ||
-    !isRecord(approval) ||
-    !isRecord(approval.jobs)
+    !isRecord(pages.jobs)
   ) {
     fail("workflow files must be valid mappings")
   }
   const verifySteps = stepsFor(release, "verify")
   const publishSteps = stepsFor(release, "publish")
   const pagesBuildSteps = stepsFor(pages, "build")
-  const approvalSteps = stepsFor(approval, "issue")
   const verifyShell = commandText(verifySteps)
-  const approvalShell = commandText(approvalSteps)
   if (release.env?.CONVAX_PLUGIN_SDK_SOURCE !== "workspace") {
-    fail("the temporary Plugin SDK source must remain the reviewed workspace closure")
+    fail(
+      "the temporary Plugin SDK source must remain the reviewed workspace closure",
+    )
   }
   requireOrdered(
     verifyShell,
     [
-      "--governance-base",
       "bun run check",
       "vendored-host-package-closure.mjs",
       "plugin-sdk-provenance-cli.mjs inspect-lock",
@@ -221,7 +190,9 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
       "--output dist/vendored-host-package-closure.json",
     )
   ) {
-    fail("workspace publication must emit one exact vendored Host package closure")
+    fail(
+      "workspace publication must emit one exact vendored Host package closure",
+    )
   }
   for (const name of [
     "Require an npm-only frozen Plugin SDK closure",
@@ -234,17 +205,13 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
       step?.if !==
       "steps.plan.outputs.plugin_count != '0' && env.CONVAX_PLUGIN_SDK_SOURCE == 'npm'"
     ) {
-      fail(`future npm publication step must stay disabled in workspace mode: ${name}`)
+      fail(
+        `future npm publication step must stay disabled in workspace mode: ${name}`,
+      )
     }
   }
-  requireCosignInstaller(approvalSteps, "Host capability approval workflow")
-  requireHostSigstoreCommands(
-    approvalShell,
-    1,
-    "Host capability approval workflow",
-  )
   if (
-    !verifyShell.includes('--ignore-scripts') ||
+    !verifyShell.includes("--ignore-scripts") ||
     !verifyShell.includes("git diff --exit-code -- bun.lock") ||
     !verifyShell.includes(
       'sdk_workflow="$HOST_REPOSITORY/.github/workflows/plugin-sdk-release.yml@refs/heads/main"',
@@ -259,7 +226,9 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
     !verifyShell.includes("realpath node_modules/@convax/plugin-sdk") ||
     !verifyShell.includes("realpath node_modules/@convax/plugin-api")
   ) {
-    fail("unprivileged publication workflow omits a frozen-lock or Host Sigstore gate")
+    fail(
+      "unprivileged publication workflow omits a frozen-lock or Host Sigstore gate",
+    )
   }
   const pagesInstallIndex = pagesBuildSteps.findIndex(
     (step) => step?.name === "Install inert workspace dependencies",
@@ -285,37 +254,9 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
       "Pages build must install frozen workspace dependencies before catalog verification",
     )
   }
-  for (const asset of [
-    "$CATALOG_ASSET",
-    "$PACKAGE_ASSET",
-    "$CONFORMANCE_ASSET",
-  ]) {
-    if (
-      !approvalShell.includes(`--pattern "${asset}"`) ||
-      !approvalShell.includes(`--pattern "${asset}.sigstore.json"`)
-    ) {
-      fail(`Host capability approval omits exact Sigstore pair for ${asset}`)
-    }
-  }
-  if (
-    !approvalShell.includes("gh release verify") ||
-    !approvalShell.includes("gh release verify-asset") ||
-    !approvalShell.includes(
-      'host_workflow="$HOST_REPOSITORY/.github/workflows/plugin-api-release.yml@refs/heads/main"',
-    ) ||
-    !approvalShell.includes('hostIdentity.repository.id == "1322708874"') ||
-    !approvalShell.includes('hostIdentity.owner.id == "312877127"') ||
-    (approvalShell.match(
-      /> "\$evidence\/catalog-verification\.json"/gu,
-    ) ?? []).length !== 1 ||
-    !approvalSource.includes("actions/attest-build-provenance@")
-  ) {
-    fail("Host capability approval must retain Release and public receipt attestation")
-  }
-
   const publish = release.jobs.publish
   if (
-    publish.environment !== "plugin-marketplace-production" ||
+    publish.environment !== undefined ||
     publish.needs !== "verify" ||
     JSON.stringify(publish.permissions) !==
       JSON.stringify({
@@ -324,7 +265,9 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
         "id-token": "write",
       })
   ) {
-    fail("publish job authority must remain exact and environment-gated")
+    fail(
+      "publish job authority must remain exact and automatic after verification",
+    )
   }
   const publishShell = commandText(publishSteps)
   if (
@@ -338,9 +281,7 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
     !publishShell.includes(
       'gh release download "$tag" \\\n    --repo "$GITHUB_REPOSITORY"',
     ) ||
-    !publishShell.includes(
-      'cmp -s "$candidate_asset" "$published_asset"',
-    ) ||
+    !publishShell.includes('cmp -s "$candidate_asset" "$published_asset"') ||
     !publishShell.includes(".immutable == true") ||
     !publishShell.includes(
       '"repos/$GITHUB_REPOSITORY/compare/$release_commit...$GITHUB_SHA"',
@@ -371,7 +312,9 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
       "dist/PUBLICATION-SHA256SUMS",
     )
   ) {
-    fail("workspace publication attestation must bind the closure and checksums")
+    fail(
+      "workspace publication attestation must bind the closure and checksums",
+    )
   }
   for (const step of publishSteps) {
     if (step?.uses?.startsWith("actions/checkout@")) {
@@ -390,39 +333,18 @@ export async function verifyPluginPublicationPolicy(workspaceRoot) {
     }
   }
   for (const step of [...verifySteps, ...publishSteps, ...pagesBuildSteps]) {
-    if (typeof step?.uses === "string" &&
-      !/^[^@\s]+@[a-f0-9]{40}$/u.test(step.uses)) {
+    if (
+      typeof step?.uses === "string" &&
+      !/^[^@\s]+@[a-f0-9]{40}$/u.test(step.uses)
+    ) {
       fail(`workflow Action must be pinned by full SHA: ${step.uses}`)
     }
   }
 
-  const protectedSteps = stepsFor(governance, "protected-base")
-  const protectedShell = commandText(protectedSteps)
-  requireOrdered(
-    protectedShell,
-    [
-      "trusted/tooling/host-capability-history.mjs",
-      "trusted/tooling/plugin-publication-policy.mjs",
-    ],
-    "protected-base workflow",
-  )
-  if (
-    !governanceSource.includes("Check out the trusted protected-base verifier") ||
-    !governanceSource.includes("Check out candidate bytes as untrusted data") ||
-    !protectedShell.includes('--workspace "$GITHUB_WORKSPACE/candidate"')
-  ) {
-    fail("protected-base workflow must treat candidate publication logic as data")
-  }
-  if (
-    capabilityDecisionSource.includes("convax.host-package-release/1") ||
-    capabilityDecisionSource.includes("plugin-sdk-authoring-package")
-  ) {
-    fail("SDK Host package evidence must never enter capability decision verification")
-  }
   return {
     artifactOnlyPublish: true,
-    capabilityEvidenceIndependent: true,
-    protectedBaseVerifier: true,
+    automaticPublish: true,
+    hostPackageEvidence: true,
   }
 }
 

@@ -10,9 +10,10 @@ and run only after Convax verifies and authorizes immutable release bytes.
 > covered by the companion's immutable Registry receipt, so the generated
 > artifact must not be published. Before release, pin and bundle the exact
 > media toolchain into the verified target, or first add a generic Convax
-> mechanism that separately verifies every executable dependency. The generic
-> toolchain request is pending human review in
-> [`docs/host-capability-requests/verified-companion-toolchain.md`](../../../docs/host-capability-requests/verified-companion-toolchain.md).
+> mechanism that separately verifies every executable dependency. This remains
+> the explicit `verified-companion-toolchain` technical blocker in
+> `registry/host-capability-policy.json`; it needs no human approval and clears
+> only when exact toolchain verification exists.
 
 The companion exposes one stdio MCP tool, `media.import`. Convax supplies a
 `convax.generation-call/1` envelope with up to four directly connected staged

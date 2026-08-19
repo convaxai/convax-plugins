@@ -23,18 +23,16 @@ describe("panorama-viewer v8 Web Host API", () => {
     ])
 
     expect([manifest.version, metadata.version, workspace.version]).toEqual([
-      "0.3.2",
-      "0.3.2",
-      "0.3.2",
+      "0.3.3",
+      "0.3.3",
+      "0.3.3",
     ])
     expect(metadata).not.toHaveProperty("publication")
-    expect(publication.requests.flatMap((request) => request.affected)
-      .find((item) => item.id === "panorama-viewer")).toMatchObject({
-      blocker: {
-        code: "host-capability-review-required",
-        note: expect.stringContaining("docs/host-capability-requests/web-plugin-image-input-read.md"),
-      },
-    })
+    expect(publication.requirements
+      .filter((requirement) => requirement.affected.some((item) => item.id === "panorama-viewer"))
+      .map((requirement) => requirement.id)).toEqual(["web-plugin-image-input-read"])
+    expect(publication.blockers.flatMap((blocker) => blocker.affected)
+      .find((item) => item.id === "panorama-viewer")).toBeUndefined()
     expect(manifest.capabilities).toEqual([
       "canvas.connectedInputs.read",
       "canvas.connectedImages.read",
