@@ -1,6 +1,6 @@
 # Third-party notices
 
-## shortdrama-router 0.5.0
+## shortdrama-router 0.6.0
 
 MIT License
 

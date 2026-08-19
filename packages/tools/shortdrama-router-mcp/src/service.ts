@@ -34,6 +34,7 @@ const emptyInputSchema = {
 } as const
 const authorizationIdPattern = /^[A-Za-z0-9_-]{16,128}$/u
 const jimengOrigin = "https://jimeng.jianying.com"
+const libtvAuthorizationDomains = ["liblib.art", "liblib.tv"] as const
 const xiaoyunqueOrigin = "https://xyq.jianying.com"
 const xiaoyunqueCookieNames = [
   "sessionid_pippitcn_web",
@@ -92,6 +93,9 @@ function mappedAuthorizationStatus(
   providerReady: boolean,
   probeFailed = false,
 ) {
+  if (value.state === "pending") {
+    return status("unknown", false, "unknown")
+  }
   if (!value.configured || value.state === "not_configured") {
     return status("disconnected", false, probeFailed ? "failed" : "unknown")
   }
@@ -191,17 +195,26 @@ function browserRequest(
 function externalRequest(
   request: ProviderAuthorizationRequest,
   now: number,
+  provider: "jimeng" | "libtv",
 ): { pending: PendingAuthorization; result: ExternalAuthorizationRequest } {
   const { expiresAt, timeoutSeconds } = authorizationLifetime(request, now)
   if (request.method !== "oauth") {
-    throw new Error("Jimeng authorization contract is invalid")
+    throw new Error("Provider authorization contract is invalid")
   }
+  const providerName = provider === "jimeng" ? "Jimeng" : "LibTV"
   const authorizationUrl = httpsUrl(
     request.login_url,
-    "Jimeng authorization URL",
+    `${providerName} authorization URL`,
   )
-  if (new URL(authorizationUrl).origin !== jimengOrigin) {
-    throw new Error("Jimeng authorization URL is invalid")
+  const url = new URL(authorizationUrl)
+  const validOrigin = provider === "jimeng"
+    ? url.origin === jimengOrigin
+    : libtvAuthorizationDomains.some(
+        (domain) =>
+          url.hostname === domain || url.hostname.endsWith(`.${domain}`),
+      )
+  if (!validOrigin) {
+    throw new Error(`${providerName} authorization URL is invalid`)
   }
   return {
     pending: { expiresAt, flow: "external", id: request.authorization_id },
@@ -277,14 +290,6 @@ export function serviceTools(provider: ProviderId): McpTool[] {
       name: "service.status",
     },
   ]
-  if (provider === "libtv") {
-    tools.push({
-      description: "Clear LibTV authorization managed by the official local CLI.",
-      inputSchema: emptyInputSchema,
-      name: "service.sign_out",
-    })
-    return tools
-  }
   tools.push(
     {
       description: `Start ${provider} authorization.`,
@@ -343,7 +348,7 @@ export function serviceTools(provider: ProviderId): McpTool[] {
         }
       : {
           description:
-            "Complete the active Jimeng external device authorization.",
+            `Complete the active ${provider === "jimeng" ? "Jimeng" : "LibTV"} external authorization.`,
           inputSchema: {
             additionalProperties: false,
             properties: {
@@ -482,7 +487,7 @@ export class ProviderService {
               attemptSignal,
             )),
         )
-      } else if (this.provider === "jimeng") {
+      } else {
         if (pending.flow !== "external") {
           throw new Error("External authorization is not active")
         }
@@ -490,14 +495,22 @@ export class ProviderService {
         if (completion.authorizationId !== pending.id) {
           throw new Error("External authorization is stale or invalid")
         }
-        await boundedCall(this.#requestTimeoutMs, signal, (attemptSignal) =>
-          this.router.completeProviderAuthorization(
-            this.provider,
-            { authorization_id: completion.authorizationId, method: "oauth" },
-            attemptSignal,
-          ))
-      } else {
-        throw new Error("LibTV interactive authorization is not supported")
+        const authorization = await boundedCall(
+          this.#requestTimeoutMs,
+          signal,
+          (attemptSignal) =>
+            this.router.completeProviderAuthorization(
+              this.provider,
+              {
+                authorization_id: completion.authorizationId,
+                method: "oauth",
+              },
+              attemptSignal,
+            ),
+        )
+        if (authorization.state === "pending") {
+          return mappedAuthorizationStatus(authorization, false)
+        }
       }
       this.#pending = undefined
       return this.#status(signal)
@@ -516,11 +529,8 @@ export class ProviderService {
   }
 
   async #begin(signal?: AbortSignal) {
-    if (this.provider === "libtv") {
-      throw new Error("LibTV interactive authorization is not supported")
-    }
     if (signal?.aborted) throw abortError()
-    if (this.provider === "jimeng" && this.#runtimeService) {
+    if (this.provider !== "xiaoyunque" && this.#runtimeService) {
       await this.#ensureManagedRuntime(signal)
     }
     this.#pending = undefined
@@ -535,7 +545,7 @@ export class ProviderService {
     )
     const projected = this.provider === "xiaoyunque"
       ? browserRequest(request, this.#now())
-      : externalRequest(request, this.#now())
+      : externalRequest(request, this.#now(), this.provider)
     this.#pending = projected.pending
     return projected.result
   }
@@ -552,7 +562,11 @@ export class ProviderService {
         signal: attemptSignal,
       }),
     )
-    if (current.state === "installed" && current.compatible) return
+    if (
+      current.state === "installed"
+      && current.compatible
+      && current.integrity_verified === true
+    ) return
     const installed = await boundedCall(
       this.#runtimeInstallTimeoutMs,
       signal,
@@ -560,7 +574,11 @@ export class ProviderService {
         signal: attemptSignal,
       }),
     )
-    if (installed.state !== "installed" || !installed.compatible) {
+    if (
+      installed.state !== "installed"
+      || !installed.compatible
+      || installed.integrity_verified !== true
+    ) {
       throw new Error("Provider managed runtime is unavailable")
     }
   }

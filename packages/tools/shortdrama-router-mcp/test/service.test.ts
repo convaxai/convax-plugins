@@ -76,6 +76,17 @@ function jimengAuthorizationRequest(loginUrl = "https://jimeng.jianying.com/devi
   }
 }
 
+function libtvAuthorizationRequest(
+  loginUrl = "https://account.liblib.tv/oauth?callback_url=http%3A%2F%2F127.0.0.1%3A3210%2Fcallback",
+) {
+  return {
+    authorization_id: authorizationId,
+    expires_at: new Date(now + 10 * 60_000).toISOString(),
+    login_url: loginUrl,
+    method: "oauth" as const,
+  }
+}
+
 function jimengCompletion() {
   return {
     authorization_id: authorizationId,
@@ -307,6 +318,7 @@ describe("provider Service projection", () => {
           compatible: true,
           executable_path: "/managed/runtimes/jimeng/dreamina",
           id: "jimeng",
+          integrity_verified: true,
           managed: true,
           platform: "darwin-arm64",
           state: "installed",
@@ -478,11 +490,136 @@ describe("provider Service projection", () => {
     expect(attemptSignal?.aborted).toBe(true)
   })
 
-  test("LibTV exposes only status and its upstream-supported clear action", () => {
+  test("LibTV exposes the complete managed OAuth action set", () => {
     expect(serviceTools("libtv").map(({ name }) => name)).toEqual([
       "service.status",
+      "service.authorize",
+      "service.reauthorize",
+      "service.authorization.cancel",
+      "service.authorization.complete",
       "service.sign_out",
     ])
+  })
+
+  test("installs an integrity-invalid LibTV runtime and preserves pending OAuth", async () => {
+    const calls: string[] = []
+    let completions = 0
+    const runtimes: ProviderRuntimeService = {
+      async getStatus(provider) {
+        calls.push(`runtime.status:${provider}`)
+        return {
+          compatible: false,
+          id: provider,
+          integrity_verified: false,
+          managed: true,
+          platform: "darwin-arm64",
+          reason_code: "runtime_integrity_failed",
+          state: "invalid",
+        }
+      },
+      async install(provider) {
+        calls.push(`runtime.install:${provider}`)
+        return {
+          compatible: true,
+          executable_path: "/managed/runtimes/libtv/libtv",
+          id: provider,
+          integrity_verified: true,
+          managed: true,
+          platform: "darwin-arm64",
+          state: "installed",
+          version: "1.0.2",
+        }
+      },
+      supports(provider) {
+        return provider === "libtv"
+      },
+    }
+    const router = fakeRouter({
+      async beginProviderAuthorization(provider, method) {
+        calls.push(`authorization.begin:${provider}:${method}`)
+        return libtvAuthorizationRequest()
+      },
+      async completeProviderAuthorization() {
+        completions += 1
+        if (completions === 1) {
+          return {
+            authorized: null,
+            configured: false,
+            expires_at: new Date(now + 10 * 60_000).toISOString(),
+            method: "oauth",
+            reason_code: "authorization_pending",
+            state: "pending",
+          }
+        }
+        return validAuthorization
+      },
+      async getProviderAuthorization() {
+        return validAuthorization
+      },
+      async getProviderConfiguration() {
+        return {
+          configured: true,
+          resource: { id: "project-1", name: "Project", type: "project" },
+          state: "configuration_valid",
+        }
+      },
+      async getProvider() {
+        return providerDescriptor("libtv")
+      },
+    })
+    const service = new ProviderService("libtv", router, {
+      now: () => now,
+      runtimeService: runtimes,
+    })
+
+    expect((await service.authorize()).schema).toBe(externalAuthorizationSchema)
+    expect(calls).toEqual([
+      "runtime.status:libtv",
+      "runtime.install:libtv",
+      "authorization.begin:libtv:oauth",
+    ])
+    expect((await service.completeAuthorization(jimengCompletion())).state)
+      .toBe("unknown")
+    expect((await service.completeAuthorization(jimengCompletion())).state)
+      .toBe("connected")
+  })
+
+  test("accepts only the official standard-HTTPS LibTV authorization domains", async () => {
+    const invalidUrls = [
+      "http://account.liblib.tv/oauth",
+      "https://attacker.example/oauth",
+      "https://liblib.tv.attacker.example/oauth",
+      "https://user:password@liblib.art/oauth",
+      "https://account.liblib.tv:8443/oauth",
+    ]
+
+    for (const loginUrl of invalidUrls) {
+      const service = new ProviderService(
+        "libtv",
+        fakeRouter({
+          async beginProviderAuthorization() {
+            return libtvAuthorizationRequest(loginUrl)
+          },
+        }),
+        { now: () => now },
+      )
+      await expect(service.authorize()).rejects.toThrow(
+        "LibTV authorization URL is invalid",
+      )
+    }
+
+    const service = new ProviderService(
+      "libtv",
+      fakeRouter({
+        async beginProviderAuthorization() {
+          return libtvAuthorizationRequest()
+        },
+      }),
+      { now: () => now },
+    )
+    expect((await service.authorize()).authorization_url).toStartWith(
+      "https://account.liblib.tv/oauth",
+    )
   })
 
   test("LibTV auto-selects only one unambiguous project", async () => {

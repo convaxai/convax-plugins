@@ -938,7 +938,7 @@ export class GenerationEngine {
           const submittingIsFresh = job.status === "submitting"
             && this.#now() - new Date(job.created_at).getTime()
               < this.#submittingStaleAfterMs
-          // shortdrama-router@0.5.0 turns get(no reference) into
+          // shortdrama-router@0.6.0 turns get(no reference) into
           // submission_unknown. Re-entering the idempotent create path lets a
           // concurrent live claimant finish publishing its reference without
           // submitting twice. Only a claim older than the provider runner's

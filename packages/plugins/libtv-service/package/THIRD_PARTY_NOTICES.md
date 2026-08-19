@@ -1,7 +1,7 @@
 # Third-party notices
 
 This Plugin uses a separately distributed companion that bundles
-`shortdrama-router@0.5.0`.
+`shortdrama-router@0.6.0`.
 
 ## shortdrama-router
 

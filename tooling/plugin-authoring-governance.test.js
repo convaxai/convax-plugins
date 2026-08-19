@@ -42,32 +42,6 @@ describe("automated Plugin contract governance", () => {
           },
         ],
       },
-      {
-        kind: "plugin",
-        id: "jimeng-service",
-        version: "0.1.0",
-        policyId: "verified-companion-toolchain",
-        status: "blocked",
-        blockers: [
-          {
-            code: "unverified-runtime-dependency",
-            note: expect.stringContaining("mutable release-selected URL"),
-          },
-        ],
-      },
-      {
-        kind: "plugin",
-        id: "libtv-service",
-        version: "0.1.0",
-        policyId: "verified-companion-toolchain",
-        status: "blocked",
-        blockers: [
-          {
-            code: "unverified-runtime-dependency",
-            note: expect.stringContaining("LibTV 1.0.2 download URL"),
-          },
-        ],
-      },
     ])
   })
 
@@ -86,6 +60,9 @@ describe("automated Plugin contract governance", () => {
       "plugin/multi-angle",
       "plugin/panorama-viewer",
       "plugin/relight-studio",
+      "plugin/jimeng-service",
+      "plugin/libtv-service",
+      "plugin/xiaoyunque-service",
       "skill/relight-studio",
     ]) {
       expect(publications.get(identity)).toEqual({
@@ -96,20 +73,6 @@ describe("automated Plugin contract governance", () => {
     expect(publications.get("plugin/chatcut")).toMatchObject({
       status: "blocked",
       blockers: [{ code: "unverified-runtime-dependency" }],
-    })
-    for (const identity of [
-      "plugin/jimeng-service",
-      "plugin/libtv-service",
-    ]) {
-      const publication = publications.get(identity)
-      expect(publication?.status).toBe("blocked")
-      expect(publication?.blockers.map(({ code }) => code)).toEqual([
-        "unverified-runtime-dependency",
-      ])
-    }
-    expect(publications.get("plugin/xiaoyunque-service")).toEqual({
-      status: "ready",
-      blockers: [],
     })
     expect(publications.get("skill/chatcut")).toEqual({
       status: "ready",
@@ -134,7 +97,7 @@ describe("automated Plugin contract governance", () => {
     expect(source).toContain("commands on PATH")
   })
 
-  test("keeps managed provider downloads blocked until their bytes are verifiable", async () => {
+  test("admits only digest-pinned managed provider runtimes", async () => {
     const runtimeTypes = await fs.readFile(
       path.join(
         root,
@@ -149,6 +112,40 @@ describe("automated Plugin contract governance", () => {
         "vendor",
         "runtime",
         "types.d.ts",
+      ),
+      "utf8",
+    )
+    const runtimeInstallerTypes = await fs.readFile(
+      path.join(
+        root,
+        "packages",
+        "tools",
+        "shortdrama-router-mcp",
+        "node_modules",
+        "shortdrama-router",
+        "dist",
+        "bundle",
+        "types",
+        "vendor",
+        "runtime",
+        "installer.d.ts",
+      ),
+      "utf8",
+    )
+    const libtvTypes = await fs.readFile(
+      path.join(
+        root,
+        "packages",
+        "tools",
+        "shortdrama-router-mcp",
+        "node_modules",
+        "shortdrama-router",
+        "dist",
+        "bundle",
+        "types",
+        "vendor",
+        "provider-libtv",
+        "provider.d.ts",
       ),
       "utf8",
     )
@@ -178,12 +175,26 @@ describe("automated Plugin contract governance", () => {
       "utf8",
     )
     expect(runtimeTypes).toContain("interface ProviderRuntimeArtifact")
+    expect(runtimeTypes).toContain("readonly sha256: string")
+    expect(runtimeTypes).toContain("readonly executable_sha256: string")
+    expect(runtimeTypes).toContain("readonly integrity_verified?: boolean")
     expect(runtimeTypes).toContain("readonly url: string")
-    expect(runtimeTypes).not.toContain("sha256")
-    expect(runtimeTypes).not.toContain("integrity")
+    expect(runtimeInstallerTypes).toContain(
+      'readonly code = "runtime_integrity_failed"',
+    )
+    expect(runtimeInstallerTypes).toContain(
+      "verifyManagedRuntimeIntegrity",
+    )
+    expect(libtvTypes).toContain('readonly management: "managed"')
+    expect(libtvTypes).toContain(
+      'readonly actions: readonly ["status", "begin", "complete", "cancel", "clear"]',
+    )
     expect(adapter).toContain("createShortDramaRouter")
     expect(adapter).toContain("runtimeRootDir: managedRuntimeRoot")
+    expect(adapter).toContain("configDir: libtvConfigDirectory")
     expect(adapter).not.toContain("ManagedCliPath")
+    expect(upstream).toContain('code = "runtime_integrity_failed"')
+    expect(upstream).toContain("verifyManagedRuntimeIntegrity")
     expect(upstream).not.toContain('.local", "bin", "dreamina')
     expect(upstream).not.toContain('.libtv", "libtv')
   })

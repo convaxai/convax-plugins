@@ -2,7 +2,7 @@
   "schema": "convax.plugin/8",
   "id": "libtv-service",
   "name": "LibTV",
-  "description": "通过 shortdrama-router 连接 LibTV 的图片和视频生成能力，读取官方 CLI 授权并安全绑定唯一项目。",
+  "description": "通过 shortdrama-router 连接 LibTV 的图片和视频生成能力，使用受管理的 Web OAuth 并安全绑定唯一项目。",
   "version": "0.1.0",
   "capabilities": [],
   "contributes": {
@@ -36,6 +36,9 @@
     },
     "service": {
       "actions": [
+        "authorize",
+        "reauthorize",
+        "authorization.cancel",
         "sign_out"
       ]
     }

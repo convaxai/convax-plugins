@@ -223,7 +223,14 @@ describe("newline MCP server", () => {
     expect(discoveryCalls).toBe(0)
     expect(sent).toHaveLength(1)
     expect(sent[0]!.result.tools.map(({ name }: { name: string }) => name))
-      .toEqual(["service.status", "service.sign_out"])
+      .toEqual([
+        "service.status",
+        "service.authorize",
+        "service.reauthorize",
+        "service.authorization.cancel",
+        "service.authorization.complete",
+        "service.sign_out",
+      ])
   })
 
   test("advertises available LibTV models after project configuration", async () => {
@@ -255,7 +262,15 @@ describe("newline MCP server", () => {
     await server.handleMessage(request(1, "tools/list"))
 
     expect(sent[0]!.result.tools.map(({ name }: { name: string }) => name))
-      .toEqual(["image.generate", "service.status", "service.sign_out"])
+      .toEqual([
+        "image.generate",
+        "service.status",
+        "service.authorize",
+        "service.reauthorize",
+        "service.authorization.cancel",
+        "service.authorization.complete",
+        "service.sign_out",
+      ])
   })
 
   test("keeps a duplicate id retired until its original handler drains", async () => {

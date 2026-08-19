@@ -78,11 +78,13 @@ export async function createServer(
     const runtimeService = createBuiltInRuntimeService({
       rootDir: managedRuntimeRoot,
     })
+    const libtvConfigDirectory = path.join(stateDirectory, "libtv-cli")
     const router: RouterPort = createShortDramaRouter({
       ...routerOptions,
       jimeng: provider === "jimeng" ? {} : false,
       libtv: provider === "libtv"
         ? {
+            configDir: libtvConfigDirectory,
             configuration: new FileLibTvConfigurationSource(
               path.join(stateDirectory, "libtv-configuration.json"),
             ),
