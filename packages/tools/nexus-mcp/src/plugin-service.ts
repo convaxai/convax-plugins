@@ -9,7 +9,10 @@ import type {
   NexusCheckoutStore,
 } from "./checkout-store.ts";
 import type { NexusAuthorization } from "./authorization.ts";
-import type { NexusClient } from "./application-client.ts";
+import {
+  NexusApplicationAccessError,
+  type NexusClient,
+} from "./application-client.ts";
 import type { NexusCredentialStore } from "./credential-store.ts";
 
 const unavailable = { availability: "unavailable" } as const;
@@ -74,7 +77,10 @@ export class NexusPluginService {
         state: providerReady ? "connected" : "attention",
         usage: unavailable,
       };
-    } catch {
+    } catch (error) {
+      if (configured && error instanceof NexusApplicationAccessError) {
+        throw error;
+      }
       return configured
         ? {
             account: unavailable,

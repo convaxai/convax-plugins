@@ -16,6 +16,7 @@ import {
 const toolRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = path.resolve(toolRoot, "../../..");
 const pluginRoot = path.join(repositoryRoot, "packages/plugins/nexus-service");
+const nexusProjectId = "project_8CTrOpIkozdhK7EkndKbR210ZU1NUYvW";
 
 const [toolPackage, pluginPackage, pluginManifest] = await Promise.all([
   readJson(path.join(toolRoot, "package.json")),
@@ -37,6 +38,9 @@ assertEqual(
   },
   "production AuthX public-client profile",
 );
+if (profile.projectId === nexusProjectId) {
+  throw new Error("Convax and Nexus AuthX Projects must remain distinct");
+}
 
 assertEqual(toolPackage.version, pluginPackage.version, "tool/package version");
 assertEqual(pluginManifest.version, pluginPackage.version, "manifest/package version");
