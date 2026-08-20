@@ -6,8 +6,8 @@ import path from "node:path";
 import {
   createCredentialStore,
   LocalDevelopmentCredentialStore,
-  MacOsKeychainCredentialStore,
   MemoryCredentialStore,
+  UserDataCredentialStore,
 } from "../src/credential-store.ts";
 import type { NexusApplicationCredentials } from "../src/contracts.ts";
 
@@ -22,61 +22,48 @@ afterEach(async () => {
 });
 
 describe("Nexus credential stores", () => {
-  test("passes serialized credentials only through the Keychain data port", async () => {
-    const root = await fs.mkdtemp(
-      path.join(os.tmpdir(), "convax-nexus-keychain-"),
-    );
-    roots.push(root);
-    const calls: Array<{
-      account: string;
-      operation: "clear" | "read" | "write";
-      service: string;
-      value?: string;
-    }> = [];
-    let keychainValue: string | undefined;
-    const store = new MacOsKeychainCredentialStore(
+  test("stores production credentials in private Convax user data", async () => {
+    const root = await temporaryRoot("convax-nexus-user-data-");
+    const store = new UserDataCredentialStore(
       { HOME: root, XDG_CONFIG_HOME: path.join(root, "config") },
-      {
-        async clear(account, service) {
-          calls.push({ account, operation: "clear", service });
-          keychainValue = undefined;
-        },
-        async read(account, service) {
-          calls.push({ account, operation: "read", service });
-          return keychainValue ?? null;
-        },
-        async write(account, service, value) {
-          calls.push({ account, operation: "write", service, value });
-          keychainValue = value;
-        },
-      },
       "darwin",
+      root,
     );
     const credentials = fixtureCredentials();
 
+    expect(store.path).toBe(
+      path.join(
+        root,
+        "Library",
+        "Application Support",
+        "Convax",
+        "nexus-service",
+        "authx-refresh-credential.json",
+      ),
+    );
+    expect(await store.read()).toBeNull();
     await store.write(credentials);
     expect(await store.read()).toEqual(credentials);
-    const serializedMetadata = JSON.stringify(
-      calls.map(({ account, operation, service }) => ({
-        account,
-        operation,
-        service,
-      })),
+    expect((await fs.lstat(store.path)).mode & 0o777).toBe(0o600);
+    expect((await fs.lstat(path.dirname(store.path))).mode & 0o777).toBe(
+      0o700,
     );
-    expect(serializedMetadata).not.toContain(credentials.refreshToken);
-    expect(calls.every(({ service }) => service === "io.convax.nexus-service.v2")).toBeTrue();
-    expect(calls[0]?.value).toContain(credentials.refreshToken);
-    expect(calls[0]?.value).not.toContain("inferenceKey");
+    expect(await fs.readFile(store.path, "utf8")).toContain(
+      credentials.refreshToken,
+    );
 
-    await store.clear();
-    expect(await store.read()).toBeNull();
+    const reloaded = new UserDataCredentialStore(
+      { HOME: root, XDG_CONFIG_HOME: path.join(root, "config") },
+      "darwin",
+      root,
+    );
+    expect(await reloaded.read()).toEqual(credentials);
+    await reloaded.clear();
+    expect(await reloaded.read()).toBeNull();
   });
 
   test("deletes a legacy Hosted Auth grant without returning or migrating it", async () => {
-    const root = await fs.mkdtemp(
-      path.join(os.tmpdir(), "convax-nexus-keychain-"),
-    );
-    roots.push(root);
+    const root = await temporaryRoot("convax-nexus-legacy-credential-");
     const config = path.join(root, "config");
     const legacyPath = path.join(
       config,
@@ -95,86 +82,40 @@ describe("Nexus credential stores", () => {
       }),
       { mode: 0o600 },
     );
-    const calls: Array<{ account: string; service: string }> = [];
-    const store = new MacOsKeychainCredentialStore(
+    const store = new UserDataCredentialStore(
       { HOME: root, XDG_CONFIG_HOME: config },
-      {
-        async clear() {},
-        async read(account, service) {
-          calls.push({ account, service });
-          return null;
-        },
-        async write() {},
-      },
       "darwin",
+      root,
     );
 
     expect(await store.read()).toBeNull();
     await expect(fs.stat(legacyPath)).rejects.toMatchObject({ code: "ENOENT" });
-    expect(JSON.stringify(calls)).not.toContain(
-      "legacy_refresh_token_that_must_never_be_sent",
-    );
-    expect(calls).toHaveLength(1);
   });
 
-  test("deletes a retired Nexus Inference Key credential without migrating it", async () => {
-    const retired = JSON.stringify({
-      accountBinding: "a".repeat(64),
-      authxIssuer: "http://localhost:3100",
-      bindingId: "application-binding-fixed",
-      gatewayBaseUrl:
-        "http://localhost:4000/api/v1/gateway/providers/provider-fixed",
-      inferenceKey: "nxs_retired_secret_that_must_not_be_migrated",
-      nexusOrigin: "http://localhost:3000",
-      providerConnectionId: "provider-fixed",
-      refreshToken: "authx_retired_refresh_that_must_not_be_migrated",
-      schema: "convax.nexus-application-credentials/1",
-    });
-    let cleared = 0;
-    const store = new MacOsKeychainCredentialStore(
-      {},
-      {
-        async clear() {
-          cleared += 1;
-        },
-        async read() {
-          return retired;
-        },
-        async write() {},
-      },
-      "darwin",
+  test("deletes a retired Nexus Inference Key file without migrating it", async () => {
+    const root = await temporaryRoot("convax-nexus-retired-credential-");
+    const store = new UserDataCredentialStore({ HOME: root }, "darwin", root);
+    await fs.mkdir(path.dirname(store.path), { mode: 0o700, recursive: true });
+    await fs.writeFile(
+      store.path,
+      JSON.stringify({
+        accountBinding: "a".repeat(64),
+        authxIssuer: "http://localhost:3100",
+        bindingId: "application-binding-fixed",
+        gatewayBaseUrl:
+          "http://localhost:4000/api/v1/gateway/providers/provider-fixed",
+        inferenceKey: "nxs_retired_secret_that_must_not_be_migrated",
+        nexusOrigin: "http://localhost:3000",
+        providerConnectionId: "provider-fixed",
+        refreshToken: "authx_retired_refresh_that_must_not_be_migrated",
+        schema: "convax.nexus-application-credentials/1",
+      }),
+      { mode: 0o600 },
     );
 
     expect(await store.read()).toBeNull();
-    expect(cleared).toBe(1);
+    await expect(fs.stat(store.path)).rejects.toMatchObject({ code: "ENOENT" });
   });
-
-  test.skipIf(
-    process.platform !== "darwin" ||
-      process.env.CONVAX_NEXUS_TEST_REAL_KEYCHAIN !== "1",
-  )(
-    "round-trips a large isolated credential through the real macOS Keychain",
-    async () => {
-      const service = `io.convax.nexus-service.local-${crypto.randomUUID().replaceAll("-", "").slice(0, 16)}`;
-      const environment = {
-        CONVAX_NEXUS_KEYCHAIN_SERVICE: service,
-        CONVAX_NEXUS_LOCAL_DEVELOPMENT: "1",
-      };
-      const store = new MacOsKeychainCredentialStore(environment);
-      const credentials = {
-        ...fixtureCredentials(),
-        refreshToken: `authx_test_${"r".repeat(4_096)}`,
-      };
-      await store.clear();
-      try {
-        await store.write(credentials);
-        expect(await store.read()).toEqual(credentials);
-      } finally {
-        await store.clear();
-      }
-      expect(await store.read()).toBeNull();
-    },
-  );
 
   test("supports an explicit in-memory test store without changing production defaults", async () => {
     const store = new MemoryCredentialStore();
@@ -186,11 +127,8 @@ describe("Nexus credential stores", () => {
     expect(await store.read()).toBeNull();
   });
 
-  test("uses a private file only for explicit local development", async () => {
-    const root = await fs.mkdtemp(
-      path.join(os.tmpdir(), "convax-nexus-local-credentials-"),
-    );
-    roots.push(root);
+  test("uses the configured private file for explicit local development", async () => {
+    const root = await temporaryRoot("convax-nexus-local-credentials-");
     const environment = {
       CONVAX_NEXUS_LOCAL_DEVELOPMENT: "1",
       XDG_CONFIG_HOME: path.join(root, "config"),
@@ -203,9 +141,9 @@ describe("Nexus credential stores", () => {
     expect(await store.read()).toEqual(credentials);
     const credentialPath = (store as LocalDevelopmentCredentialStore).path;
     expect((await fs.lstat(credentialPath)).mode & 0o777).toBe(0o600);
-    expect(
-      (await fs.lstat(path.dirname(credentialPath))).mode & 0o777,
-    ).toBe(0o700);
+    expect((await fs.lstat(path.dirname(credentialPath))).mode & 0o777).toBe(
+      0o700,
+    );
 
     await store.clear();
     expect(await store.read()).toBeNull();
@@ -214,11 +152,8 @@ describe("Nexus credential stores", () => {
     });
   });
 
-  test("fails closed on unsafe local credential files", async () => {
-    const root = await fs.mkdtemp(
-      path.join(os.tmpdir(), "convax-nexus-local-credentials-"),
-    );
-    roots.push(root);
+  test("fails closed on unsafe credential files and directories", async () => {
+    const root = await temporaryRoot("convax-nexus-unsafe-credentials-");
     const environment = {
       CONVAX_NEXUS_LOCAL_DEVELOPMENT: "1",
       XDG_CONFIG_HOME: path.join(root, "config"),
@@ -240,16 +175,40 @@ describe("Nexus credential stores", () => {
     expect(await fs.readFile(target, "utf8")).toContain(
       fixtureCredentials().refreshToken,
     );
+
+    const userData = new UserDataCredentialStore(
+      { HOME: root },
+      "darwin",
+      root,
+    );
+    const outsideDirectory = path.join(root, "outside-directory");
+    await fs.mkdir(outsideDirectory, { mode: 0o700 });
+    await fs.mkdir(path.dirname(path.dirname(userData.path)), {
+      recursive: true,
+    });
+    await fs.symlink(outsideDirectory, path.dirname(userData.path));
+    await expect(userData.write(fixtureCredentials())).rejects.toThrow(
+      "Nexus user data credentials directory is unsafe",
+    );
+    expect(await fs.readdir(outsideDirectory)).toEqual([]);
   });
 
-  test("keeps production credential selection on the macOS Keychain", () => {
-    const store = createCredentialStore({});
-    expect(store).toBeInstanceOf(MacOsKeychainCredentialStore);
-    expect(
-      () => new LocalDevelopmentCredentialStore({}),
-    ).toThrow("limited to local development");
+  test("selects user-data storage for production", async () => {
+    if (process.platform !== "darwin") return;
+    const root = await temporaryRoot("convax-nexus-production-store-");
+    const store = createCredentialStore({ HOME: root });
+    expect(store).toBeInstanceOf(UserDataCredentialStore);
+    expect(() => new LocalDevelopmentCredentialStore({})).toThrow(
+      "requires local development mode",
+    );
   });
 });
+
+async function temporaryRoot(prefix: string) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+  roots.push(root);
+  return root;
+}
 
 function fixtureCredentials(): NexusApplicationCredentials {
   return {

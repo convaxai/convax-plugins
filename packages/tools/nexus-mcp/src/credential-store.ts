@@ -1,4 +1,3 @@
-import { dlopen, FFIType, ptr, toArrayBuffer, type Pointer } from "bun:ffi";
 import { randomBytes } from "node:crypto";
 import { constants as fsConstants, type Stats } from "node:fs";
 import fs from "node:fs/promises";
@@ -10,19 +9,8 @@ import {
   type NexusApplicationCredentials,
 } from "./contracts.ts";
 
-// v2 starts from a clean ACL after the pre-release companion used an unstable
-// linker-generated code identity. Release builds now carry one explicit,
-// version-independent designated requirement so later updates keep access.
-const productionKeychainService = "io.convax.nexus-service.v2";
-const keychainAccount = "application-access";
 const maximumCredentialBytes = 32 * 1024;
-const localCredentialFileName = "authx-refresh-credential.json";
-const errSecDuplicateItem = -25_299;
-const errSecItemNotFound = -25_300;
-const securityFrameworkPath =
-  "/System/Library/Frameworks/Security.framework/Security";
-const coreFoundationFrameworkPath =
-  "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
+const credentialFileName = "authx-refresh-credential.json";
 
 export interface NexusCredentialStore {
   clear(): Promise<void>;
@@ -30,63 +18,153 @@ export interface NexusCredentialStore {
   write(credentials: NexusApplicationCredentials): Promise<void>;
 }
 
-export class MacOsKeychainCredentialStore implements NexusCredentialStore {
-  readonly #keychainService: string;
+class PrivateFileCredentialStore implements NexusCredentialStore {
+  readonly path: string;
 
   constructor(
+    private readonly directory: string,
     private readonly environment: Readonly<
       Record<string, string | undefined>
-    > = process.env,
-    private readonly keychain: MacOsKeychainPort = nativeMacOsKeychain,
-    platform: NodeJS.Platform = process.platform,
+    >,
+    private readonly label: string,
+    private readonly privateDirectories: readonly string[],
   ) {
-    if (platform !== "darwin") {
-      throw new Error("The Nexus production credential store requires macOS");
-    }
-    this.#keychainService = keychainService(environment);
+    this.path = path.join(directory, credentialFileName);
   }
 
   async read(): Promise<NexusApplicationCredentials | null> {
     await clearLegacyRefreshGrant(this.environment);
-    const serialized = await this.keychain.read(
-      keychainAccount,
-      this.#keychainService,
+    const directoryExists = await inspectPrivateDirectory(
+      this.directory,
+      this.label,
     );
-    if (serialized === null) return null;
-    if (isRetiredApplicationCredential(serialized)) {
-      await this.keychain.clear(keychainAccount, this.#keychainService);
+    if (!directoryExists) return null;
+
+    let metadata: Stats;
+    try {
+      metadata = await fs.lstat(this.path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw new Error(`${this.label} could not be inspected`);
+    }
+    assertPrivateCredentialFile(metadata, this.label);
+    const serialized = await fs.readFile(this.path);
+    const after = await fs.lstat(this.path);
+    if (
+      after.dev !== metadata.dev ||
+      after.ino !== metadata.ino ||
+      after.size !== metadata.size ||
+      after.mtimeMs !== metadata.mtimeMs ||
+      after.ctimeMs !== metadata.ctimeMs ||
+      after.nlink !== 1
+    ) {
+      throw new Error(`${this.label} changed while reading`);
+    }
+    if (serialized.byteLength > maximumCredentialBytes) {
+      throw new Error(`${this.label} are too large`);
+    }
+    let value: string;
+    try {
+      value = new TextDecoder("utf-8", { fatal: true }).decode(serialized);
+    } catch {
+      throw new Error(`${this.label} are invalid`);
+    }
+    if (isRetiredApplicationCredential(value, this.label)) {
+      await this.clear();
       return null;
     }
-    return parseCredentials(serialized);
+    return parseCredentials(value, this.label);
   }
 
   async write(credentials: NexusApplicationCredentials): Promise<void> {
-    const serialized = serializeCredentials(credentials);
-    await this.keychain.write(
-      keychainAccount,
-      this.#keychainService,
-      serialized,
+    const serialized = `${serializeCredentials(credentials)}\n`;
+    await ensurePrivateDirectories(this.privateDirectories, this.label);
+    const temporary = path.join(
+      this.directory,
+      `.authx-refresh-credential-${randomBytes(12).toString("hex")}.tmp`,
     );
+    let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
+    try {
+      handle = await fs.open(
+        temporary,
+        fsConstants.O_CREAT |
+          fsConstants.O_EXCL |
+          fsConstants.O_NOFOLLOW |
+          fsConstants.O_WRONLY,
+        0o600,
+      );
+      await handle.writeFile(serialized, "utf8");
+      await handle.sync();
+      await handle.close();
+      handle = undefined;
+      await fs.rename(temporary, this.path);
+      const metadata = await fs.lstat(this.path);
+      assertPrivateCredentialFile(metadata, this.label);
+      await syncDirectory(this.directory);
+    } catch {
+      throw new Error(`${this.label} could not be stored`);
+    } finally {
+      await handle?.close().catch(() => undefined);
+      await fs.rm(temporary, { force: true }).catch(() => undefined);
+    }
   }
 
   async clear(): Promise<void> {
     await clearLegacyRefreshGrant(this.environment);
-    await this.keychain.clear(keychainAccount, this.#keychainService);
+    const directoryExists = await inspectPrivateDirectory(
+      this.directory,
+      this.label,
+    );
+    if (!directoryExists) return;
+    try {
+      const metadata = await fs.lstat(this.path);
+      assertPrivateCredentialFile(metadata, this.label);
+      await fs.rm(this.path);
+      await syncDirectory(this.directory);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
   }
 }
 
-function keychainService(
-  environment: Readonly<Record<string, string | undefined>>,
-) {
-  const configured = environment.CONVAX_NEXUS_KEYCHAIN_SERVICE;
-  if (configured === undefined) return productionKeychainService;
-  if (
-    environment.CONVAX_NEXUS_LOCAL_DEVELOPMENT !== "1" ||
-    !/^io\.convax\.nexus-service\.local-[a-f0-9]{16}$/u.test(configured)
+export class UserDataCredentialStore extends PrivateFileCredentialStore {
+  constructor(
+    environment: Readonly<Record<string, string | undefined>> = process.env,
+    platform: NodeJS.Platform = process.platform,
+    fallbackHome: string = os.homedir(),
   ) {
-    throw new Error("Nexus Keychain service override is invalid");
+    if (platform !== "darwin") {
+      throw new Error("The Nexus production credential store requires macOS");
+    }
+    const directory = path.join(
+      homeDirectory(environment, fallbackHome),
+      "Library",
+      "Application Support",
+      "Convax",
+      "nexus-service",
+    );
+    super(directory, environment, "Nexus user data credentials", [directory]);
   }
-  return configured;
+}
+
+export class LocalDevelopmentCredentialStore extends PrivateFileCredentialStore {
+  constructor(
+    environment: Readonly<Record<string, string | undefined>> = process.env,
+  ) {
+    if (environment.CONVAX_NEXUS_LOCAL_DEVELOPMENT !== "1") {
+      throw new Error(
+        "The Nexus local credential store requires local development mode",
+      );
+    }
+    const root = configRoot(environment);
+    const convaxDirectory = path.join(root, "convax");
+    const directory = path.join(convaxDirectory, "nexus-service");
+    super(directory, environment, "Nexus local credentials", [
+      convaxDirectory,
+      directory,
+    ]);
+  }
 }
 
 export class MemoryCredentialStore implements NexusCredentialStore {
@@ -107,290 +185,6 @@ export class MemoryCredentialStore implements NexusCredentialStore {
   }
 }
 
-export class LocalDevelopmentCredentialStore
-  implements NexusCredentialStore
-{
-  readonly path: string;
-  readonly #directory: string;
-  readonly #environment: Readonly<Record<string, string | undefined>>;
-
-  constructor(
-    environment: Readonly<Record<string, string | undefined>> = process.env,
-  ) {
-    if (environment.CONVAX_NEXUS_LOCAL_DEVELOPMENT !== "1") {
-      throw new Error(
-        "The Nexus file credential store is limited to local development",
-      );
-    }
-    this.#environment = environment;
-    const root = configRoot(environment);
-    this.#directory = path.join(root, "convax", "nexus-service");
-    this.path = path.join(this.#directory, localCredentialFileName);
-  }
-
-  async read(): Promise<NexusApplicationCredentials | null> {
-    await clearLegacyRefreshGrant(this.#environment);
-    let metadata: Stats;
-    try {
-      metadata = await fs.lstat(this.path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-      throw new Error("Nexus local credentials could not be inspected");
-    }
-    assertPrivateCredentialFile(metadata);
-    const serialized = await fs.readFile(this.path);
-    const after = await fs.lstat(this.path);
-    if (
-      after.dev !== metadata.dev ||
-      after.ino !== metadata.ino ||
-      after.size !== metadata.size ||
-      after.mtimeMs !== metadata.mtimeMs ||
-      after.ctimeMs !== metadata.ctimeMs ||
-      after.nlink !== 1
-    ) {
-      throw new Error("Nexus local credentials changed while reading");
-    }
-    if (serialized.byteLength > maximumCredentialBytes) {
-      throw new Error("Nexus local credentials are too large");
-    }
-    let value: string;
-    try {
-      value = new TextDecoder("utf-8", { fatal: true }).decode(serialized);
-    } catch {
-      throw new Error("Nexus local credentials are invalid");
-    }
-    if (isRetiredApplicationCredential(value, "Nexus local credentials")) {
-      await this.clear();
-      return null;
-    }
-    return parseCredentials(value, "Nexus local credentials");
-  }
-
-  async write(credentials: NexusApplicationCredentials): Promise<void> {
-    const serialized = `${serializeCredentials(credentials)}\n`;
-    await ensurePrivateLocalDirectory(this.#environment);
-    const temporary = path.join(
-      this.#directory,
-      `.authx-refresh-credential-${randomBytes(12).toString("hex")}.tmp`,
-    );
-    let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
-    try {
-      handle = await fs.open(
-        temporary,
-        fsConstants.O_CREAT |
-          fsConstants.O_EXCL |
-          fsConstants.O_NOFOLLOW |
-          fsConstants.O_WRONLY,
-        0o600,
-      );
-      await handle.writeFile(serialized, "utf8");
-      await handle.sync();
-      await handle.close();
-      handle = undefined;
-      await fs.rename(temporary, this.path);
-      const metadata = await fs.lstat(this.path);
-      assertPrivateCredentialFile(metadata);
-    } catch {
-      throw new Error("Nexus local credentials could not be stored");
-    } finally {
-      await handle?.close().catch(() => undefined);
-      await fs.rm(temporary, { force: true }).catch(() => undefined);
-    }
-  }
-
-  async clear(): Promise<void> {
-    try {
-      const metadata = await fs.lstat(this.path);
-      assertPrivateCredentialFile(metadata);
-      await fs.rm(this.path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-      throw error;
-    }
-  }
-}
-
-export interface MacOsKeychainPort {
-  clear(account: string, service: string): Promise<void>;
-  read(account: string, service: string): Promise<string | null>;
-  write(account: string, service: string, value: string): Promise<void>;
-}
-
-let nativeFrameworks: ReturnType<typeof loadNativeFrameworks> | undefined;
-
-const nativeMacOsKeychain: MacOsKeychainPort = {
-  async clear(account, service) {
-    const item = findItemReference(account, service);
-    if (item === null) return;
-    const { coreFoundation, security } = frameworks();
-    try {
-      const status = security.symbols.SecKeychainItemDelete(item);
-      if (status !== 0) {
-        throw new Error("Nexus credentials could not be removed from Keychain");
-      }
-    } finally {
-      coreFoundation.symbols.CFRelease(item);
-    }
-  },
-  async read(account, service) {
-    const accountBytes = Buffer.from(account, "utf8");
-    const serviceBytes = Buffer.from(service, "utf8");
-    const length = new Uint32Array(1);
-    const data = new BigUint64Array(1);
-    const { security } = frameworks();
-    const status = security.symbols.SecKeychainFindGenericPassword(
-      null,
-      serviceBytes.length,
-      ptr(serviceBytes),
-      accountBytes.length,
-      ptr(accountBytes),
-      ptr(length),
-      ptr(data),
-      null,
-    );
-    if (status === errSecItemNotFound) return null;
-    const byteLength = length[0] ?? 0;
-    const dataAddress = data[0] ?? 0n;
-    if (
-      status !== 0 ||
-      byteLength === 0 ||
-      byteLength > maximumCredentialBytes ||
-      dataAddress === 0n
-    ) {
-      throw new Error("Nexus credentials could not be read from Keychain");
-    }
-    const dataPointer = Number(dataAddress) as Pointer;
-    try {
-      const copied = Uint8Array.from(
-        new Uint8Array(toArrayBuffer(dataPointer, 0, byteLength)),
-      );
-      return Buffer.from(copied).toString("utf8");
-    } finally {
-      const released = security.symbols.SecKeychainItemFreeContent(
-        null,
-        dataPointer,
-      );
-      if (released !== 0) {
-        throw new Error("Nexus credentials could not be read from Keychain");
-      }
-    }
-  },
-  async write(account, service, value) {
-    const accountBytes = Buffer.from(account, "utf8");
-    const serviceBytes = Buffer.from(service, "utf8");
-    const valueBytes = Buffer.from(value, "utf8");
-    const { coreFoundation, security } = frameworks();
-    const status = security.symbols.SecKeychainAddGenericPassword(
-      null,
-      serviceBytes.length,
-      ptr(serviceBytes),
-      accountBytes.length,
-      ptr(accountBytes),
-      valueBytes.length,
-      ptr(valueBytes),
-      null,
-    );
-    if (status === 0) return;
-    if (status !== errSecDuplicateItem) {
-      throw new Error("Nexus credentials could not be stored in Keychain");
-    }
-    const item = findItemReference(account, service);
-    if (item === null) {
-      throw new Error("Nexus credentials could not be stored in Keychain");
-    }
-    try {
-      const updated = security.symbols.SecKeychainItemModifyAttributesAndData(
-        item,
-        null,
-        valueBytes.length,
-        ptr(valueBytes),
-      );
-      if (updated !== 0) {
-        throw new Error("Nexus credentials could not be stored in Keychain");
-      }
-    } finally {
-      coreFoundation.symbols.CFRelease(item);
-    }
-  },
-};
-
-function findItemReference(account: string, service: string): Pointer | null {
-  const accountBytes = Buffer.from(account, "utf8");
-  const serviceBytes = Buffer.from(service, "utf8");
-  const item = new BigUint64Array(1);
-  const { security } = frameworks();
-  const status = security.symbols.SecKeychainFindGenericPassword(
-    null,
-    serviceBytes.length,
-    ptr(serviceBytes),
-    accountBytes.length,
-    ptr(accountBytes),
-    null,
-    null,
-    ptr(item),
-  );
-  if (status === errSecItemNotFound) return null;
-  if (status !== 0 || item[0] === 0n) {
-    throw new Error("Nexus credentials could not be accessed in Keychain");
-  }
-  return Number(item[0]) as Pointer;
-}
-
-function frameworks() {
-  nativeFrameworks ??= loadNativeFrameworks();
-  return nativeFrameworks;
-}
-
-function loadNativeFrameworks() {
-  const security = dlopen(securityFrameworkPath, {
-    SecKeychainAddGenericPassword: {
-      args: [
-        FFIType.ptr,
-        FFIType.u32,
-        FFIType.ptr,
-        FFIType.u32,
-        FFIType.ptr,
-        FFIType.u32,
-        FFIType.ptr,
-        FFIType.ptr,
-      ],
-      returns: FFIType.i32,
-    },
-    SecKeychainFindGenericPassword: {
-      args: [
-        FFIType.ptr,
-        FFIType.u32,
-        FFIType.ptr,
-        FFIType.u32,
-        FFIType.ptr,
-        FFIType.ptr,
-        FFIType.ptr,
-        FFIType.ptr,
-      ],
-      returns: FFIType.i32,
-    },
-    SecKeychainItemDelete: {
-      args: [FFIType.ptr],
-      returns: FFIType.i32,
-    },
-    SecKeychainItemFreeContent: {
-      args: [FFIType.ptr, FFIType.ptr],
-      returns: FFIType.i32,
-    },
-    SecKeychainItemModifyAttributesAndData: {
-      args: [FFIType.ptr, FFIType.ptr, FFIType.u32, FFIType.ptr],
-      returns: FFIType.i32,
-    },
-  });
-  const coreFoundation = dlopen(coreFoundationFrameworkPath, {
-    CFRelease: {
-      args: [FFIType.ptr],
-      returns: FFIType.void,
-    },
-  });
-  return { coreFoundation, security };
-}
-
 function serializeCredentials(credentials: NexusApplicationCredentials) {
   const parsed = validateCredentials(credentials);
   const serialized = JSON.stringify(parsed);
@@ -402,7 +196,7 @@ function serializeCredentials(credentials: NexusApplicationCredentials) {
 
 function parseCredentials(
   serialized: string,
-  label = "Nexus Keychain item",
+  label = "Nexus credentials",
 ): NexusApplicationCredentials {
   if (Buffer.byteLength(serialized, "utf8") > maximumCredentialBytes) {
     throw new Error(`${label} are too large`);
@@ -418,7 +212,7 @@ function parseCredentials(
 
 function isRetiredApplicationCredential(
   serialized: string,
-  label = "Nexus Keychain item",
+  label = "Nexus credentials",
 ): boolean {
   if (Buffer.byteLength(serialized, "utf8") > maximumCredentialBytes) {
     throw new Error(`${label} are too large`);
@@ -519,16 +313,25 @@ function configRoot(
     }
     return path.normalize(configured);
   }
-  return path.join(environment.HOME || os.homedir(), ".config");
+  return path.join(homeDirectory(environment, os.homedir()), ".config");
 }
 
-async function ensurePrivateLocalDirectory(
+function homeDirectory(
   environment: Readonly<Record<string, string | undefined>>,
+  fallback: string,
 ) {
-  const root = configRoot(environment);
-  const convaxDirectory = path.join(root, "convax");
-  const nexusDirectory = path.join(convaxDirectory, "nexus-service");
-  for (const directory of [convaxDirectory, nexusDirectory]) {
+  const home = environment.HOME || fallback;
+  if (!path.isAbsolute(home) || home.includes("\0")) {
+    throw new Error("Nexus user home must be absolute");
+  }
+  return path.normalize(home);
+}
+
+async function ensurePrivateDirectories(
+  directories: readonly string[],
+  label: string,
+) {
+  for (const directory of directories) {
     await fs.mkdir(directory, { mode: 0o700, recursive: true });
     const metadata = await fs.lstat(directory);
     if (
@@ -536,13 +339,41 @@ async function ensurePrivateLocalDirectory(
       metadata.isSymbolicLink() ||
       metadata.nlink < 1
     ) {
-      throw new Error("Nexus local credential directory is unsafe");
+      throw new Error(`${label} directory is unsafe`);
     }
     await fs.chmod(directory, 0o700);
   }
 }
 
-function assertPrivateCredentialFile(metadata: Stats) {
+async function inspectPrivateDirectory(directory: string, label: string) {
+  let metadata: Stats;
+  try {
+    metadata = await fs.lstat(directory);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw new Error(`${label} directory could not be inspected`);
+  }
+  if (
+    !metadata.isDirectory() ||
+    metadata.isSymbolicLink() ||
+    metadata.nlink < 1 ||
+    (metadata.mode & 0o077) !== 0
+  ) {
+    throw new Error(`${label} directory is unsafe`);
+  }
+  return true;
+}
+
+async function syncDirectory(directory: string) {
+  const handle = await fs.open(directory, fsConstants.O_RDONLY);
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+function assertPrivateCredentialFile(metadata: Stats, label: string) {
   if (
     !metadata.isFile() ||
     metadata.isSymbolicLink() ||
@@ -551,7 +382,7 @@ function assertPrivateCredentialFile(metadata: Stats) {
     metadata.size < 1 ||
     metadata.size > maximumCredentialBytes
   ) {
-    throw new Error("Nexus local credentials must be a private regular file");
+    throw new Error(`${label} must be a private regular file`);
   }
 }
 
@@ -596,7 +427,7 @@ function exactOrigin(value: unknown, label: string) {
 export function createProductionCredentialStore(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ) {
-  return new MacOsKeychainCredentialStore(environment);
+  return new UserDataCredentialStore(environment);
 }
 
 export function createCredentialStore(

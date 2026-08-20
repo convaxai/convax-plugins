@@ -22,12 +22,6 @@ const gatewayOrigin = loopbackOrigin(
   environment.CONVAX_NEXUS_GATEWAY_ORIGIN,
   "CONVAX_NEXUS_GATEWAY_ORIGIN",
 );
-const keychainService =
-  environment.CONVAX_NEXUS_KEYCHAIN_SERVICE ??
-  "io.convax.nexus-service.local-c0ffee1234abcdef";
-if (!/^io\.convax\.nexus-service\.local-[a-f0-9]{16}$/u.test(keychainService)) {
-  throw new Error("CONVAX_NEXUS_KEYCHAIN_SERVICE is invalid");
-}
 const profileMetadata = await fs.lstat(profilePath);
 if (
   !profileMetadata.isFile() ||
@@ -46,9 +40,8 @@ const config = {
     .update(profileBytes)
     .digest("hex"),
   gatewayOrigin,
-  keychainService,
   nexusOrigin,
-  schema: "convax.nexus-local-development/1",
+  schema: "convax.nexus-local-development/2",
 };
 const directory = path.join(configRoot, "convax", "nexus-service");
 const outputPath = path.join(directory, "local-development.json");
@@ -65,7 +58,6 @@ console.log(
     {
       authxPublicClientProfileSha256: config.authxPublicClientProfileSha256,
       gatewayOrigin,
-      keychainService,
       nexusOrigin,
       outputPath,
       schema: config.schema,

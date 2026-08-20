@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const localDevelopmentConfigSchema =
-  "convax.nexus-local-development/1" as const;
+  "convax.nexus-local-development/2" as const;
 const maximumConfigBytes = 64 * 1024;
 
 export function resolveNexusLocalDevelopmentEnvironment(
@@ -82,7 +82,6 @@ export function resolveNexusLocalDevelopmentEnvironment(
     ...environment,
     CONVAX_AUTHX_PUBLIC_CLIENT_PROFILE: config.authxPublicClientProfile,
     CONVAX_NEXUS_GATEWAY_ORIGIN: config.gatewayOrigin,
-    CONVAX_NEXUS_KEYCHAIN_SERVICE: config.keychainService,
     CONVAX_NEXUS_LOCAL_DEVELOPMENT: "1",
     CONVAX_NEXUS_ORIGIN: config.nexusOrigin,
   });
@@ -118,7 +117,6 @@ function parseLocalDevelopmentConfig(value: unknown) {
     "authxPublicClientProfile",
     "authxPublicClientProfileSha256",
     "gatewayOrigin",
-    "keychainService",
     "nexusOrigin",
     "schema",
   ]);
@@ -129,10 +127,6 @@ function parseLocalDevelopmentConfig(value: unknown) {
     typeof value.authxPublicClientProfileSha256 !== "string" ||
     !/^[a-f0-9]{64}$/u.test(value.authxPublicClientProfileSha256) ||
     typeof value.gatewayOrigin !== "string" ||
-    typeof value.keychainService !== "string" ||
-    !/^io\.convax\.nexus-service\.local-[a-f0-9]{16}$/u.test(
-      value.keychainService,
-    ) ||
     typeof value.nexusOrigin !== "string"
   ) {
     throw new Error("Nexus local development configuration is invalid");
@@ -141,7 +135,6 @@ function parseLocalDevelopmentConfig(value: unknown) {
     authxPublicClientProfile: value.authxPublicClientProfile,
     authxPublicClientProfileSha256: value.authxPublicClientProfileSha256,
     gatewayOrigin: loopbackOrigin(value.gatewayOrigin, "Nexus Gateway origin"),
-    keychainService: value.keychainService,
     nexusOrigin: loopbackOrigin(value.nexusOrigin, "Nexus origin"),
     schema: localDevelopmentConfigSchema,
   };
