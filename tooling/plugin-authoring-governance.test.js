@@ -80,6 +80,47 @@ describe("automated Plugin contract governance", () => {
     })
   })
 
+  test("records the blocked Convax account portal entry without weakening the current Service ABI", async () => {
+    const declaration = await fs.readFile(
+      path.join(
+        root,
+        "vendor",
+        "host-packages",
+        "plugin-sdk",
+        "dist",
+        "runtime-contributions.d.ts",
+      ),
+      "utf8",
+    )
+    const manifest = JSON.parse(
+      await fs.readFile(
+        path.join(
+          root,
+          "packages",
+          "plugins",
+          "nexus-service",
+          "package",
+          "manifest.json",
+        ),
+        "utf8",
+      ),
+    )
+    const request = await fs.readFile(
+      path.join(
+        root,
+        "docs",
+        "host-capability-requests",
+        "service-account-portal-action.md",
+      ),
+      "utf8",
+    )
+    expect(declaration).not.toContain('"profile"')
+    expect(manifest.contributes.service.actions).not.toContain("profile")
+    expect(request).toContain("/account/projects/{projectId}")
+    expect(request).toContain("must never fall back")
+    expect(request).toContain("/account/profile")
+  })
+
   test("keeps ChatCut blocked on an observable technical dependency", async () => {
     const source = await fs.readFile(
       path.join(
