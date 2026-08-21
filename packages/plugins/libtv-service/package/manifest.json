@@ -3,7 +3,7 @@
   "id": "libtv-service",
   "name": "LibTV",
   "description": "通过 shortdrama-router 连接 LibTV 的图片和视频生成能力，使用受管理的 Web OAuth 并安全绑定唯一项目。",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "capabilities": [],
   "contributes": {
     "generation": {
@@ -23,14 +23,22 @@
           "title": "LibTV · 图片生成",
           "description": "使用 LibTV 根据提示词生成图片。",
           "output": "image",
-          "acceptedInputs": []
+          "acceptedInputs": [],
+          "recovery": {
+            "mode": "long-running-operation",
+            "schema": "convax.generation-lro/1"
+          }
         },
         {
           "id": "video.generate",
           "title": "LibTV · 视频生成",
           "description": "使用 LibTV 根据提示词生成视频。",
           "output": "video",
-          "acceptedInputs": []
+          "acceptedInputs": [],
+          "recovery": {
+            "mode": "long-running-operation",
+            "schema": "convax.generation-lro/1"
+          }
         }
       ]
     },

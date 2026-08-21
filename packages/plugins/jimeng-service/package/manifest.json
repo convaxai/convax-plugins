@@ -3,7 +3,7 @@
   "id": "jimeng-service",
   "name": "即梦",
   "description": "通过 shortdrama-router 连接即梦的图片和视频生成能力，并使用服务原生授权管理账号。",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "capabilities": [],
   "contributes": {
     "generation": {
@@ -23,14 +23,22 @@
           "title": "即梦 · 图片生成",
           "description": "使用即梦根据提示词生成图片。",
           "output": "image",
-          "acceptedInputs": []
+          "acceptedInputs": [],
+          "recovery": {
+            "mode": "long-running-operation",
+            "schema": "convax.generation-lro/1"
+          }
         },
         {
           "id": "video.generate",
           "title": "即梦 · 视频生成",
           "description": "使用即梦根据提示词生成视频。",
           "output": "video",
-          "acceptedInputs": []
+          "acceptedInputs": [],
+          "recovery": {
+            "mode": "long-running-operation",
+            "schema": "convax.generation-lro/1"
+          }
         }
       ]
     },

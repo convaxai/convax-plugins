@@ -3,7 +3,7 @@
   "id": "xiaoyunque-service",
   "name": "小云雀",
   "description": "通过 shortdrama-router 连接小云雀的音频、图片和视频生成能力，并使用服务原生授权管理账号。",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "capabilities": [],
   "contributes": {
     "generation": {
@@ -27,21 +27,33 @@
           "title": "小云雀 · 音频生成",
           "description": "使用小云雀根据提示词生成音频。",
           "output": "audio",
-          "acceptedInputs": []
+          "acceptedInputs": [],
+          "recovery": {
+            "mode": "long-running-operation",
+            "schema": "convax.generation-lro/1"
+          }
         },
         {
           "id": "image.generate",
           "title": "小云雀 · 图片生成",
           "description": "使用小云雀根据提示词生成图片。",
           "output": "image",
-          "acceptedInputs": []
+          "acceptedInputs": [],
+          "recovery": {
+            "mode": "long-running-operation",
+            "schema": "convax.generation-lro/1"
+          }
         },
         {
           "id": "video.generate",
           "title": "小云雀 · 视频生成",
           "description": "使用小云雀根据提示词生成视频。",
           "output": "video",
-          "acceptedInputs": []
+          "acceptedInputs": [],
+          "recovery": {
+            "mode": "long-running-operation",
+            "schema": "convax.generation-lro/1"
+          }
         }
       ]
     },
