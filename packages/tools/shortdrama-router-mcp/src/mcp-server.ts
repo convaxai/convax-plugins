@@ -2,6 +2,7 @@ import { generationTools, loadModelCatalog } from "./catalog.ts"
 import {
   abortError,
   asRecord,
+  generationLroCapabilitySchema,
   isAbortError,
   mcpProtocolVersion,
   type GenerationKind,
@@ -19,10 +20,23 @@ import {
   OperationConflictError,
   TerminalGenerationError,
 } from "./generation.ts"
+import {
+  parseGenerationOperationMeta,
+  parseRecoveryRequest,
+  ShortDramaGenerationLro,
+} from "./generation-lro.ts"
 import { ProviderService, serviceTools } from "./service.ts"
 
 const maximumRequestBytes = 4 * 1024 * 1024
 const generationToolPattern = /^(audio|image|video)\.generate$/u
+const generationLroCapabilityKey = "convax/generation-lro"
+const generationLroMethods = {
+  acknowledge: "convax/generation/operations/acknowledge",
+  cancel: "convax/generation/operations/cancel",
+  get: "convax/generation/operations/get",
+  result: "convax/generation/operations/result",
+  wait: "convax/generation/operations/wait",
+} as const
 
 function isJsonRpcRequest(value: unknown): value is JsonRpcRequest {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false
@@ -58,6 +72,7 @@ export interface McpServerOptions {
   diagnostic?: (message: string) => void
   dispose?: () => void
   modelCatalogTimeoutMs?: number
+  recovery?: ShortDramaGenerationLro
   send?: (value: unknown) => void
 }
 
@@ -72,6 +87,7 @@ export class McpServer {
   #lifecycle: "awaiting-initialize" | "awaiting-initialized" | "operational" =
     "awaiting-initialize"
   readonly #modelCatalogTimeoutMs: number
+  readonly #recovery: ShortDramaGenerationLro | undefined
   #reader: ReadableStreamDefaultReader<Uint8Array> | undefined
   readonly #sendValue: (value: unknown) => void
   readonly #serviceToolNames: ReadonlySet<string>
@@ -87,6 +103,7 @@ export class McpServer {
     this.#diagnostic = options.diagnostic ?? console.error
     this.#dispose = options.dispose
     this.#modelCatalogTimeoutMs = options.modelCatalogTimeoutMs ?? 30_000
+    this.#recovery = options.recovery
     if (
       !Number.isFinite(this.#modelCatalogTimeoutMs)
       || this.#modelCatalogTimeoutMs <= 0
@@ -218,18 +235,40 @@ export class McpServer {
         return
       }
       this.#lifecycle = "awaiting-initialized"
+      const recoveryBinding = await this.#recovery?.binding()
       this.#sendResult(value.id, {
-        capabilities: { tools: {} },
+        capabilities: {
+          ...(recoveryBinding === undefined
+            ? {}
+            : {
+                experimental: {
+                  [generationLroCapabilityKey]: {
+                    binding: recoveryBinding,
+                    mode: "long-running-operation",
+                    schema: generationLroCapabilitySchema,
+                  },
+                },
+              }),
+          tools: {},
+        },
         protocolVersion: mcpProtocolVersion,
         serverInfo: {
           name: "convax-shortdrama-router-mcp",
-          version: "0.1.0",
+          version: "0.2.0",
         },
       })
       return
     }
     if (this.#lifecycle !== "operational") {
       this.#sendError(value.id, -32_002, "Server is not initialized")
+      return
+    }
+    if (
+      Object.values(generationLroMethods).includes(
+        value.method as (typeof generationLroMethods)[keyof typeof generationLroMethods],
+      )
+    ) {
+      await this.#handleOperation({ ...value, id: value.id })
       return
     }
     if (value.method === "tools/list") {
@@ -342,6 +381,31 @@ export class McpServer {
                     )
       } else {
         const kind = generationMatch![1] as GenerationKind
+        if (this.#recovery) {
+          const generation = parseGenerationOperationMeta(params._meta)
+          const result = await this.#recovery.start(
+            kind,
+            argumentsValue,
+            generation.request,
+            controller.signal,
+            generation.progressToken === undefined
+              ? undefined
+              : (taskId) => {
+                  this.#send({
+                    jsonrpc: "2.0",
+                    method: "notifications/convax/generation-lifecycle",
+                    params: {
+                      event: "submitted",
+                      progressToken: generation.progressToken,
+                      schema: "convax.generation-lifecycle/1",
+                      taskId,
+                    },
+                  })
+                },
+          )
+          this.#completeResult(request.id, controller, result)
+          return
+        }
         structuredContent = {
           artifacts: await this.generation.generate(
             kind,
@@ -381,6 +445,47 @@ export class McpServer {
         ],
         isError: true,
       } satisfies ToolResult)
+    } finally {
+      this.#releaseRequest(request.id, controller)
+    }
+  }
+
+  async #handleOperation(
+    request: JsonRpcRequest & { id: number | string },
+  ) {
+    const controller = this.#beginInflight(request.id)
+    if (!controller) return
+    try {
+      if (!this.#recovery) {
+        this.#completeError(request.id, controller, -32_601, "Method not found")
+        return
+      }
+      const input = parseRecoveryRequest(
+        request.params,
+        request.method === generationLroMethods.result,
+      )
+      const result = request.method === generationLroMethods.get
+        ? await this.#recovery.get(input)
+        : request.method === generationLroMethods.wait
+          ? await this.#recovery.wait(input, controller.signal)
+          : request.method === generationLroMethods.cancel
+            ? await this.#recovery.cancel(input, controller.signal)
+            : request.method === generationLroMethods.result
+              ? await this.#recovery.result({
+                  ...input,
+                  outputDirectory: input.outputDirectory!,
+                })
+              : await this.#recovery.acknowledge(input)
+      this.#completeResult(request.id, controller, result)
+    } catch {
+      this.#completeError(
+        request.id,
+        controller,
+        controller.signal.aborted ? -32_800 : -32_602,
+        controller.signal.aborted
+          ? "Generation recovery request was cancelled"
+          : "Generation recovery request failed",
+      )
     } finally {
       this.#releaseRequest(request.id, controller)
     }

@@ -9,6 +9,8 @@ import path from "node:path"
 
 import type { ProviderId, RouterPort } from "./contracts.ts"
 import { GenerationEngine } from "./generation.ts"
+import { GenerationOperationJournal } from "./generation-journal.ts"
+import { ShortDramaGenerationLro } from "./generation-lro.ts"
 import { FileLibTvConfigurationSource } from "./libtv-configuration.ts"
 import { McpServer } from "./mcp-server.ts"
 import { ProviderService } from "./service.ts"
@@ -64,14 +66,24 @@ export async function createServer(
           })
         },
       })
+      const generation = new GenerationEngine(provider, router, {
+        prepare: (signal) => service.prepareModels(signal),
+      })
+      const recovery = generationRecovery(
+        provider,
+        generation,
+        router,
+        environment,
+      )
       return new McpServer(
         provider,
         router,
-        new GenerationEngine(provider, router, {
-          prepare: (signal) => service.prepareModels(signal),
-        }),
+        generation,
         service,
-        { dispose: () => jobStores.close() },
+        {
+          dispose: () => jobStores.close(),
+          ...(recovery === undefined ? {} : { recovery }),
+        },
       )
     }
     const managedRuntimeRoot = path.join(stateDirectory, "provider-runtimes")
@@ -94,22 +106,48 @@ export async function createServer(
       xiaoyunque: false,
     })
     const service = new ProviderService(provider, router, { runtimeService })
+    const generation = new GenerationEngine(provider, router, {
+      prepare: (signal) => service.prepareModels(signal),
+      // LibTV's public adapter waits for `node create --run` and bounds that
+      // official CLI process at 30 minutes.
+      ...(provider === "libtv"
+        ? { submissionTimeoutMs: 31 * 60_000 }
+        : {}),
+    })
+    const recovery = generationRecovery(
+      provider,
+      generation,
+      router,
+      environment,
+    )
     return new McpServer(
       provider,
       router,
-      new GenerationEngine(provider, router, {
-        prepare: (signal) => service.prepareModels(signal),
-        // LibTV's public adapter waits for `node create --run` and bounds that
-        // official CLI process at 30 minutes.
-        ...(provider === "libtv"
-          ? { submissionTimeoutMs: 31 * 60_000 }
-          : {}),
-      }),
+      generation,
       service,
-      { dispose: () => jobStores.close() },
+      {
+        dispose: () => jobStores.close(),
+        ...(recovery === undefined ? {} : { recovery }),
+      },
     )
   } catch (error) {
     jobStores.close()
     throw error
   }
+}
+
+function generationRecovery(
+  provider: ProviderId,
+  generation: GenerationEngine,
+  router: RouterPort,
+  environment: Readonly<Record<string, string | undefined>>,
+) {
+  const directory = environment.CONVAX_GENERATION_LRO_DIRECTORY
+  if (!directory) return undefined
+  return new ShortDramaGenerationLro(
+    provider,
+    generation,
+    router,
+    new GenerationOperationJournal(provider, directory),
+  )
 }

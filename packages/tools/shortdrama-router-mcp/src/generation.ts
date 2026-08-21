@@ -48,7 +48,6 @@ interface ParsedGenerationCall {
   format?: string
   kind: GenerationKind
   model: ValidatedModel
-  n?: number
   operationId: string
   outputDirectory: string
   prompt: string
@@ -119,6 +118,10 @@ export interface GenerationEngineOptions {
   submissionTimeoutMs?: number
   submittingStaleAfterMs?: number
   now?: () => number
+}
+
+export interface GenerationExecutionHooks {
+  onSubmitted?: (job: GenerationJob) => Promise<void>
 }
 
 function boundedString(value: unknown, label: string, maximum: number) {
@@ -245,7 +248,7 @@ function parseGenerationCall(
   const optional = expectedKind === "audio"
     ? ["format"]
     : expectedKind === "image"
-      ? ["aspect_ratio", "n", "resolution", "size"]
+      ? ["aspect_ratio", "resolution", "size"]
       : ["aspect_ratio", "duration", "resolution", "seed"]
   exactKeys(
     input,
@@ -345,16 +348,9 @@ function parseGenerationCall(
       "Size",
       32,
     )
-    if (
-      input.n !== undefined
-      && (!Number.isSafeInteger(input.n) || Number(input.n) < 1 || Number(input.n) > 10)
-    ) {
-      throw new Error("Image count is invalid")
-    }
     return {
       ...common,
       ...(aspectRatio === undefined ? {} : { aspectRatio }),
-      ...(input.n === undefined ? {} : { n: Number(input.n) }),
       ...(resolution === undefined ? {} : { resolution }),
       ...(size === undefined ? {} : { size }),
     }
@@ -769,6 +765,7 @@ export class GenerationEngine {
     kind: GenerationKind,
     value: unknown,
     signal: AbortSignal,
+    hooks: GenerationExecutionHooks = {},
   ) {
     const operationInput = asRecord(value, "generation call")
     const operationId = operationInput.operation_id
@@ -826,7 +823,7 @@ export class GenerationEngine {
         settled: false,
         waiters: new Set(),
       }
-      operation.result = this.#execute(call, controller.signal).then(
+      operation.result = this.#execute(call, controller.signal, hooks).then(
         (result) => {
           operation.settled = true
           return result
@@ -849,6 +846,63 @@ export class GenerationEngine {
     } finally {
       releaseProspective()
     }
+  }
+
+  async resume(
+    kind: GenerationKind,
+    jobId: string,
+    durableOutputDirectory: string,
+    operationId: string,
+    signal: AbortSignal,
+  ) {
+    if (!operationIdPattern.test(operationId)) {
+      throw new Error("Generation operation id is invalid")
+    }
+    let job: GenerationJob | undefined
+    while (job === undefined) {
+      try {
+        job = safeJob(
+          await boundedCall(
+            this.#requestTimeoutMs,
+            signal,
+            (attemptSignal) => this.#get(kind, jobId, attemptSignal),
+          ),
+          kind,
+        )
+      } catch (error) {
+        if (signal.aborted || isAbortError(error)) throw abortError()
+        if (error instanceof TerminalGenerationError) throw error
+        await this.#sleep(this.#pollIntervalMs, signal)
+      }
+    }
+    while (
+      job.status === "submitting"
+      || job.status === "queued"
+      || job.status === "in_progress"
+    ) {
+      await this.#sleep(this.#pollIntervalMs, signal)
+      try {
+        job = safeJob(
+          await boundedCall(
+            this.#requestTimeoutMs,
+            signal,
+            (attemptSignal) => this.#get(kind, jobId, attemptSignal),
+          ),
+          kind,
+        )
+      } catch (error) {
+        if (signal.aborted || isAbortError(error)) throw abortError()
+        if (error instanceof TerminalGenerationError) throw error
+        await this.#sleep(this.#pollIntervalMs, signal)
+      }
+    }
+    return this.#publishCompletedJob(
+      job,
+      kind,
+      durableOutputDirectory,
+      operationId,
+      signal,
+    )
   }
 
   #abortWhenUnobserved(operationId: string, operation: Operation) {
@@ -908,7 +962,23 @@ export class GenerationEngine {
     })
   }
 
-  async #execute(call: ParsedGenerationCall, signal: AbortSignal) {
+  async #execute(
+    call: ParsedGenerationCall,
+    signal: AbortSignal,
+    hooks: GenerationExecutionHooks,
+  ) {
+    let submitted = false
+    const recordSubmission = async (candidate: GenerationJob) => {
+      if (
+        submitted
+        || candidate.status === "submitting"
+        || candidate.status === "submission_unknown"
+      ) {
+        return
+      }
+      submitted = true
+      await hooks.onSubmitted?.(candidate)
+    }
     let job: GenerationJob
     try {
       job = await boundedCall(
@@ -926,6 +996,7 @@ export class GenerationEngine {
       throw new GenerationSubmissionError("Provider did not accept generation")
     }
     safeJob(job, call.kind)
+    await recordSubmission(job)
     while (
       job.status === "submitting"
       || job.status === "queued"
@@ -951,6 +1022,7 @@ export class GenerationEngine {
               : this.#get(call.kind, job.id, attemptSignal),
           )
           observed = safeJob(candidate, call.kind)
+          await recordSubmission(observed)
         } catch (error) {
           if (signal.aborted || isAbortError(error)) throw abortError()
           if (error instanceof TerminalGenerationError) throw error
@@ -968,17 +1040,37 @@ export class GenerationEngine {
       }
       job = observed
     }
-    const directory = await outputDirectory(call.outputDirectory)
-    const outputs = (job.artifacts ?? job.outputs) as readonly GenerationOutput[]
+    return this.#publishCompletedJob(
+      job,
+      call.kind,
+      call.outputDirectory,
+      call.operationId,
+      signal,
+    )
+  }
+
+  async #publishCompletedJob(
+    job: GenerationJob,
+    kind: GenerationKind,
+    directoryValue: string,
+    operationId: string,
+    signal: AbortSignal,
+  ) {
+    const directory = await outputDirectory(directoryValue)
+    const providerOutputs = (job.artifacts ?? job.outputs) as readonly GenerationOutput[]
+    // A Canvas generation call owns one target card. Keep the adapter output
+    // cardinality stable even if a provider returns a legacy image batch after
+    // accepting the explicit n=1 request.
+    const outputs = kind === "image" ? providerOutputs.slice(0, 1) : providerOutputs
     const artifacts: PublishedArtifact[] = []
     try {
       for (const [index, output] of outputs.entries()) {
         artifacts.push(
           await publishArtifact(
             output,
-            call.kind,
+            kind,
             directory,
-            call.operationId,
+            operationId,
             index,
             this.#download,
             this.#requestTimeoutMs,
@@ -1018,7 +1110,11 @@ export class GenerationEngine {
             : { aspect_ratio: call.aspectRatio }),
           idempotency_key: call.operationId,
           model: call.model.id,
-          ...(call.n === undefined ? {} : { n: call.n }),
+          // One Canvas generation operation replaces one card. Providers such
+          // as XiaoYunque otherwise default to a four-image batch, which makes
+          // the single-card result contract unusable even though only one paid
+          // operation was submitted.
+          n: 1,
           prompt: call.prompt,
           provider: this.provider,
           ...(call.resolution === undefined

@@ -1,9 +1,14 @@
 import { describe, expect, test } from "bun:test"
+import { chmod, mkdtemp, rm } from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 
 import type { ImageJob } from "shortdrama-router"
 
 import { mcpProtocolVersion } from "../src/contracts.ts"
 import { GenerationEngine } from "../src/generation.ts"
+import { GenerationOperationJournal } from "../src/generation-journal.ts"
+import { ShortDramaGenerationLro } from "../src/generation-lro.ts"
 import { McpServer } from "../src/mcp-server.ts"
 import { ProviderService } from "../src/service.ts"
 import { fakeRouter, providerModel, validAuthorization } from "./fakes.ts"
@@ -50,6 +55,66 @@ function generationArguments() {
 }
 
 describe("newline MCP server", () => {
+  test("advertises and serves the generation recovery protocol", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "shortdrama-mcp-lro-"))
+    await chmod(directory, 0o700)
+    try {
+      const sent: Array<Record<string, any>> = []
+      const router = fakeRouter()
+      const engine = new GenerationEngine("jimeng", router)
+      const recovery = new ShortDramaGenerationLro(
+        "jimeng",
+        engine,
+        router,
+        new GenerationOperationJournal("jimeng", directory),
+      )
+      const server = new McpServer(
+        "jimeng",
+        router,
+        engine,
+        new ProviderService("jimeng", router),
+        { recovery, send: (value) => sent.push(value as Record<string, any>) },
+      )
+
+      await server.handleMessage(request(1, "initialize", initializeParams()))
+      expect(sent[0]).toMatchObject({
+        result: {
+          capabilities: {
+            experimental: {
+              "convax/generation-lro": {
+                mode: "long-running-operation",
+                schema: "convax.generation-lro/1",
+              },
+            },
+          },
+          serverInfo: { version: "0.2.0" },
+        },
+      })
+      await server.handleMessage({
+        jsonrpc: "2.0",
+        method: "notifications/initialized",
+      })
+      sent.length = 0
+      await server.handleMessage(request(
+        2,
+        "convax/generation/operations/get",
+        {
+          operationId: "operation-missing",
+          requestDigest: "a".repeat(64),
+          schema: "convax.generation-lro-request/1",
+        },
+      ))
+      expect(sent[0]).toMatchObject({
+        result: {
+          schema: "convax.generation-lro-snapshot/1",
+          status: "absent",
+        },
+      })
+    } finally {
+      await rm(directory, { force: true, recursive: true })
+    }
+  })
+
   test("strictly negotiates the initialize lifecycle before serving tools", async () => {
     const sent: Array<Record<string, any>> = []
     const router = fakeRouter()
