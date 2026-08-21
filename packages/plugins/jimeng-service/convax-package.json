@@ -4,11 +4,11 @@
   "id": "jimeng-service",
   "name": "即梦",
   "description": "通过 shortdrama-router 连接即梦的图片和视频生成能力，并使用服务原生授权管理账号。",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "companions": [
     {
       "command": "convax-shortdrama-router-mcp",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "source": "packages/tools/shortdrama-router-mcp",
       "targets": [
         {

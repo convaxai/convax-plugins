@@ -3,7 +3,7 @@ import { mkdtemp, readFile, readdir, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import type { ImageJob } from "shortdrama-router"
+import type { ImageCreateRequest, ImageJob, VideoCreateRequest, VideoJob } from "shortdrama-router"
 
 import {
   GenerationEngine,
@@ -24,6 +24,20 @@ const pngBytes = new Uint8Array([
   1,
   2,
   3,
+])
+const mp4Bytes = new Uint8Array([
+  0,
+  0,
+  0,
+  16,
+  0x66,
+  0x74,
+  0x79,
+  0x70,
+  0x69,
+  0x73,
+  0x6f,
+  0x6d,
 ])
 
 afterEach(async () => {
@@ -72,6 +86,107 @@ function unreadClosableStream(onClose: () => void): AsyncIterable<Uint8Array> {
 }
 
 describe("generation engine", () => {
+  test("normalizes a XiaoYunque Canvas image operation to one result", async () => {
+    const directory = await temporaryDirectory()
+    let submitted: ImageCreateRequest | undefined
+    let downloads = 0
+    const router = fakeRouter({
+      async createImage(request) {
+        submitted = request
+        return job("image", "completed", [1, 2, 3, 4].map((index) => ({
+          content_type: "image/png",
+          url: `https://cdn.example/result-${index}`,
+        }))) as ImageJob
+      },
+      async listProviderModels() {
+        return [providerModel(
+          "xiaoyunque",
+          "image",
+          "xiaoyunque/seedream-5.0-pro",
+        )]
+      },
+    })
+    const engine = new GenerationEngine("xiaoyunque", router, {
+      async download() {
+        downloads += 1
+        return {
+          contentLength: pngBytes.byteLength,
+          contentType: "image/png",
+          stream: (async function* () {
+            yield pngBytes
+          })(),
+        }
+      },
+    })
+
+    const artifacts = await engine.generate("image", imageCall(directory, {
+      model: "xiaoyunque/seedream-5.0-pro",
+    }), new AbortController().signal)
+
+    expect(submitted?.n).toBe(1)
+    expect(artifacts).toHaveLength(1)
+    expect(downloads).toBe(1)
+  })
+
+  test("submits a valid XiaoYunque video request exactly once", async () => {
+    const directory = await temporaryDirectory()
+    let submitted: VideoCreateRequest | undefined
+    let submissions = 0
+    const router = fakeRouter({
+      async createVideo(request) {
+        submissions += 1
+        submitted = request
+        return job("video", "completed", [
+          { content_type: "video/mp4", url: "https://cdn.example/video" },
+        ]) as VideoJob
+      },
+      async listProviderModels() {
+        return [providerModel(
+          "xiaoyunque",
+          "video",
+          "xiaoyunque/seedance-2.5",
+          {
+            aspect_ratios: ["16:9"],
+            constraints: {
+              duration: { kind: "range", max: 60, min: 1, step: 1 },
+            },
+            durations: null,
+          },
+        )]
+      },
+    })
+    const engine = new GenerationEngine("xiaoyunque", router, {
+      async download() {
+        return {
+          contentLength: mp4Bytes.byteLength,
+          contentType: "video/mp4",
+          stream: (async function* () {
+            yield mp4Bytes
+          })(),
+        }
+      },
+    })
+
+    const artifacts = await engine.generate("video", {
+      ...imageCall(directory),
+      aspect_ratio: "16:9",
+      duration: 5,
+      model: "xiaoyunque/seedance-2.5",
+      output: "video",
+    }, new AbortController().signal)
+
+    expect(submissions).toBe(1)
+    expect(submitted).toMatchObject({
+      aspect_ratio: "16:9",
+      duration: 5,
+      idempotency_key: "operation-1",
+      model: "xiaoyunque/seedance-2.5",
+      provider: "xiaoyunque",
+    })
+    expect(artifacts).toHaveLength(1)
+    expect(artifacts[0]?.mimeType).toBe("video/mp4")
+  })
+
   test("keeps an accepted job alive across repeated bounded observation failures", async () => {
     const directory = await temporaryDirectory()
     let observations = 0
@@ -435,18 +550,18 @@ describe("generation engine", () => {
     expect(submitted).toBe(false)
   })
 
-  test("removes earlier artifacts when a later output download fails", async () => {
+  test("removes earlier artifacts when a later video output download fails", async () => {
     const directory = await temporaryDirectory()
     let downloads = 0
     const router = fakeRouter({
-      async createImage() {
-        return job("image", "completed", [
-          { content_type: "image/png", url: "https://cdn.example/one" },
-          { content_type: "image/png", url: "https://cdn.example/two" },
-        ]) as ImageJob
+      async createVideo() {
+        return job("video", "completed", [
+          { content_type: "video/mp4", url: "https://cdn.example/one" },
+          { content_type: "video/mp4", url: "https://cdn.example/two" },
+        ]) as VideoJob
       },
       async listProviderModels() {
-        return [providerModel("jimeng", "image", "jimeng/image-a")]
+        return [providerModel("jimeng", "video", "jimeng/video-a")]
       },
     })
     const engine = new GenerationEngine("jimeng", router, {
@@ -454,18 +569,18 @@ describe("generation engine", () => {
         downloads += 1
         if (downloads === 2) throw new Error("download failed")
         return {
-          contentLength: pngBytes.byteLength,
-          contentType: "image/png",
+          contentLength: mp4Bytes.byteLength,
+          contentType: "video/mp4",
           stream: (async function* () {
-            yield pngBytes
+            yield mp4Bytes
           })(),
         }
       },
     })
 
     await expect(engine.generate(
-      "image",
-      imageCall(directory),
+      "video",
+      imageCall(directory, { model: "jimeng/video-a", output: "video" }),
       new AbortController().signal,
     )).rejects.toThrow()
     expect(await readdir(directory)).toEqual([])

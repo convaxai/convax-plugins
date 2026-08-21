@@ -78,14 +78,14 @@
     },
     "packages/plugins/jimeng-service": {
       "name": "@microvoid/convax-plugin-jimeng-service",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@microvoid/convax-shortdrama-router-mcp": "workspace:*",
       },
     },
     "packages/plugins/libtv-service": {
       "name": "@microvoid/convax-plugin-libtv-service",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@microvoid/convax-shortdrama-router-mcp": "workspace:*",
       },
@@ -163,7 +163,7 @@
     },
     "packages/plugins/xiaoyunque-service": {
       "name": "@microvoid/convax-plugin-xiaoyunque-service",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@microvoid/convax-shortdrama-router-mcp": "workspace:*",
       },
@@ -312,7 +312,7 @@
     },
     "packages/tools/shortdrama-router-mcp": {
       "name": "@microvoid/convax-shortdrama-router-mcp",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "bin": {
         "convax-shortdrama-router-mcp": "dist/convax-shortdrama-router-mcp",
       },

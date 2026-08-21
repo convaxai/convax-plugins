@@ -25,6 +25,18 @@ turn another live submitter's fresh claim into `submission_unknown`, this adapte
 re-observes fresh `submitting` records through the idempotent create path and uses
 get only after the package's 30-minute provider-submit window has expired.
 
+All media tools implement `convax.generation-lro/1`. The companion stores the
+Host request identity, a safe task handle, the router job receipt, terminal result
+bytes, and the result digest below `CONVAX_GENERATION_LRO_DIRECTORY`. Closing or
+restarting the app detaches local polling; the next process reattaches to the same
+router job id and materializes the cached terminal result without another provider
+submission. Acknowledgement removes the private recovery copy only after the Host
+has durably committed the Canvas result.
+
+Image generation is intentionally normalized to one artifact per Canvas operation.
+The companion always requests `n: 1` and publishes only the first image if a legacy
+provider still returns a batch, so one card never expands into four results.
+
 XiaoYunque authorization atomically persists the package-created Access Key and
 the allowlisted browser session, then probes both methods independently. Jimeng
 maps the managed Dreamina device flow to external browser authorization. LibTV
@@ -35,8 +47,10 @@ automatically; zero or multiple projects keep generation unavailable instead of
 choosing an ambiguous resource.
 
 Local media references remain hidden because all three upstream providers
-currently advertise no ingestion support. Provider cancellation is likewise not
-advertised. This companion intentionally exposes media generation only and has no
+currently advertise no ingestion support. Recovery cancellation calls the public
+router cancellation API when the selected provider supports it; otherwise the
+operation remains recoverable instead of being falsely marked cancelled. This
+companion intentionally exposes media generation only and has no
 `llm.gateway`; media Services are not required to provide an LLM.
 
 Jimeng and LibTV authorization call the package's provider runtime service before

@@ -326,7 +326,6 @@ function generationProperties(
     if (formats) properties.format = formats
   } else if (kind === "image") {
     if (sizes) properties.size = sizes
-    properties.n = { maximum: 10, minimum: 1, type: "integer" }
   } else {
     const durations = numericCapabilityChoices(models, "durations")
     if (durations) properties.duration = durations

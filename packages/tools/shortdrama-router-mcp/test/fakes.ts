@@ -58,6 +58,15 @@ export function fakeRouter(overrides: Partial<RouterPort> = {}): RouterPort {
     async clearProviderAuthorization() {
       return unexpected()
     },
+    async cancelAudio() {
+      return unexpected()
+    },
+    async cancelImage() {
+      return unexpected()
+    },
+    async cancelVideo() {
+      return unexpected()
+    },
     async completeProviderAuthorization() {
       return unexpected()
     },

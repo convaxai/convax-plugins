@@ -19,6 +19,15 @@ import type {
 
 export const mcpProtocolVersion = "2025-03-26" as const
 export const generationCallSchema = "convax.generation-call/1" as const
+export const generationLroCapabilitySchema = "convax.generation-lro/1" as const
+export const generationLroRequestSchema =
+  "convax.generation-lro-request/1" as const
+export const generationLroSnapshotSchema =
+  "convax.generation-lro-snapshot/1" as const
+export const generationLroResultSchema =
+  "convax.generation-lro-result/1" as const
+export const generationLroAcknowledgementSchema =
+  "convax.generation-lro-acknowledgement/1" as const
 export const pluginServiceStatusSchema = "convax.plugin-service-status/2" as const
 export const browserAuthorizationSchema =
   "convax.plugin-service-browser-authorization/1" as const
@@ -54,6 +63,9 @@ export interface RouterPort {
   createAudio(request: AudioCreateRequest, signal?: AbortSignal): Promise<AudioJob>
   createImage(request: ImageCreateRequest, signal?: AbortSignal): Promise<ImageJob>
   createVideo(request: VideoCreateRequest, signal?: AbortSignal): Promise<VideoJob>
+  cancelAudio(id: string, signal?: AbortSignal): Promise<AudioJob>
+  cancelImage(id: string, signal?: AbortSignal): Promise<ImageJob>
+  cancelVideo(id: string, signal?: AbortSignal): Promise<VideoJob>
   getAudio(id: string, signal?: AbortSignal): Promise<AudioJob>
   getImage(id: string, signal?: AbortSignal): Promise<ImageJob>
   getProvider(
@@ -136,6 +148,43 @@ export interface GenerationArtifact extends Record<string, unknown> {
   name: string
   path: string
 }
+
+export interface GenerationRecoveryRequest {
+  operationId: string
+  outputDirectory?: string
+  requestDigest: string
+  resultDigest?: string
+  schema: typeof generationLroRequestSchema
+  taskId?: string
+}
+
+export type GenerationRecoverySnapshot =
+  | {
+      schema: typeof generationLroSnapshotSchema
+      status: "absent" | "prepared" | "unknown"
+    }
+  | {
+      schema: typeof generationLroSnapshotSchema
+      status: "submitted" | "running"
+      taskId: string
+    }
+  | {
+      resultDigest: string
+      schema: typeof generationLroSnapshotSchema
+      status: "succeeded"
+      taskId: string
+    }
+  | {
+      error: { code: string; message: string }
+      schema: typeof generationLroSnapshotSchema
+      status: "failed"
+      taskId?: string
+    }
+  | {
+      schema: typeof generationLroSnapshotSchema
+      status: "cancelled"
+      taskId?: string
+    }
 
 export interface JsonRpcRequest {
   id?: number | string | null

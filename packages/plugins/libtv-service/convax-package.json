@@ -4,11 +4,11 @@
   "id": "libtv-service",
   "name": "LibTV",
   "description": "通过 shortdrama-router 连接 LibTV 的图片和视频生成能力，使用受管理的 Web OAuth 并安全绑定唯一项目。",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "companions": [
     {
       "command": "convax-shortdrama-router-mcp",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "source": "packages/tools/shortdrama-router-mcp",
       "targets": [
         {
