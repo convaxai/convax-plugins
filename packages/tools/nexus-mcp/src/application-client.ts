@@ -1002,6 +1002,7 @@ function parseApplicationAccess(
     "checkoutAvailable",
     "gatewayBaseUrl",
     "planKey",
+    "providerAccessRevision",
     "state",
   ];
   if (
@@ -1009,7 +1010,9 @@ function parseApplicationAccess(
     Object.keys(input).some((key) => !allowed.includes(key)) ||
     input.state !== "ACTIVE" ||
     !Number.isSafeInteger(input.applicationVersion) ||
-    Number(input.applicationVersion) < 1
+    Number(input.applicationVersion) < 1 ||
+    !Number.isSafeInteger(input.providerAccessRevision) ||
+    Number(input.providerAccessRevision) < 1
   ) {
     throw new Error("Nexus Application Access response is invalid");
   }
@@ -1025,6 +1028,7 @@ function parseApplicationAccess(
       trustedGatewayOrigins,
     ),
     planKey: boundedString(input.planKey, "Nexus Plan key", 80),
+    providerAccessRevision: Number(input.providerAccessRevision),
     state: "ACTIVE",
   };
 }

@@ -16,6 +16,10 @@ import {
 import type { NexusCredentialStore } from "./credential-store.ts";
 
 const unavailable = { availability: "unavailable" } as const;
+const connectedAccount = {
+  availability: "available",
+  displayName: "Convax",
+} as const;
 
 function disconnected(
   verification: PluginServiceStatus["credential"]["verification"] = "unknown",
@@ -48,7 +52,7 @@ export class NexusPluginService {
       const access = await this.client.current();
       const providerReady = access.state === "ACTIVE";
       return {
-        account: unavailable,
+        account: providerReady ? connectedAccount : unavailable,
         billing: {
           availability: "available",
           checkout: access.checkoutAvailable

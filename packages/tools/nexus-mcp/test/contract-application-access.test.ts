@@ -332,6 +332,17 @@ describe("AuthX OAuth and Nexus Application Access owner contracts", () => {
       "refreshToken",
       "schema",
     ]);
+    const service = new NexusPluginService(
+      {} as NexusAuthorization,
+      client,
+      credentials,
+      new NexusCheckoutStore({ XDG_CONFIG_HOME: root }),
+    );
+    expect(await service.status()).toMatchObject({
+      account: { availability: "available", displayName: "Convax" },
+      credential: { configured: true, verification: "verified" },
+      state: "connected",
+    });
     expect(
       await client.createCheckout(
         "pro",
@@ -633,6 +644,7 @@ function accessResponse(gatewayBaseUrl: string) {
     checkoutAvailable: true,
     gatewayBaseUrl,
     planKey: "pro",
+    providerAccessRevision: 1,
     state: "ACTIVE",
   };
 }
