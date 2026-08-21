@@ -1,6 +1,6 @@
 {
   "name": "@microvoid/convax-nexus-mcp",
-  "version": "1.0.7",
+  "version": "1.0.10",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "bun build --compile --minify --outfile dist/convax-nexus-mcp src/index.ts",
-    "build:release:darwin-arm64": "bun build --compile --minify --target=bun-darwin-arm64 --outfile dist/darwin-arm64/convax-nexus-mcp src/index.ts && node scripts/sign-darwin-release.mjs dist/darwin-arm64/convax-nexus-mcp",
+    "build:release:darwin-arm64": "bun build --compile --minify --target=bun-darwin-arm64 --outfile dist/darwin-arm64/convax-nexus-mcp src/index.ts",
     "clean": "rm -rf dist",
     "contract:check": "bun scripts/check-owner-contracts.mjs",
     "local-configure": "node scripts/configure-local-development.mjs",

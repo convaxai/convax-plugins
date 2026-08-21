@@ -371,7 +371,7 @@ const fixedTools = [
   },
   {
     description:
-      "Revoke Nexus Application Access, revoke the AuthX refresh credential, and remove the Keychain item.",
+      "Revoke Nexus Application Access, revoke the AuthX refresh credential, and remove the private user-data credential file.",
     inputSchema: emptyInputSchema,
     name: "service.sign_out",
   },
@@ -591,7 +591,7 @@ export class NexusMcpServer {
           tools: {},
         },
         protocolVersion,
-        serverInfo: { name: "convax-nexus-mcp", version: "1.0.7" },
+        serverInfo: { name: "convax-nexus-mcp", version: "1.0.10" },
       });
       return;
     }

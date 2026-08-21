@@ -19,9 +19,18 @@ Inference Keys.
   `nexus:access` scope.
 - The short-lived Access Token stays in companion memory. In production, only
   the rotating AuthX Refresh Credential and non-secret authority digests are
-  stored in the macOS Keychain. Explicit local-development mode instead uses a
-  private `0600` file below the configured `XDG_CONFIG_HOME`; it never falls
-  back to that file in production.
+  stored in a private `0600` file below the current user's Convax application
+  data directory: `~/Library/Application Support/Convax/nexus-service/` on
+  macOS. The companion does not access the system Keychain or carry a Keychain-
+  specific code-signing identity. Explicit local-development mode uses the same
+  private-file adapter below the configured `XDG_CONFIG_HOME`.
+- The Darwin release runs no post-build `codesign` step. Apple Silicon still
+  requires the minimal ad-hoc signature emitted by the linker; it has no stable
+  identifier or Keychain access requirement and changes with the executable bytes.
+- The user-data credential file is protected from other local users by `0700`
+  directories, `0600` file mode, no-follow checks, bounded parsing, and atomic
+  fsync-backed replacement. It is not encrypted against another process already
+  running as the same operating-system user.
 - Nexus Application Access is preconfigured by an administrator in AuthX.
   The companion calls only `status` and `checkout`; it never creates a Nexus
   Application, chooses a Workspace, Plan, or Provider, or receives a Nexus
@@ -29,6 +38,9 @@ Inference Keys.
 - A retired `convax.nexus-application-credentials/1`,
   `convax.nexus-refresh-grant/1`, or `convax.nexus-session/1` credential is
   deleted rather than migrated or used as a fallback.
+- Releases before `1.0.8` stored the refresh credential in the macOS Keychain.
+  Version `1.0.8` never reads that item, so the first launch requires a fresh
+  authorization. The retired item may be removed manually with Keychain Access.
 
 ## Runtime contract
 

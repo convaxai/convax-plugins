@@ -27,8 +27,6 @@ describe("Nexus local development configuration", () => {
     expect(environment).toMatchObject({
       CONVAX_AUTHX_PUBLIC_CLIENT_PROFILE: fixture.profilePath,
       CONVAX_NEXUS_GATEWAY_ORIGIN: "http://127.0.0.1:18202",
-      CONVAX_NEXUS_KEYCHAIN_SERVICE:
-        "io.convax.nexus-service.local-c0ffee1234abcdef",
       CONVAX_NEXUS_LOCAL_DEVELOPMENT: "1",
       CONVAX_NEXUS_ORIGIN: "http://127.0.0.1:18201",
       XDG_CONFIG_HOME: fixture.configRoot,
@@ -118,9 +116,8 @@ async function localFixture() {
         .update(profileBytes)
         .digest("hex"),
       gatewayOrigin: "http://127.0.0.1:18202",
-      keychainService: "io.convax.nexus-service.local-c0ffee1234abcdef",
       nexusOrigin: "http://127.0.0.1:18201",
-      schema: "convax.nexus-local-development/1",
+      schema: "convax.nexus-local-development/2",
     })}\n`,
     { mode: 0o600 },
   );

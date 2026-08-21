@@ -204,6 +204,7 @@ export interface NexusApplicationAccess {
   checkoutAvailable: boolean;
   gatewayBaseUrl: string;
   planKey: string;
+  providerAccessRevision: number;
   state: "ACTIVE";
 }
 
