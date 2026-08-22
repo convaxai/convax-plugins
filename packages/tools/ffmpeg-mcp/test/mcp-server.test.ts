@@ -81,7 +81,7 @@ describe("FFmpeg MCP server", () => {
     await until(() => lines.length === 2)
     await writer.close()
     await running
-    expect(lines[0]).toMatchObject({ result: { serverInfo: { name: "convax-ffmpeg-mcp", version: "0.2.1" } } })
+    expect(lines[0]).toMatchObject({ result: { serverInfo: { name: "convax-ffmpeg-mcp", version: "0.2.2" } } })
     expect(lines[1]).toMatchObject({
       result: {
         structuredContent: {

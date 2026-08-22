@@ -30,6 +30,7 @@ struct GenerationReference {
 
 struct GenerationCall {
   let argumentsJSON: String
+  let fallbackArgumentsJSON: String?
   let operationID: String
   let output: OutputKind
   let outputDirectory: String
@@ -262,7 +263,11 @@ private func portableOutputName(_ value: Any?, output: OutputKind) throws -> Str
   return name
 }
 
-func parseGenerationCall(_ value: Any?, expectedOutput: OutputKind) throws -> GenerationCall {
+func parseGenerationCall(
+  _ value: Any?,
+  expectedOutput: OutputKind,
+  fallbackArgumentsJSON: String? = nil
+) throws -> GenerationCall {
   let input = try requireObject(value, "generation call")
   try requireExactKeys(input, Set([
     "arguments_json", "operation_id", "output", "output_directory", "output_name", "prompt",
@@ -297,6 +302,7 @@ func parseGenerationCall(_ value: Any?, expectedOutput: OutputKind) throws -> Ge
   let outputName = try portableOutputName(input["output_name"], output: expectedOutput)
   return GenerationCall(
     argumentsJSON: try requiredString(input["arguments_json"], "arguments_json", 4_096),
+    fallbackArgumentsJSON: fallbackArgumentsJSON,
     operationID: try requiredString(input["operation_id"], "operation_id", 256),
     output: expectedOutput,
     outputDirectory: try requiredString(input["output_directory"], "output_directory", 4_096),
@@ -330,6 +336,26 @@ private let videoOnlyEncodingArguments = [
   "-movflags", "+faststart",
 ]
 
+private let trimmedVideoRemuxArguments = [
+  "-map", "0:v:0",
+  "-map", "0:a?",
+  "-c", "copy",
+  "-movflags", "+faststart",
+]
+
+private let videoOnlyRemuxArguments = [
+  "-map", "0:v:0",
+  "-an",
+  "-c:v", "copy",
+  "-movflags", "+faststart",
+]
+
+private let audioRemuxArguments = [
+  "-map", "0:a:0",
+  "-vn",
+  "-c:a", "copy",
+]
+
 private func parseNumericParameters(
   _ input: [String: Any],
   parameters: [NumericParameter]
@@ -358,33 +384,65 @@ private func numberToken(_ value: Double) -> String {
   value.rounded() == value ? String(Int64(value)) : String(value)
 }
 
+private struct HighLevelArgumentPlan {
+  let primary: [String]
+  let fallback: [String]?
+
+  init(primary: [String], fallback: [String]? = nil) {
+    self.primary = primary
+    self.fallback = fallback
+  }
+}
+
 private func highLevelArguments(
   operation: ToolOperation,
   values: [String: Double]
-) throws -> [String] {
+) throws -> HighLevelArgumentPlan {
   switch operation {
   case .raw:
     throw PublicInputError(message: "Raw FFmpeg tools require explicit arguments.")
   case .frameExtract:
-    return [
+    return HighLevelArgumentPlan(primary: [
       "-ss", numberToken(values["time_seconds"]!), "-i", "{{input:0}}",
       "-map", "0:v:0", "-frames:v", "1", "-an", "{{output}}",
-    ]
+    ])
   case .videoTrim:
-    return [
+    let prefix = [
       "-ss", numberToken(values["start_seconds"]!), "-i", "{{input:0}}",
       "-t", numberToken(values["duration_seconds"]!),
-    ] + videoEncodingArguments + ["{{output}}"]
+    ]
+    return HighLevelArgumentPlan(
+      primary: prefix + trimmedVideoRemuxArguments + ["{{output}}"],
+      fallback: prefix + videoEncodingArguments + ["{{output}}"]
+    )
   case .videoCrop:
     let crop = "crop=\(numberToken(values["width"]!)):\(numberToken(values["height"]!)):\(numberToken(values["x"]!)):\(numberToken(values["y"]!))"
-    return ["-i", "{{input:0}}", "-vf", crop] + videoEncodingArguments + ["{{output}}"]
+    return HighLevelArgumentPlan(
+      primary: ["-i", "{{input:0}}", "-vf", crop] + videoEncodingArguments + ["{{output}}"]
+    )
   case .videoWithoutAudio:
-    return ["-i", "{{input:0}}"] + videoOnlyEncodingArguments + ["{{output}}"]
+    return HighLevelArgumentPlan(
+      primary: ["-i", "{{input:0}}"] + videoOnlyRemuxArguments + ["{{output}}"],
+      fallback: ["-i", "{{input:0}}"] + videoOnlyEncodingArguments + ["{{output}}"]
+    )
   case .audioExtract:
-    return [
-      "-i", "{{input:0}}", "-map", "0:a:0", "-vn", "-c:a", "aac", "-b:a", "192k", "{{output}}",
-    ]
+    return HighLevelArgumentPlan(
+      primary: ["-i", "{{input:0}}"] + audioRemuxArguments + ["{{output}}"],
+      fallback: [
+        "-i", "{{input:0}}", "-map", "0:a:0", "-vn", "-c:a", "aac", "-b:a", "192k", "{{output}}",
+      ]
+    )
   }
+}
+
+private func jsonArguments(_ arguments: [String]) throws -> String {
+  guard JSONSerialization.isValidJSONObject(arguments),
+        let data = try? JSONSerialization.data(withJSONObject: arguments),
+        let json = String(data: data, encoding: .utf8)
+  else {
+    throw PublicInputError(message: "The reviewed FFmpeg operation could not be prepared.")
+  }
+  return json
 }
 
 func parseToolCall(_ value: Any?, tool: ToolDefinition) throws -> GenerationCall {
@@ -396,13 +454,11 @@ func parseToolCall(_ value: Any?, tool: ToolDefinition) throws -> GenerationCall
   try requireExactKeys(input, envelopeKeys.union(tool.parameters.map(\.name)), "generation call")
   let parameters = try parseNumericParameters(input, parameters: tool.parameters)
   let arguments = try highLevelArguments(operation: tool.operation, values: parameters)
-  guard JSONSerialization.isValidJSONObject(arguments),
-        let data = try? JSONSerialization.data(withJSONObject: arguments),
-        let argumentsJSON = String(data: data, encoding: .utf8),
-        let outputName = tool.outputName
-  else {
+  guard let outputName = tool.outputName else {
     throw PublicInputError(message: "The reviewed FFmpeg operation could not be prepared.")
   }
+  let argumentsJSON = try jsonArguments(arguments.primary)
+  let fallbackArgumentsJSON = try arguments.fallback.map(jsonArguments)
   let call = try parseGenerationCall([
     "arguments_json": argumentsJSON,
     "operation_id": input["operation_id"]!,
@@ -412,7 +468,7 @@ func parseToolCall(_ value: Any?, tool: ToolDefinition) throws -> GenerationCall
     "prompt": input["prompt"]!,
     "references": input["references"]!,
     "schema": input["schema"]!,
-  ], expectedOutput: tool.output)
+  ], expectedOutput: tool.output, fallbackArgumentsJSON: fallbackArgumentsJSON)
   guard call.references.count == 1, call.references[0].role == "reference_video" else {
     throw PublicInputError(message: "\(tool.name) requires exactly one reference_video file.")
   }

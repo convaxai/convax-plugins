@@ -323,13 +323,41 @@ try {
     throw new Error("Compiled companion did not create the expected M4A artifact")
   }
 
+  const pcmSourceVideo = await generate({
+    arguments: [
+      "-loop", "1", "-i", "{{input:0}}", "-i", "{{input:1}}", "-t", "1",
+      "-map", "0:v:0", "-map", "1:a:0", "-vf", "scale=64:64,format=yuv420p",
+      "-c:v", "h264_videotoolbox", "-allow_sw", "1", "-c:a", "pcm_s16le", "-shortest", "{{output}}",
+    ],
+    id: 10,
+    inputs: [
+      { mimeType: "image/png", path: scaled, role: "reference_image" },
+      { mimeType: "audio/wav", path: audioInputPath, role: "audio" },
+    ],
+    name: "pcm-source.mov",
+    output: "video",
+    tool: "run.video",
+  })
+  await assertMp4(pcmSourceVideo)
+  const fallbackAudio = await generateHighLevel({
+    id: 11,
+    input: { mimeType: "video/quicktime", path: pcmSourceVideo },
+    name: "audio-only.m4a",
+    output: "audio",
+    tool: "audio.extract",
+  })
+  const fallbackAudioBytes = await readFile(fallbackAudio)
+  if (fallbackAudioBytes.length < 32 || fallbackAudioBytes.subarray(4, 8).toString("ascii") !== "ftyp") {
+    throw new Error("Compiled companion did not transcode an incompatible audio stream through the reviewed fallback")
+  }
+
   runningChild.stdin.end()
   const exitCode = await timeout(childExit, 5_000, "Compiled companion did not exit after stdin closed")
   if (exitCode !== 0) {
     throw new Error(`Compiled companion exited with status ${exitCode}`)
   }
   lines.close()
-  console.log("Verified raw and high-level companion tools, including paired video-only and audio-only artifact flows.")
+  console.log("Verified raw and high-level companion tools, including remux and incompatible-codec fallback flows.")
 } finally {
   child?.kill("SIGKILL")
   await rm(directory, { force: true, recursive: true })

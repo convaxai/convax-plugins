@@ -20,6 +20,8 @@ export interface FileGenerationReference {
 
 export interface GenerationCall {
   arguments_json: string
+  /** Reviewed fallback used only when a fast remux is not container-compatible. */
+  fallback_arguments_json?: string
   operation_id: string
   output: GenerationOutput
   output_directory: string
@@ -39,6 +41,7 @@ export interface HighLevelParameter {
 export interface HighLevelToolSpecification {
   arguments(values: Readonly<Record<string, number>>): string[]
   description: string
+  fallbackArguments?(values: Readonly<Record<string, number>>): string[]
   name: string
   output: GenerationOutput
   outputName: string
@@ -121,6 +124,26 @@ const videoOnlyEncodingArguments = [
   "-movflags", "+faststart",
 ] as const
 
+const trimmedVideoRemuxArguments = [
+  "-map", "0:v:0",
+  "-map", "0:a?",
+  "-c", "copy",
+  "-movflags", "+faststart",
+] as const
+
+const videoOnlyRemuxArguments = [
+  "-map", "0:v:0",
+  "-an",
+  "-c:v", "copy",
+  "-movflags", "+faststart",
+] as const
+
+const audioRemuxArguments = [
+  "-map", "0:a:0",
+  "-vn",
+  "-c:a", "copy",
+] as const
+
 export const highLevelToolSpecifications: readonly HighLevelToolSpecification[] = [
   {
     name: "frame.extract",
@@ -142,6 +165,10 @@ export const highLevelToolSpecifications: readonly HighLevelToolSpecification[] 
       { name: "duration_seconds", minimum: Number.EPSILON, maximum: 604_800 },
     ],
     arguments: ({ start_seconds, duration_seconds }) => [
+      "-ss", String(start_seconds), "-i", "{{input:0}}", "-t", String(duration_seconds),
+      ...trimmedVideoRemuxArguments, "{{output}}",
+    ],
+    fallbackArguments: ({ start_seconds, duration_seconds }) => [
       "-ss", String(start_seconds), "-i", "{{input:0}}", "-t", String(duration_seconds),
       ...videoEncodingArguments, "{{output}}",
     ],
@@ -168,7 +195,8 @@ export const highLevelToolSpecifications: readonly HighLevelToolSpecification[] 
     outputName: "video-only.mp4",
     description: "Create one video-only MP4 from one staged video.",
     parameters: [],
-    arguments: () => ["-i", "{{input:0}}", ...videoOnlyEncodingArguments, "{{output}}"],
+    arguments: () => ["-i", "{{input:0}}", ...videoOnlyRemuxArguments, "{{output}}"],
+    fallbackArguments: () => ["-i", "{{input:0}}", ...videoOnlyEncodingArguments, "{{output}}"],
   },
   {
     name: "audio.extract",
@@ -176,7 +204,8 @@ export const highLevelToolSpecifications: readonly HighLevelToolSpecification[] 
     outputName: "audio-only.m4a",
     description: "Create one audio-only M4A from one staged video.",
     parameters: [],
-    arguments: () => [
+    arguments: () => ["-i", "{{input:0}}", ...audioRemuxArguments, "{{output}}"],
+    fallbackArguments: () => [
       "-i", "{{input:0}}", "-map", "0:a:0", "-vn", "-c:a", "aac", "-b:a", "192k", "{{output}}",
     ],
   },
@@ -324,7 +353,10 @@ export function parseHighLevelGenerationCall(
   if (call.references.length !== 1 || call.references[0]?.role !== "reference_video") {
     throw new FfmpegInputError(`${specification.name} requires exactly one reference_video file.`)
   }
-  return call
+  const fallbackArguments = specification.fallbackArguments?.(parameters)
+  return fallbackArguments === undefined
+    ? call
+    : { ...call, fallback_arguments_json: JSON.stringify(fallbackArguments) }
 }
 
 export function mimeTypeForOutput(name: string, output: GenerationOutput) {
